@@ -20,11 +20,13 @@
   .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:14px;margin:14px 0;overflow:auto}
   .hint{font-size:12px;color:var(--muted);margin:8px 2px}
   textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
-  .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
-  @media(max-width:820px){.grid{grid-template-columns:repeat(5,1fr)}}
-  .cell{position:relative}
-  .cell b{position:absolute;top:2px;left:4px;font-size:8px;color:#c9d2e3}
-  input.m{width:100%;text-align:center;border:1px solid var(--line);border-radius:6px;padding:9px 2px 3px;font-size:12.5px}
+  .xltbl{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  .xltbl th,.xltbl td{border:1px solid var(--line);padding:0}
+  .xltbl thead th{background:#eef1f8;color:#41506b;font-size:11.5px;font-weight:700;padding:6px 4px;text-align:center;position:sticky;top:0;z-index:2}
+  .xltbl tbody th{background:#f5f7fb;color:#6b7280;font-size:11px;font-weight:700;padding:4px 8px;text-align:right;white-space:nowrap;position:sticky;left:0;z-index:1}
+  input.m{width:100%;min-width:64px;text-align:center;border:0;outline:0;background:transparent;padding:8px 4px;font-size:13px;font-family:inherit}
+  input.m:focus{background:#eaf1ff;box-shadow:inset 0 0 0 2px var(--p)}
+  .xltbl td.filled input.m{background:#f2fbf5}
   .acts{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 </head>
@@ -44,7 +46,8 @@
     <textarea id="bulk" placeholder="Ölçümleri buraya yapıştırın — her satıra bir değer ya da boşluk/virgülle ayrılmış. Sıra korunur (alt gruplar sırayla oluşur)."></textarea>
     <button class="btn primary sm" id="fill" style="margin-top:8px"><i class="bi bi-arrow-down-square"></i> Tabloya Doldur</button>
   </div>
-  <div class="card"><div class="grid" id="grid"></div></div>
+  <div class="hint" style="margin-top:0"><i class="bi bi-info-circle"></i> Her satır bir <b>alt grup</b>, her sütun o gruptaki bir <b>ölçüm</b>. Excel gibi: <b>Tab</b> = sağa, <b>Enter / ↓</b> = alta (sütun boyu giriş), ok tuşları = gezinme.</div>
+  <div class="card"><div id="grid" style="overflow:auto"></div></div>
   <div class="hint" id="prog"></div>
 </div>
 <script>
@@ -62,14 +65,39 @@
   const partsSorted=(parts||[]).map(p=>p.part_number).sort((a,b)=>a-b);
 
   const grid=document.getElementById('grid');
-  grid.innerHTML=partsSorted.map(pn=>{
-    const v=(existing[String(pn)]==null?'':Number(existing[String(pn)]));
-    return '<div class="cell"><b>'+pn+'</b><input class="m" data-part="'+pn+'" value="'+v+'"></div>';
-  }).join('');
+  const sg=Math.max(1, parseInt(study.num_trials,10)||5);
+  const nRows=Math.ceil(partsSorted.length/sg) || 1;
+  let html='<table class="xltbl"><thead><tr><th>Alt Grup</th>';
+  for(let c=0;c<sg;c++) html+='<th>Ölçüm '+(c+1)+'</th>';
+  html+='</tr></thead><tbody>';
+  for(let r=0;r<nRows;r++){
+    html+='<tr><th>Grup '+(r+1)+'</th>';
+    for(let c=0;c<sg;c++){
+      const idx=r*sg+c;
+      if(idx<partsSorted.length){ const pn=partsSorted[idx]; const v=(existing[String(pn)]==null?'':Number(existing[String(pn)]));
+        html+='<td'+(v!==''?' class="filled"':'')+'><input class="m" data-part="'+pn+'" data-r="'+r+'" data-c="'+c+'" value="'+v+'" inputmode="decimal"></td>';
+      } else html+='<td style="background:#f7f8fb"></td>';
+    }
+    html+='</tr>';
+  }
+  html+='</tbody></table>';
+  grid.innerHTML=html;
 
-  function prog(){ const ms=[...document.querySelectorAll('input.m')]; const f=ms.filter(i=>i.value.trim()!=='').length;
+  function prog(){ const ms=[...grid.querySelectorAll('input.m')]; let f=0;
+    ms.forEach(i=>{ const has=i.value.trim()!==''; if(has)f++; if(i.parentElement) i.parentElement.classList.toggle('filled',has); });
     document.getElementById('prog').textContent=f+' / '+ms.length+' ölçüm girildi'; }
   grid.querySelectorAll('input').forEach(i=>i.addEventListener('input',prog)); prog();
+
+  // Excel gibi klavye gezinme
+  function focusCell(r,c){ const el=grid.querySelector('input[data-r="'+r+'"][data-c="'+c+'"]'); if(el){ el.focus(); el.select(); return true; } return false; }
+  grid.addEventListener('keydown', function(e){
+    const t=e.target; if(!t.classList||!t.classList.contains('m')) return;
+    const r=+t.dataset.r, c=+t.dataset.c;
+    if(e.key==='Enter'||e.key==='ArrowDown'){ e.preventDefault(); if(!focusCell(r+1,c)) focusCell(0,c+1); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); focusCell(r-1,c); }
+    else if(e.key==='ArrowLeft' && t.selectionStart===0){ e.preventDefault(); if(!focusCell(r,c-1)) focusCell(r-1,sg-1); }
+    else if(e.key==='ArrowRight' && t.selectionStart===t.value.length){ e.preventDefault(); if(!focusCell(r,c+1)) focusCell(r+1,0); }
+  });
 
   document.getElementById('fill').addEventListener('click', ()=>{
     const raw=document.getElementById('bulk').value.trim();
