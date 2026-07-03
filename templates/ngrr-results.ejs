@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nested Gage R&R - <%= study.study_name %></title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root{ --p:#667eea; --p2:#764ba2; --bg:#f5f7fb; --card:#fff; --ink:#232a35; --muted:#6b7280;
+         --line:#e6e9f2; --good:#1e7e4a; --gbg:#eaf6ef; --mar:#b7791f; --mbg:#fdf6e6; --bad:#c0392b; --bbg:#fdecea; --shadow:0 2px 10px rgba(30,40,70,.07); }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .hdr h1{margin:0;font-size:20px;font-weight:700} .hdr .sub{opacity:.9;font-size:12.5px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px}
+  .badge.good{background:var(--gbg);color:var(--good)} .badge.marginal{background:var(--mbg);color:var(--mar)} .badge.bad{background:var(--bbg);color:var(--bad)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
+  .card{background:var(--card);border-radius:13px;box-shadow:var(--shadow);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 3px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:10px 0 4px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#f3f5fb;font-weight:600;color:#39415a;font-size:12px;white-space:nowrap} td:first-child,th:first-child{text-align:left}
+  .num{font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:12px}
+  .pill.good{background:var(--gbg);color:var(--good)} .pill.marginal{background:var(--mbg);color:var(--mar)} .pill.bad{background:var(--bbg);color:var(--bad)}
+  .info{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));display:grid;gap:10px;margin-top:6px}
+  .info .kv{background:#f8f9fd;border-radius:9px;padding:9px 12px}
+  .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .info .kv span{font-size:15px;font-weight:700}
+  .chartbox{position:relative;height:320px}
+  .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
+  @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <% var it=results.interpretation; var si=results.studyInfo; var A=results.anovaTable; var V=results.varianceComponents; var G=results.gaugeEvaluation;
+     function fn(x,d){ return x==null?'—':Number(x).toFixed(d==null?4:d); }
+     function svPill(p){ var c=p<10?'good':(p<=30?'marginal':'bad'); return '<span class="pill '+c+'">'+p.toFixed(2)+'%</span>'; } %>
+  <div class="hdr">
+    <div><h1><i class="bi bi-diagram-3-fill"></i> Nested Gage R&R (Tahribatlı)</h1>
+      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
+    <span class="badge <%= it.acceptabilityClass %>">
+      <i class="bi bi-<%= it.acceptabilityClass==='good'?'check-circle-fill':(it.acceptabilityClass==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
+      %GRR: <%= it.acceptabilityLabel %>
+    </span>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
+    <a class="btn ghost" href="ngrr-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
+    <a class="btn ghost" href="index.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Özet</h2>
+    <div class="info">
+      <div class="kv"><b>%GRR (Study Var)</b><span><%= it.grrPercentage.toFixed(2) %>%</span></div>
+      <div class="kv"><b>NDC</b><span><%= it.ndc %></span></div>
+      <div class="kv"><b>Operatör</b><span><%= si.numOperators %></span></div>
+      <div class="kv"><b>Parça/Operatör</b><span><%= si.partsPerOperator %></span></div>
+      <div class="kv"><b>Tekrar</b><span><%= si.numTrials %></span></div>
+    </div>
+    <div class="exp"><b>Nested (iç-içe) tasarım</b>, parçanın ölçümle tahrip olduğu (yeniden ölçülemeyen) durumlar içindir. Her operatör <b>kendi ayrı parçalarını</b> ölçer; parçalar operatörlere nested'dir.
+      <b>%GRR &lt; %10 iyi</b>, %10–30 marjinal, &gt;%30 kabul edilemez. NDC ≥ 5 olmalıdır.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-table i"></i> Nested ANOVA</h2>
+    <table>
+      <thead><tr><th>Kaynak</th><th>df</th><th>Kareler Top. (SS)</th><th>Ort. Kare (MS)</th><th>F</th><th>p</th></tr></thead>
+      <tbody>
+        <tr><td>Operatör</td><td class="num"><%= A.operator.df %></td><td class="num"><%= fn(A.operator.ss) %></td><td class="num"><%= fn(A.operator.ms) %></td><td class="num"><%= fn(A.operator.f,2) %></td><td class="num"><%= A.operator.p %></td></tr>
+        <tr><td>Parça (Operatör)</td><td class="num"><%= A.partOperator.df %></td><td class="num"><%= fn(A.partOperator.ss) %></td><td class="num"><%= fn(A.partOperator.ms) %></td><td class="num"><%= fn(A.partOperator.f,2) %></td><td class="num"><%= A.partOperator.p %></td></tr>
+        <tr><td>Tekrarlanabilirlik</td><td class="num"><%= A.repeatability.df %></td><td class="num"><%= fn(A.repeatability.ss) %></td><td class="num"><%= fn(A.repeatability.ms) %></td><td>—</td><td>—</td></tr>
+        <tr style="font-weight:700;background:#f3f5fb"><td>Toplam</td><td class="num"><%= A.total.df %></td><td class="num"><%= fn(A.total.ss) %></td><td>—</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="exp">Parça(Operatör) satırı, aynı operatörün ölçtüğü parçalar arasındaki farkı gösterir. Operatör F'i, operatörler arası farkın nested parça değişkenliğine göre anlamlılığını test eder.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-pie-chart i"></i> Varyans Bileşenleri</h2>
+    <table>
+      <thead><tr><th>Kaynak</th><th>Varyans</th><th>% Katkı</th></tr></thead>
+      <tbody>
+        <tr><td>Toplam Gage R&R</td><td class="num"><%= fn(V.totalGRR.variance) %></td><td class="num"><%= fn(V.totalGRR.contribution,3) %></td></tr>
+        <tr><td>&nbsp;&nbsp;Tekrarlanabilirlik</td><td class="num"><%= fn(V.repeatability.variance) %></td><td class="num"><%= fn(V.repeatability.contribution,3) %></td></tr>
+        <tr><td>&nbsp;&nbsp;Yeniden üretilebilirlik</td><td class="num"><%= fn(V.reproducibility.variance) %></td><td class="num"><%= fn(V.reproducibility.contribution,3) %></td></tr>
+        <tr><td>Parçadan parçaya</td><td class="num"><%= fn(V.partToPart.variance) %></td><td class="num"><%= fn(V.partToPart.contribution,3) %></td></tr>
+        <tr style="font-weight:700;background:#f3f5fb"><td>Toplam değişim</td><td class="num"><%= fn(V.totalVariation.variance) %></td><td class="num">100.000</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-check2-square i"></i> Ölçüm Sistemi Değerlendirmesi</h2>
+    <table>
+      <thead><tr><th>Kaynak</th><th>Std. Sapma</th><th>Çalışma Var. (6σ)</th><th>% Çalışma Var.</th><% if(G.toleranceWidth){ %><th>% Tolerans</th><% } %></tr></thead>
+      <tbody>
+        <% var order=[['Toplam Gage R&R','totalGRR'],['&nbsp;&nbsp;Tekrarlanabilirlik','repeatability'],['&nbsp;&nbsp;Yeniden üretilebilirlik','reproducibility'],['Parçadan parçaya','partToPart'],['Toplam değişim','totalVariation']]; %>
+        <% order.forEach(function(o){ var g=G[o[1]]; %>
+          <tr <%= o[1]==='totalVariation'?'style="font-weight:700;background:#f3f5fb"':'' %>>
+            <td><%- o[0] %></td><td class="num"><%= fn(g.stdDev) %></td><td class="num"><%= fn(g.studyVar) %></td>
+            <td><% if(o[1]==='totalGRR'){ %><%- svPill(g.pctStudyVar) %><% } else { %><span class="num"><%= fn(g.pctStudyVar,2) %>%</span><% } %></td>
+            <% if(G.toleranceWidth){ %><td class="num"><%= g.pctTolerance!=null?fn(g.pctTolerance,2)+'%':'—' %></td><% } %></tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <div class="exp" style="border-left-color:#9aa4bf">Ayırt Edilebilir Kategori Sayısı (NDC) = <b><%= it.ndc %></b>. NDC &lt; 5 ise ölçüm sistemi parçaları güvenilir biçimde ayırt edemiyor. Çalışma varyasyonu = std. sapma × 6.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-bar-chart i"></i> Değişkenlik Bileşenleri</h2>
+    <div class="exp">Her bileşenin toplam değişkenliğe katkısı. Gage R&R çubukları yüksekse ölçüm sistemi çok gürültülüdür.</div>
+    <div class="chartbox"><canvas id="chartComp"></canvas></div>
+  </div>
+
+  <div class="foot">GageAI · Nested Gage R&R (Non-replicable) — AIAG MSA 4. Baskı / JASP metodolojisi ile doğrulanmıştır.</div>
+</div>
+
+<script>
+(function(){
+  var R = <%- JSON.stringify(results) %>;
+  var G = R.gaugeEvaluation;
+  var el=document.getElementById('chartComp'); if(!el) return;
+  var labels=['Gage R&R','Tekrarlanabilirlik','Yeniden üretilebilirlik','Parçadan parçaya'];
+  var keys=['totalGRR','repeatability','reproducibility','partToPart'];
+  var contrib=keys.map(function(k){return R.varianceComponents[k].contribution;});
+  var studyv=keys.map(function(k){return G[k].pctStudyVar;});
+  var ds=[{label:'% Katkı', data:contrib, backgroundColor:'#667eea'},{label:'% Çalışma Var.', data:studyv, backgroundColor:'#764ba2'}];
+  if(G.toleranceWidth) ds.push({label:'% Tolerans', data:keys.map(function(k){return G[k].pctTolerance||0;}), backgroundColor:'#1e7e4a'});
+  new Chart(el,{ type:'bar', data:{ labels:labels, datasets:ds },
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true, title:{display:true,text:'Yüzde (%)'} } },
+      plugins:{ legend:{position:'top'}, tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+': %'+c.raw.toFixed(2); } } } }
+    }
+  });
+})();
+</script>
+</body>
+</html>

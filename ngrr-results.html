@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/ngrr-calculations.js?v=1"></script>
+<title>Nested Gage R&R</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// Non-replicable (nested) Gage R&R — msa_studies(study_type='nested'), msa_measurements.
+(async () => {
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) return MSA.renderError('Bulunamadı', 'Çalışma bulunamadı');
+
+    const { measurements, operators } = await MSA.getMeasurementsWithNames(studyId);
+    if (!measurements.length) {
+      return location.replace('ngrr-data-entry.html?id=' + encodeURIComponent(studyId) + '&error=' + encodeURIComponent('Önce ölçüm verisi girmelisiniz!'));
+    }
+    const opName = {}; (operators||[]).forEach(o => { opName[String(o.operator_number)] = o.operator_name; });
+    const data = measurements.map(m => ({
+      operator: opName[String(m.operator)] || String(m.operator),
+      part: String(m.part),
+      measurement: Number(m.measurement)
+    }));
+
+    const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    let results;
+    try {
+      results = window.ngrrCalculations.calculateNestedGaugeRR(data, { toleranceWidth: (opts.tolerance && opts.tolerance.width) || opts.tolerance_width || null });
+    } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+
+    try {
+      await MSA.db.from(MSA.T.studies).update({
+        anova_results: results.anovaTable, variance_components: results.varianceComponents, gauge_evaluation: results.gaugeEvaluation,
+        status: 'calculated',
+        is_acceptable: results.interpretation.acceptabilityClass === 'good' ? 'acceptable' : (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable')
+      }).eq('id', studyId);
+    } catch (e) { console.warn('özet kaydedilemedi', e); }
+
+    await MSA.renderPage('ngrr-results.ejs', { user, study, results, branding: MSA.BRANDING });
+  } catch (error) {
+    console.error('Nested GRR sonuç hatası:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>
