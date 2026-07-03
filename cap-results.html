@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
 <script src="js/msa-common.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
-<script src="js/cap-calculations.js?v=1"></script>
+<script src="js/cap-calculations.js?v=2"></script>
 <title>Proses Yeterliliği</title>
 </head>
 <body>
@@ -34,11 +34,23 @@
       .filter(m => isFinite(m.value)).sort((a, b) => a.part - b.part).map(m => ({ value: m.value }));
 
     const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    // URL parametreleri = interaktif ayarlar (Ayarlar panelinden gelir); yoksa çalışmanın kayıtlı değerleri
+    const qp = (k, d) => { const v = MSA.q(k); return (v === null || v === undefined || v === '') ? d : v; };
+    const callOpts = {
+      lsl: opts.lsl, usl: opts.usl,
+      target: qp('target', opts.target),
+      subgroupSize: parseInt(qp('sg', study.num_trials || opts.subgroup_size || 5), 10),
+      withinMethod: qp('within', 'sbar'),
+      useUnbiasing: qp('unbias', '1') !== '0',
+      ciLevel: parseFloat(qp('ci', 90)),
+      sigmaMult: parseFloat(qp('sigma', 3)),
+      distribution: qp('dist', 'normal'),
+      controlChart: qp('chart', 'auto'),
+      bins: qp('bins', null)
+    };
     let results;
     try {
-      results = window.capCalculations.calculateCapability(data, {
-        lsl: opts.lsl, usl: opts.usl, target: opts.target, subgroupSize: study.num_trials || opts.subgroup_size || 5
-      });
+      results = window.capCalculations.calculateCapability(data, callOpts);
     } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
 
     try {
@@ -49,7 +61,7 @@
       }).eq('id', studyId);
     } catch (e) { console.warn('özet kaydedilemedi', e); }
 
-    await MSA.renderPage('cap-results.ejs', { user, study, results, branding: MSA.BRANDING });
+    await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, branding: MSA.BRANDING });
   } catch (error) {
     console.error('Capability sonuç hatası:', error);
     MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);

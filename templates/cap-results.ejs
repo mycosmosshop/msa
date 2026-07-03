@@ -34,18 +34,24 @@
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:820px){.grid2{grid-template-columns:1fr}}
   .chartbox{position:relative;height:300px} .chartbox.tall{height:340px}
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
-  @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
+  .optgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 16px}
+  .optgrid label{display:flex;flex-direction:column;font-size:12px;font-weight:600;color:#4a5568;gap:5px}
+  .optgrid select,.optgrid input[type=number]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;font-weight:500;color:var(--ink)}
+  .optgrid label.chk{flex-direction:row;align-items:center;gap:8px;align-self:end}
+  .optgrid label.chk input{width:16px;height:16px}
+  @media print{.acts,.optgrid,#optApply{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <% var it=results.interpretation; var si=results.studyInfo; var W=results.within; var O=results.overall; var perf=results.performance; var nm=results.normality;
-     var Wci=W.ci||{}, Oci=O.ci||{};
+     var Wci=W.ci||{}, Oci=O.ci||{}; var op=results.options||{}; var tr=results.transform||{}; var ciPct=Math.round((op.ciLevel||0.90)*100);
      function fn(x,d){ return x==null?'—':Number(x).toFixed(d==null?3:d); }
      function cil(o){ return (o&&o.lo!=null&&isFinite(o.lo))?Number(o.lo).toFixed(3):'—'; }
      function cih(o){ return (o&&o.hi!=null&&isFinite(o.hi))?Number(o.hi).toFixed(3):'—'; }
      function idxPill(v){ if(v==null)return '—'; var c=v>=1.33?'good':(v>=1.0?'marginal':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; }
-     var swLbl = si.method==='individual' ? 'MR̄/1.128' : 's̄/c4'; %>
+     function sel(cur,val){ return String(cur)===String(val)?' selected':''; }
+     var swLbl = si.method==='individual' ? 'MR̄/1.128' : (si.withinLabel||'s̄/c₄'); %>
   <div class="hdr">
     <div><h1><i class="bi bi-graph-up"></i> Proses Yeterliliği</h1>
       <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
@@ -59,6 +65,52 @@
     <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
     <a class="btn ghost" href="cap-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
     <a class="btn ghost" href="capability.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card" style="border:1px solid var(--line)">
+    <h2><i class="bi bi-sliders i"></i> Analiz Ayarları</h2>
+    <div class="exp" style="margin-bottom:12px">JASP Process Capability seçenekleri. Değiştirdiğinizde analiz seçtiğiniz ayarlara göre yeniden hesaplanır.</div>
+    <div class="optgrid">
+      <label>Veri dağılımı
+        <select id="optDist">
+          <option value="normal"<%= sel(op.distribution,'normal') %>>Normal</option>
+          <option value="boxcox"<%= sel(op.distribution,'boxcox') %>>Box-Cox normalizasyon</option>
+          <option value="lognormal"<%= sel(op.distribution,'lognormal') %>>Lognormal (log dönüşüm)</option>
+        </select></label>
+      <label>Alt grup boyutu
+        <input type="number" id="optSg" min="1" max="25" value="<%= op.subgroupSize!=null?op.subgroupSize:(si.subgroupSize||5) %>"></label>
+      <label>Within σ yöntemi (alt grup&gt;1)
+        <select id="optWithin">
+          <option value="sbar"<%= sel(op.withinMethod,'sbar') %>>S-bar (s̄/c₄)</option>
+          <option value="rbar"<%= sel(op.withinMethod,'rbar') %>>R-bar (R̄/d₂)</option>
+          <option value="pooled"<%= sel(op.withinMethod,'pooled') %>>Pooled</option>
+        </select></label>
+      <label>Kontrol kartı
+        <select id="optChart">
+          <option value="auto"<%= sel(op.controlChart,'auto') %>>Otomatik</option>
+          <option value="xbars"<%= sel(op.controlChart,'xbars') %>>X̄ &amp; S</option>
+          <option value="xbarr"<%= sel(op.controlChart,'xbarr') %>>X̄ &amp; R</option>
+          <option value="imr"<%= sel(op.controlChart,'imr') %>>I-MR (Bireysel)</option>
+        </select></label>
+      <label>Güven aralığı %
+        <select id="optCi">
+          <option value="90"<%= sel(ciPct,90) %>>90%</option>
+          <option value="95"<%= sel(ciPct,95) %>>95%</option>
+          <option value="99"<%= sel(ciPct,99) %>>99%</option>
+        </select></label>
+      <label>Histogram bin sayısı
+        <input type="number" id="optBins" min="4" max="40" value="<%= op.bins||si.N&&Math.min(Math.max(Math.ceil(Math.sqrt(si.N)),8),20)||10 %>"></label>
+      <label>Kontrol limiti σ katsayısı
+        <input type="number" id="optSigma" min="1" max="6" step="0.5" value="<%= op.sigmaMult||3 %>"></label>
+      <label>Hedef değer (opsiyonel)
+        <input type="number" id="optTarget" step="any" value="<%= si.origTarget!=null?si.origTarget:'' %>"></label>
+      <label class="chk"><input type="checkbox" id="optUnbias"<%= op.useUnbiasing!==false?' checked':'' %>> Sapmasızlık sabiti (c₄/d₂) kullan</label>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" onclick="capReload()"><i class="bi bi-arrow-repeat"></i> Uygula ve Yeniden Hesapla</button>
+      <button class="btn ghost" onclick="location.href='cap-results.html?id=<%= study.id %>'"><i class="bi bi-x-circle"></i> Varsayılana Dön</button>
+    </div>
+    <% if(tr.applied){ %><div class="exp" style="border-left-color:#b7791f;margin-top:10px"><b><%= tr.method==='lognormal'?'Lognormal':'Box-Cox' %> dönüşümü uygulandı</b> (λ = <%= fn(tr.lambda,3) %><%= tr.shift?(', kaydırma = '+fn(tr.shift,3)):'' %>). Tüm indeksler, spesifikasyon sınırları ve grafikler <b>dönüştürülmüş ölçekte</b> hesaplanır; bu, normal olmayan veriyi normalize ederek Cp/Cpk'yı geçerli kılar.</div><% } %>
   </div>
 
   <div class="card">
@@ -149,6 +201,12 @@
   </div>
 
   <div class="card">
+    <h2><i class="bi bi-graph-up-arrow i"></i> Normal Olasılık Grafiği (Q-Q)</h2>
+    <div class="exp">Noktalar düz çizgiye (kırmızı kesikli %95 bandı) yakınsa veri normal dağılıma uyar. Sistematik sapma (S/eğri şekli) normal-olmamayı gösterir — bu durumda "Veri dağılımı" ayarından <b>Box-Cox normalizasyon</b> seçebilirsiniz.<%= tr.applied ? ' (Grafik dönüştürülmüş ölçektedir.)' : '' %></div>
+    <div class="chartbox tall"><canvas id="chartQQ"></canvas></div>
+  </div>
+
+  <div class="card">
     <h2><i class="bi bi-clipboard-data i"></i> Normallik Testi (Anderson-Darling)</h2>
     <table>
       <thead><tr><th>N</th><th>Ortalama</th><th>Std. Sapma</th><th>AD</th><th>p-değeri</th><th>Sonuç</th></tr></thead>
@@ -203,7 +261,39 @@
   var cl=g.chartLabels||{topAxis:'X̄',bottomAxis:'S'};
   ctrlChart('chartXbar', g.xbarChart, cl.topAxis);
   ctrlChart('chartS', g.sChart, cl.bottomAxis);
+
+  // Q-Q normal olasılık grafiği
+  var qEl=document.getElementById('chartQQ');
+  if(qEl && g.qq){
+    new Chart(qEl,{ data:{ datasets:[
+      { type:'scatter', label:'Gözlem', data:g.qq.points.map(function(p){return {x:p.x,y:p.z};}), pointRadius:3, pointBackgroundColor:'rgba(90,110,150,.55)', borderColor:'#5a6e96', order:3 },
+      { type:'line', label:'Referans', data:g.qq.line.map(function(p){return {x:p.x,y:p.z};}), borderColor:'#39415a', borderWidth:1.6, pointRadius:0, order:2 },
+      { type:'line', label:'%95 alt', data:g.qq.bandLo.map(function(p){return {x:p.x,y:p.z};}), borderColor:'#c0392b', borderDash:[5,4], borderWidth:1.2, pointRadius:0, order:1 },
+      { type:'line', label:'%95 üst', data:g.qq.bandHi.map(function(p){return {x:p.x,y:p.z};}), borderColor:'#c0392b', borderDash:[5,4], borderWidth:1.2, pointRadius:0, order:1 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ type:'linear', title:{display:true,text:'Ölçüm'+(<%= tr.applied?'true':'false' %>?' (dönüştürülmüş)':'')} },
+        y:{ title:{display:true,text:'Teorik nicelik (z)'} } },
+      plugins:{ legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}} } }
+    });
+  }
 })();
+
+function capReload(){
+  var p=[]; function add(k,v){ p.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); }
+  var val=function(id){ var e=document.getElementById(id); return e?e.value:''; };
+  add('id', <%= study.id %>);
+  add('dist', val('optDist'));
+  add('within', val('optWithin'));
+  add('unbias', document.getElementById('optUnbias').checked?'1':'0');
+  add('chart', val('optChart'));
+  add('ci', val('optCi'));
+  add('sigma', val('optSigma'));
+  var sg=val('optSg'); if(sg) add('sg', sg);
+  var b=val('optBins'); if(b) add('bins', b);
+  var t=val('optTarget'); if(t!=='') add('target', t);
+  location.href='cap-results.html?'+p.join('&');
+}
 </script>
 </body>
 </html>

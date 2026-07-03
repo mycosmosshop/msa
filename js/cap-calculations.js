@@ -84,6 +84,41 @@
       .filter(m=>isFinite(m.value));
     if(rows.length<subSize*2) throw new Error('Yetersiz veri');
 
+    // ---- Ayarlar (JASP Process Capability seçenekleri) ----
+    const withinMethod = String(options.withinMethod||'sbar').toLowerCase();      // sbar | rbar | pooled
+    const useUnbiasing = options.useUnbiasing!==false && options.useUnbiasing!=='false'; // c4/sapmasızlık sabiti
+    let ciLevel = options.ciLevel!=null ? parseFloat(options.ciLevel) : 90; if(ciLevel>1) ciLevel=ciLevel/100; if(!(ciLevel>0&&ciLevel<1)) ciLevel=0.90;
+    const ALPHA = 1 - ciLevel;
+    const sigmaMult = options.sigmaMult!=null ? (parseFloat(options.sigmaMult)||3) : 3;
+    const distReq = String(options.distribution||'normal').toLowerCase();         // normal | boxcox | lognormal
+    const chartType = String(options.controlChart||'auto').toLowerCase();         // xbars | xbarr | imr | auto
+    const binsOpt = options.bins!=null ? parseInt(options.bins,10) : null;
+
+    // ---- Normalizasyon (Box-Cox / Lognormal) — veri + spesifikasyon aynı dönüşümden geçer ----
+    let transform = { applied:false, method:'normal', lambda:null, shift:0 };
+    let TF = function(x){ return x; };   // spesifikasyon dönüştürücü (varsayılan: kimlik)
+    (function(){
+      if(distReq!=='boxcox' && distReq!=='lognormal') return;
+      const orig = rows.map(r=>r.value);
+      const specVals=['lsl','usl','target'].map(k=>options[k]).filter(v=>v!=null&&isFinite(parseFloat(v))).map(parseFloat);
+      const minAll = Math.min.apply(null, orig.concat(specVals.length?specVals:[Infinity]));
+      const shift = minAll<=0 ? (1-minAll) : 0;             // tüm değerleri pozitife kaydır
+      const pos = orig.map(v=>v+shift);
+      let lam;
+      if(distReq==='lognormal'){ lam=0; }
+      else {
+        const sumLog = pos.reduce((a,v)=>a+Math.log(v),0);
+        function ll(l){ const y=pos.map(x=> l===0?Math.log(x):(Math.pow(x,l)-1)/l); const m=mean(y); const s2=y.reduce((a,v)=>a+(v-m)*(v-m),0)/y.length; if(!(s2>0))return -1e18; return -pos.length/2*Math.log(s2)+(l-1)*sumLog; }
+        let best=1,bl=-1e18;
+        for(let l=-5;l<=5.0001;l+=0.01){ const v=ll(l); if(v>bl){bl=v;best=l;} }
+        for(let l=best-0.01;l<=best+0.01;l+=0.001){ const v=ll(l); if(v>bl){bl=v;best=l;} }
+        lam=Math.round(best*1000)/1000 || 0;
+      }
+      TF = function(x){ const p=x+shift; if(!(p>0)) return null; return lam===0?Math.log(p):(Math.pow(p,lam)-1)/lam; };
+      rows.forEach(r=>{ const t=TF(r.value); if(t!=null) r.value=t; });
+      transform = { applied:true, method:distReq, lambda:lam, shift };
+    })();
+
     const all=rows.map(r=>r.value);
     const N=all.length;
     const grandMean=mean(all);
@@ -101,18 +136,29 @@
     const d2n = d2tab[n] || 2.326;
     // Hareketli açıklık (alt grup boyutu 1 → I-MR): MR̄ = ardışık farkların ortalaması
     let mrbar=0; { let s=0,c=0; for(let i=1;i<all.length;i++){ s+=Math.abs(all[i]-all[i-1]); c++; } mrbar=c?s/c:0; }
-    // σ_within (kısa dönem): alt grup≥2 → JASP pooled/S-kartı yöntemi (s̄/c4); alt grup=1 → hareketli açıklık (MR̄/1.128)
-    const sigmaWithin = n>=2 ? sbar / c4n : (mrbar>0 ? mrbar/1.128 : sdOverall);
-    const sigmaWithinR = n>=2 ? rbar / d2n : sigmaWithin;   // alternatif (R̄/d₂)
+    // Pooled std sapma (sapmasızlık düzeltmeli)
+    let sPooled=0,dfPool=0; subs.forEach(s=>{ sPooled+=(s.n-1)*s.sd*s.sd; dfPool+=s.n-1; });
+    sPooled = dfPool>0 ? Math.sqrt(sPooled/dfPool) : 0;
+    const cbar = useUnbiasing ? c4n : 1;
+    // σ_within yöntemleri (JASP Advanced options: subgroup size >1 için S-bar/R-bar/Pooled + sapmasızlık sabiti)
+    const sigmaWithinS = n>=2 ? sbar / cbar : (mrbar>0 ? mrbar/1.128 : sdOverall);   // S-bar (s̄/c4)
+    const sigmaWithinR = n>=2 ? rbar / d2n : sigmaWithinS;                            // R-bar (R̄/d₂)
+    const sigmaWithinP = n>=2 ? (useUnbiasing ? sPooled / c4(dfPool+1) : sPooled) : sigmaWithinS; // Pooled
+    const sigmaWithin = n<2 ? sigmaWithinS
+                       : (withinMethod==='rbar' ? sigmaWithinR
+                       : (withinMethod==='pooled' ? sigmaWithinP : sigmaWithinS));
     const sigmaOverall = sdOverall;
     // Serbestlik dereceleri (güven aralığı için): total = N−1 (JASP kesin); within = Σ(n_g−1)=N−k, alt grup=1 ise MR sayısı
     const dfTotal = Math.max(1, N-1);
     const dfWithin = n>=2 ? Math.max(1, N-subs.length) : Math.max(1, N-1);
 
-    // Spesifikasyon
-    const lsl = (options.lsl!=null&&isFinite(parseFloat(options.lsl)))?parseFloat(options.lsl):null;
-    const usl = (options.usl!=null&&isFinite(parseFloat(options.usl)))?parseFloat(options.usl):null;
-    const target = (options.target!=null&&isFinite(parseFloat(options.target)))?parseFloat(options.target):null;
+    // Spesifikasyon (dönüşüm uygulandıysa aynı dönüşümden geçer; orijinal değerler saklanır)
+    const origLsl = (options.lsl!=null&&isFinite(parseFloat(options.lsl)))?parseFloat(options.lsl):null;
+    const origUsl = (options.usl!=null&&isFinite(parseFloat(options.usl)))?parseFloat(options.usl):null;
+    const origTarget = (options.target!=null&&isFinite(parseFloat(options.target)))?parseFloat(options.target):null;
+    const lsl = origLsl!=null ? TF(origLsl) : null;
+    const usl = origUsl!=null ? TF(origUsl) : null;
+    const target = origTarget!=null ? TF(origTarget) : null;
 
     function indices(sigma){
       const cp = (lsl!=null&&usl!=null&&sigma>0)? (usl-lsl)/(6*sigma):null;
@@ -125,8 +171,7 @@
     }
     const within = indices(sigmaWithin);   // Cp, Cpk
     const overall = indices(sigmaOverall); // Pp, Ppk
-    // %90 güven aralıkları (JASP ile aynı: Cp/Pp ki-kare, Cpk/Ppk Bissell normal-yaklaşım)
-    const ALPHA=0.10;
+    // Güven aralıkları (JASP: Cp/Pp ki-kare, Cpk/Ppk Bissell normal-yaklaşım) — seviye ayarlanabilir
     within.ci  = { cp:cpCI(within.cp, dfWithin, ALPHA),  cpk:cpkCI(within.cpk, dfWithin, N, ALPHA) };
     overall.ci = { cp:cpCI(overall.cp, dfTotal, ALPHA),  cpk:cpkCI(overall.cpk, dfTotal, N, ALPHA) };
     // Cpm (hedefe göre, overall sigma)
@@ -149,7 +194,7 @@
     const ad = andersonDarling(all, grandMean, sigmaOverall);
 
     // Histogram
-    const bins = options.bins || Math.min(Math.max(Math.ceil(Math.sqrt(N)),8),20);
+    const bins = (binsOpt && binsOpt>0) ? binsOpt : Math.min(Math.max(Math.ceil(Math.sqrt(N)),8),20);
     const minV=Math.min(...all), maxV=Math.max(...all);
     const lo=Math.min(minV, lsl!=null?lsl:minV), hi=Math.max(maxV, usl!=null?usl:maxV);
     const bw=(hi-lo)/bins; const hist=[];
@@ -158,34 +203,59 @@
     const curve=[]; const steps=80;
     for(let i=0;i<=steps;i++){ const x=lo+(hi-lo)*i/steps; const pdf=Math.exp(-0.5*Math.pow((x-grandMean)/sigmaOverall,2))/(sigmaOverall*Math.sqrt(2*Math.PI)); curve.push({x, y:pdf*N*bw}); }
 
-    // Kontrol kartı (X-bar & s)
-    const A3={2:2.659,3:1.954,4:1.628,5:1.427,6:1.287,7:1.182,8:1.099,9:1.032,10:0.975}[n]||1.427;
+    // Kontrol kartı — tip seçilebilir: X̄&S / X̄&R / I-MR (auto: alt grup 1 → I-MR)
     const B3={2:0,3:0,4:0,5:0,6:0.030,7:0.118,8:0.185,9:0.239,10:0.284}[n]||0;
     const B4={2:3.267,3:2.568,4:2.266,5:2.089,6:1.970,7:1.882,8:1.815,9:1.761,10:1.716}[n]||2.089;
-    let xbarChart, sChart, chartLabels;
-    if(n>=2){
-      xbarChart={ points:subs.map((s,i)=>({x:i+1,y:s.mean})), cl:xbarbar, ucl:xbarbar+A3*sbar, lcl:xbarbar-A3*sbar };
-      sChart={ points:subs.map((s,i)=>({x:i+1,y:s.sd})), cl:sbar, ucl:B4*sbar, lcl:B3*sbar };
-      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'S Kartı (alt grup std sapması)', topAxis:'X̄', bottomAxis:'S', xAxis:'Alt grup' };
-    } else {
-      // Bireysel & Hareketli Açıklık (I-MR) — alt grup boyutu 1
+    const D3={2:0,3:0,4:0,5:0,6:0,7:0.076,8:0.136,9:0.184,10:0.223}[n]||0;
+    const D4={2:3.267,3:2.574,4:2.282,5:2.114,6:2.004,7:1.924,8:1.864,9:1.816,10:1.777}[n]||2.114;
+    let xbarChart, sChart, chartLabels, ctrlKind;
+    const wantIMR = (chartType==='imr') || (chartType==='auto' && n<2) || n<2;
+    const wantR   = !wantIMR && chartType==='xbarr' && n>=2;
+    const f = sigmaMult/3;   // 3σ dışı katsayı için bant ölçekleme
+    if(wantIMR){
+      ctrlKind='imr';
       const mrPts=[]; for(let i=1;i<all.length;i++) mrPts.push(Math.abs(all[i]-all[i-1]));
-      xbarChart={ points:all.map((v,i)=>({x:i+1,y:v})), cl:grandMean, ucl:grandMean+2.66*mrbar, lcl:grandMean-2.66*mrbar };
-      sChart={ points:mrPts.map((v,i)=>({x:i+2,y:v})), cl:mrbar, ucl:3.267*mrbar, lcl:0 };
+      const halfI=sigmaMult*(mrbar/1.128);
+      xbarChart={ points:all.map((v,i)=>({x:i+1,y:v})), cl:grandMean, ucl:grandMean+halfI, lcl:grandMean-halfI };
+      sChart={ points:mrPts.map((v,i)=>({x:i+2,y:v})), cl:mrbar, ucl:mrbar+(3.267*mrbar-mrbar)*f, lcl:Math.max(0,mrbar-(mrbar)*f*0) };
       chartLabels={ top:'Bireysel Değerler (I)', bottom:'Hareketli Açıklık (MR)', topAxis:'Değer', bottomAxis:'MR', xAxis:'Gözlem' };
+    } else if(wantR){
+      ctrlKind='xbarr';
+      const half=sigmaMult*(sigmaWithin/Math.sqrt(n));
+      xbarChart={ points:subs.map((s,i)=>({x:i+1,y:s.mean})), cl:xbarbar, ucl:xbarbar+half, lcl:xbarbar-half };
+      sChart={ points:subs.map((s,i)=>({x:i+1,y:s.range})), cl:rbar, ucl:rbar+(D4*rbar-rbar)*f, lcl:Math.max(0, rbar+(D3*rbar-rbar)*f) };
+      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'R Kartı (alt grup açıklığı)', topAxis:'X̄', bottomAxis:'R', xAxis:'Alt grup' };
+    } else {
+      ctrlKind='xbars';
+      const half=sigmaMult*(sigmaWithin/Math.sqrt(n));
+      xbarChart={ points:subs.map((s,i)=>({x:i+1,y:s.mean})), cl:xbarbar, ucl:xbarbar+half, lcl:xbarbar-half };
+      sChart={ points:subs.map((s,i)=>({x:i+1,y:s.sd})), cl:sbar, ucl:sbar+(B4*sbar-sbar)*f, lcl:Math.max(0, sbar+(B3*sbar-sbar)*f) };
+      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'S Kartı (alt grup std sapması)', topAxis:'X̄', bottomAxis:'S', xAxis:'Alt grup' };
     }
+
+    // Q-Q normal olasılık grafiği (Benard medyan rank) + %95 pointwise bant
+    const sortedQ=[...all].sort((a,b)=>a-b);
+    const qqPts=sortedQ.map((v,i)=>{ const p=(i+0.7)/(N+0.4); const z=normInv(p); return { x:v, z, p }; });
+    const qqLine=[{ x:grandMean-4*sigmaOverall, z:-4 },{ x:grandMean+4*sigmaOverall, z:4 }]; // z=(x-μ)/σ
+    const qqBandLo=[], qqBandHi=[];
+    qqPts.forEach(pt=>{ const phi=Math.exp(-0.5*pt.z*pt.z)/Math.sqrt(2*Math.PI); const se=(phi>1e-6)?(Math.sqrt(pt.p*(1-pt.p)/N)/phi):null; if(se!=null){ qqBandLo.push({ x:grandMean+(pt.z-1.96*se)*sigmaOverall, z:pt.z }); qqBandHi.push({ x:grandMean+(pt.z+1.96*se)*sigmaOverall, z:pt.z }); } });
 
     // Karar (Cpk within)
     const cpk = within.cpk;
     let verdict = { label:'—', cls:'neutral' };
     if(cpk!=null){ verdict = cpk>=1.33?{label:'Yeterli',cls:'good'} : cpk>=1.0?{label:'Marjinal',cls:'marginal'} : {label:'Yetersiz',cls:'bad'}; }
 
+    const withinLabel = withinMethod==='rbar'?'R̄/d₂':(withinMethod==='pooled'?'Pooled/c₄':'s̄/c₄');
     return {
-      studyInfo:{ N, numSubgroups:subs.length, subgroupSize:n, method:(n>=2?'subgroup':'individual'), mrbar, dfWithin, dfTotal, lsl, usl, target, mean:grandMean, sigmaWithin, sigmaOverall, sbar, rbar, c4:c4n },
+      studyInfo:{ N, numSubgroups:subs.length, subgroupSize:n, method:(n>=2?'subgroup':'individual'), mrbar, dfWithin, dfTotal,
+        lsl, usl, target, origLsl, origUsl, origTarget, mean:grandMean, sigmaWithin, sigmaOverall, sbar, rbar, c4:c4n,
+        sigmaWithinS, sigmaWithinR, sigmaWithinP, withinLabel },
+      options:{ withinMethod, useUnbiasing, ciLevel, sigmaMult, distribution:distReq, controlChart:chartType, bins, ctrlKind },
+      transform,
       within, overall, cpm,
       performance:{ observed, expectedWithin:expWithin, expectedOverall:expOverall },
       normality:{ ad:ad.A2star, adRaw:ad.A2, p:ad.p, mean:grandMean, sd:sigmaOverall, N },
-      graph:{ hist, curve, xbarChart, sChart, chartLabels, lsl, usl, target, mean:grandMean, sigmaOverall },
+      graph:{ hist, curve, xbarChart, sChart, chartLabels, qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall },
       interpretation:{ verdict, cpk, acceptability:verdict.label, acceptabilityClass:verdict.cls }
     };
   }
