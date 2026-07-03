@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POD - <%= study.study_name %></title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root{ --p:#667eea; --p2:#764ba2; --bg:#f5f7fb; --card:#fff; --ink:#232a35; --muted:#6b7280;
+         --line:#e6e9f2; --good:#1e7e4a; --gbg:#eaf6ef; --shadow:0 2px 10px rgba(30,40,70,.07); }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:960px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .hdr h1{margin:0;font-size:20px;font-weight:700} .hdr .sub{opacity:.9;font-size:12.5px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px;background:var(--gbg);color:var(--good)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
+  .card{background:var(--card);border-radius:13px;box-shadow:var(--shadow);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 3px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:10px 0 4px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#f3f5fb;font-weight:600;color:#39415a;font-size:12px} td:first-child,th:first-child{text-align:left}
+  .num{font-variant-numeric:tabular-nums}
+  .info{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));display:grid;gap:10px;margin-top:6px}
+  .info .kv{background:#f8f9fd;border-radius:9px;padding:10px 12px}
+  .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .info .kv span{font-size:16px;font-weight:700}
+  .eq{background:#eef1f8;border-radius:9px;padding:10px 14px;font-size:14px;font-weight:700;text-align:center;color:#3a4a7a;margin-top:8px}
+  .chartbox{position:relative;height:360px}
+  .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
+  @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <% var si=results.studyInfo; var P=results.parameters; var F=results.fit; var pod=results.pod;
+     function fn(x,d){ return x==null?'—':Number(x).toFixed(d==null?3:d); }
+     function fp(p){ return p==null?'—':(p<0.001?'< .001':p.toFixed(3)); } %>
+  <div class="hdr">
+    <div><h1><i class="bi bi-search"></i> Tespit Olasılığı (POD)</h1>
+      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
+    <span class="badge"><i class="bi bi-bullseye"></i> a₉₀ = <%= fn(pod.a90,2) %></span>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
+    <a class="btn ghost" href="pod-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
+    <a class="btn ghost" href="index.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Özet</h2>
+    <div class="info">
+      <div class="kv"><b>a₅₀ (%50 POD)</b><span><%= fn(pod.a50,2) %></span></div>
+      <div class="kv"><b>a₉₀ (%90 POD)</b><span><%= fn(pod.a90,2) %></span></div>
+      <div class="kv"><b>a₉₅ (%95 POD)</b><span><%= fn(pod.a95,2) %></span></div>
+      <div class="kv"><b>AIC</b><span><%= fn(F.AIC,2) %></span></div>
+      <div class="kv"><b>Gözlem</b><span><%= si.n %></span></div>
+    </div>
+    <div class="exp"><b>Tespit Olasılığı (POD)</b>, bir kusurun/özelliğin <b>boyutu büyüdükçe</b> tespit edilme olasılığının nasıl arttığını lojistik regresyonla modeller.
+      <b>a₉₀</b>, %90 tespit olasılığına karşılık gelen boyuttur — muayene sisteminin güvenilir biçimde yakalayabildiği en küçük kusur boyutu olarak yorumlanır. Küçük a₉₀ = daha hassas tespit.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-sliders i"></i> Model Parametreleri (Lojistik)</h2>
+    <table>
+      <thead><tr><th>Terim</th><th>Tahmin</th><th>Std. Hata</th><th>z</th><th>p</th></tr></thead>
+      <tbody>
+        <tr><td>Sabit (Intercept)</td><td class="num"><%= fn(P.intercept.estimate) %></td><td class="num"><%= fn(P.intercept.se) %></td><td class="num"><%= fn(P.intercept.z,2) %></td><td class="num"><%= fp(P.intercept.p) %></td></tr>
+        <tr><td>Boyut (Size)</td><td class="num"><%= fn(P.slope.estimate) %></td><td class="num"><%= fn(P.slope.se) %></td><td class="num"><%= fn(P.slope.z,2) %></td><td class="num"><%= fp(P.slope.p) %></td></tr>
+      </tbody>
+    </table>
+    <div class="eq"><%= results.equation %></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-clipboard-data i"></i> Model Uyumu</h2>
+    <table>
+      <thead><tr><th>AIC</th><th>BIC</th><th>Sapma (Deviance)</th><th>Log-olabilirlik</th></tr></thead>
+      <tbody><tr><td class="num"><%= fn(F.AIC,2) %></td><td class="num"><%= fn(F.BIC,2) %></td><td class="num"><%= fn(F.deviance,2) %></td><td class="num"><%= fn(F.logLik,3) %></td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-graph-up-arrow i"></i> Tespit Grafiği (Detection Plot)</h2>
+    <div class="exp">Mavi eğri = lojistik POD modeli. Gri noktalar = her boyuttaki gözlenen tespit oranı. Alttaki/üstteki çizgiler (rug) = ham hit(1)/miss(0) gözlemleri. Kesikli çizgiler a₅₀ ve a₉₀ boyutlarını gösterir.</div>
+    <div class="chartbox"><canvas id="chartPod"></canvas></div>
+  </div>
+
+  <div class="foot">GageAI · Tespit Olasılığı (POD) — lojistik regresyon / JASP metodolojisi ile doğrulanmıştır.</div>
+</div>
+
+<script>
+(function(){
+  var R = <%- JSON.stringify(results) %>;
+  var g=R.graph; var pod=R.pod;
+  var el=document.getElementById('chartPod'); if(!el) return;
+  // referans çizgileri eklentisi (a50, a90)
+  var refPlugin={ id:'refs', afterDatasetsDraw:function(c){ var ctx=c.ctx, x=c.scales.x, y=c.scales.y;
+    function vline(val,col,lbl){ if(val==null||!isFinite(val))return; var px=x.getPixelForValue(val); if(px<x.left||px>x.right)return;
+      ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='11px Segoe UI'; ctx.fillText(lbl,px+3,y.top+12); ctx.restore(); }
+    vline(pod.a50,'#b7791f','a50'); vline(pod.a90,'#c0392b','a90');
+  }};
+  new Chart(el,{
+    data:{ datasets:[
+      { type:'line', label:'POD eğrisi', data:g.curve, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', pointRadius:0, borderWidth:2.5, tension:0.25, fill:true },
+      { type:'scatter', label:'Gözlenen oran', data:g.observed, backgroundColor:'#555', pointRadius:5, pointHoverRadius:7 },
+      { type:'scatter', label:'Ham (hit/miss)', data:g.rug, backgroundColor:'rgba(102,126,234,.35)', pointStyle:'line', pointRadius:6, rotation:90 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ title:{display:true,text:'Boyut'} }, y:{ min:-0.05, max:1.05, title:{display:true,text:'Tespit Olasılığı'} } },
+      plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8} },
+        tooltip:{ callbacks:{ label:function(c){ return c.dataset.label==='Gözlenen oran' ? ('Boyut '+c.parsed.x+': '+(g.observed[c.dataIndex]?g.observed[c.dataIndex].hits+'/'+g.observed[c.dataIndex].n:'')+' (%'+(c.parsed.y*100).toFixed(0)+')') : (c.dataset.label+': %'+(c.parsed.y*100).toFixed(1)); } } } },
+    },
+    plugins:[refPlugin]
+  });
+})();
+</script>
+</body>
+</html>

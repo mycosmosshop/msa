@@ -388,6 +388,10 @@
             <i class="bi bi-diagram-3-fill"></i>
             Non-replicable Gage R&R (Nested)
           </a>
+          <a href="pod-new.html" class="dropdown-item">
+            <i class="bi bi-search"></i>
+            Tespit Olasılığı (POD)
+          </a>
         </div>
       </div>
 
@@ -733,6 +737,36 @@
         <div class="study-actions" onclick="event.stopPropagation()">
           <a href="attr-results.html?id=<%= study.id %>" class="study-btn study-btn-view"><i class="bi bi-eye"></i> Sonuçlar</a>
           <a href="attr-data-entry.html?id=<%= study.id %>" class="study-btn study-btn-edit"><i class="bi bi-pencil"></i> Veri</a>
+          <button onclick="deleteStudy(<%= study.id %>, 'msa', '<%= study.study_name %>')" class="study-btn study-btn-delete"><i class="bi bi-trash"></i> Sil</button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- POD Studies -->
+<% if (typeof podStudies !== 'undefined' && podStudies && podStudies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title"><i class="bi bi-search"></i> Tespit Olasılığı (POD)</h2>
+    <span style="color: var(--text-secondary); font-size: 14px;"><%= podStudies.length %> çalışma</span>
+  </div>
+  <div class="studies-grid">
+    <% podStudies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='<%= study.status === 'calculated' ? 'pod-results.html' : 'pod-data-entry.html' %>?id=<%= study.id %>'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><h3 style="flex:1;margin:0;"><%= study.study_name %></h3></div>
+        <div class="study-info">
+          <div class="study-info-item"><span>Durum:</span>
+            <% if (study.status === 'calculated') { %><span class="status-badge status-marginal">✓ Hesaplandı</span>
+            <% } else { %><span class="status-badge status-draft">Taslak</span><% } %>
+          </div>
+          <% if (study.gauge_name) { %><div class="study-info-item"><span>Yöntem:</span><strong><%= study.gauge_name %></strong></div><% } %>
+          <div class="study-info-item"><span>Tarih:</span><strong><%= study.created_at ? new Date(study.created_at).toLocaleDateString('tr-TR') : '-' %></strong></div>
+        </div>
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="pod-results.html?id=<%= study.id %>" class="study-btn study-btn-view"><i class="bi bi-eye"></i> Sonuçlar</a>
+          <a href="pod-data-entry.html?id=<%= study.id %>" class="study-btn study-btn-edit"><i class="bi bi-pencil"></i> Veri</a>
           <button onclick="deleteStudy(<%= study.id %>, 'msa', '<%= study.study_name %>')" class="study-btn study-btn-delete"><i class="bi bi-trash"></i> Sil</button>
         </div>
       </div>

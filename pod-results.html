@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/pod-calculations.js?v=1"></script>
+<title>Tespit Olasılığı (POD)</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// POD — msa_studies(study_type='pod'), msa_parts.nominal_value=boyut, msa_measurements.measurement=tespit(0/1).
+(async () => {
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) return MSA.renderError('Bulunamadı', 'Çalışma bulunamadı');
+
+    const { measurements, parts } = await MSA.getMeasurementsWithNames(studyId);
+    if (!measurements.length) {
+      return location.replace('pod-data-entry.html?id=' + encodeURIComponent(studyId) + '&error=' + encodeURIComponent('Önce boyut/tespit verisi girmelisiniz!'));
+    }
+    const sizeByPart = {}; (parts||[]).forEach(p => { sizeByPart[String(p.part_number)] = (p.nominal_value==null?null:Number(p.nominal_value)); });
+    const data = measurements
+      .map(m => ({ size: sizeByPart[String(m.part)], detected: Number(m.measurement) }))
+      .filter(d => d.size != null && isFinite(d.size));
+    if (data.length < 4) return MSA.renderError('Yetersiz Veri', 'Boyut değerleri eksik ya da yetersiz gözlem var.');
+
+    let results;
+    try { results = window.podCalculations.calculatePOD(data); }
+    catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+
+    try {
+      await MSA.db.from(MSA.T.studies).update({
+        gauge_evaluation: { pod:true, a50:results.pod.a50, a90:results.pod.a90, slope:results.parameters.slope.estimate, intercept:results.parameters.intercept.estimate, aic:results.fit.AIC },
+        status: 'calculated', is_acceptable: 'marginal'
+      }).eq('id', studyId);
+    } catch (e) { console.warn('özet kaydedilemedi', e); }
+
+    await MSA.renderPage('pod-results.ejs', { user, study, results, branding: MSA.BRANDING });
+  } catch (error) {
+    console.error('POD sonuç hatası:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>
