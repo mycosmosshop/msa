@@ -143,7 +143,7 @@
 
   <div class="card">
     <h2><i class="bi bi-bar-chart-line i"></i> Histogram & Yeterlilik Grafiği</h2>
-    <div class="exp">Gri barlar = veri dağılımı, mavi eğri = normal dağılım. Kırmızı kesikli çizgiler = spesifikasyon sınırları (LSL/USL), yeşil = hedef. Barlar sınırların içinde ve ortalanmışsa süreç yeterlidir.</div>
+    <div class="exp">Gri barlar = veri dağılımı. <b style="color:#1f2a44">Overall</b> (koyu dolgu) = uzun dönem σ ile normal eğri, <b style="color:#c0392b">Within</b> (kırmızı kesikli) = kısa dönem σ ile normal eğri (Minitab tarzı). Dikey kırmızı çizgiler = spesifikasyon sınırları (LSL/USL), yeşil = hedef. Barlar sınırların içinde ve iki eğri üst üste + ortalanmışsa süreç hem stabil hem yeterlidir.</div>
     <div class="chartbox tall"><canvas id="chartHist"></canvas></div>
   </div>
 
@@ -239,25 +239,32 @@
 (function(){
   var R = <%- JSON.stringify(results) %>;
   var g=R.graph;
-  // Histogram + normal + spec limits
+  // Histogram + within/overall normal eğrileri + spesifikasyon çizgileri (Minitab tarzı)
   var hEl=document.getElementById('chartHist');
   if(hEl){
-    var specPlugin={ id:'spec', afterDatasetsDraw:function(c){ var ctx=c.ctx,x=c.scales.x,y=c.scales.y;
-      function vline(val,col,lbl){ if(val==null)return; var px=x.getPixelForValue(val); if(px<x.left-2||px>x.right+2)return;
-        ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([6,4]); ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
-        ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='bold 11px Segoe UI'; ctx.fillText(lbl,px+3,y.top+12); ctx.restore(); }
-      vline(g.lsl,'#c0392b','LSL'); vline(g.usl,'#c0392b','USL'); vline(g.target,'#1e7e4a','Hedef');
+    var xmin=g.hist[0].x0, xmax=g.hist[g.hist.length-1].x1;
+    // Spesifikasyon çizgileri LİNEER eksene göre çizilir (böylece LSL/USL/Hedef her zaman görünür)
+    var specPlugin={ id:'spec', afterDatasetsDraw:function(c){ var ctx=c.ctx, xl=c.scales.xLin, y=c.scales.y; if(!xl)return;
+      function vline(val,col,lbl){ if(val==null||!isFinite(val))return; var px=xl.getPixelForValue(val); if(px<xl.left-1||px>xl.right+1)return;
+        ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([6,5]); ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='bold 11px Segoe UI';
+        var tw=ctx.measureText(lbl).width; var tx=Math.min(Math.max(px-tw/2,xl.left), xl.right-tw);
+        ctx.fillStyle='#fff'; ctx.fillRect(tx-3,y.top-2,tw+6,15); ctx.fillStyle=col; ctx.fillText(lbl,tx,y.top+9); ctx.restore(); }
+      vline(g.lsl,'#c0392b','LSL = '+Number(g.lsl).toFixed(2));
+      vline(g.usl,'#c0392b','USL = '+Number(g.usl).toFixed(2));
+      vline(g.target,'#1e7e4a','Hedef = '+Number(g.target).toFixed(2));
     }};
     new Chart(hEl,{
       data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:[
-        { type:'bar', label:'Frekans', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(120,130,150,.45)', borderColor:'#9aa4bf', borderWidth:1, categoryPercentage:1.0, barPercentage:1.0, order:2 },
-        { type:'line', label:'Normal', data:g.curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#2563eb', pointRadius:0, borderWidth:2.5, tension:0.3, order:1, xAxisID:'xLin' }
+        { type:'bar', label:'Frekans', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(130,140,165,.35)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1.0, barPercentage:1.0, order:3 },
+        { type:'line', label:'Overall (uzun dönem)', data:g.curveOverall.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', backgroundColor:'rgba(31,42,68,.05)', pointRadius:0, borderWidth:2.4, tension:0.35, fill:true, order:1, xAxisID:'xLin' },
+        { type:'line', label:'Within (kısa dönem)', data:g.curveWithin.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#c0392b', pointRadius:0, borderWidth:2.2, borderDash:[7,4], tension:0.35, order:2, xAxisID:'xLin' }
       ]},
-      options:{ responsive:true, maintainAspectRatio:false,
-        scales:{ x:{ title:{display:true,text:'Ölçüm'} },
-          xLin:{ type:'linear', display:false, min:g.hist[0].x0, max:g.hist[g.hist.length-1].x1 },
-          y:{ beginAtZero:true, title:{display:true,text:'Frekans'} } },
-        plugins:{ legend:{display:false} } },
+      options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:14}},
+        scales:{ x:{ title:{display:true,text:'Ölçüm'+(R.transform&&R.transform.applied?' (dönüştürülmüş)':'')}, grid:{display:false} },
+          xLin:{ type:'linear', display:false, min:xmin, max:xmax },
+          y:{ beginAtZero:true, title:{display:true,text:'Frekans'}, grid:{color:'rgba(0,0,0,.05)'} } },
+        plugins:{ legend:{display:true,position:'top',labels:{boxWidth:14,font:{size:11.5},filter:function(it){return it.text!=='Frekans';}}} } },
       plugins:[specPlugin]
     });
   }

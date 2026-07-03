@@ -202,15 +202,22 @@
     // Normallik
     const ad = andersonDarling(all, grandMean, sigmaOverall);
 
-    // Histogram
+    // Histogram (LSL/USL/hedef görünür kalsın diye kenar payı eklenir)
     const bins = (binsOpt && binsOpt>0) ? binsOpt : Math.min(Math.max(Math.ceil(Math.sqrt(N)),8),20);
     const minV=Math.min(...all), maxV=Math.max(...all);
-    const lo=Math.min(minV, lsl!=null?lsl:minV), hi=Math.max(maxV, usl!=null?usl:maxV);
+    const specLo = Math.min(minV, lsl!=null?lsl:minV, target!=null?target:minV);
+    const specHi = Math.max(maxV, usl!=null?usl:maxV, target!=null?target:maxV);
+    const pad = (specHi-specLo)*0.06 || 1;
+    const lo=specLo-pad, hi=specHi+pad;
     const bw=(hi-lo)/bins; const hist=[];
     for(let i=0;i<bins;i++){ const a=lo+i*bw, b=a+bw; const cnt=all.filter(v=>v>=a&&(i===bins-1?v<=b:v<b)).length; hist.push({ x0:a, x1:b, mid:(a+b)/2, count:cnt }); }
-    // normal eğri (overall)
-    const curve=[]; const steps=80;
-    for(let i=0;i<=steps;i++){ const x=lo+(hi-lo)*i/steps; const pdf=Math.exp(-0.5*Math.pow((x-grandMean)/sigmaOverall,2))/(sigmaOverall*Math.sqrt(2*Math.PI)); curve.push({x, y:pdf*N*bw}); }
+    // normal eğriler (Minitab tarzı: overall + within)
+    const curveOverall=[], curveWithin=[]; const steps=120;
+    for(let i=0;i<=steps;i++){ const x=lo+(hi-lo)*i/steps;
+      const po=Math.exp(-0.5*Math.pow((x-grandMean)/sigmaOverall,2))/(sigmaOverall*Math.sqrt(2*Math.PI));
+      const pw=(sigmaWithin>0)?Math.exp(-0.5*Math.pow((x-grandMean)/sigmaWithin,2))/(sigmaWithin*Math.sqrt(2*Math.PI)):0;
+      curveOverall.push({x, y:po*N*bw}); curveWithin.push({x, y:pw*N*bw}); }
+    const curve=curveOverall;   // geriye dönük uyum
 
     // Kontrol kartı — tip seçilebilir: X̄&S / X̄&R / I-MR (auto: alt grup 1 → I-MR)
     const B3={2:0,3:0,4:0,5:0,6:0.030,7:0.118,8:0.185,9:0.239,10:0.284}[n]||0;
@@ -272,7 +279,7 @@
       within, overall, cpm,
       performance:{ observed, expectedWithin:expWithin, expectedOverall:expOverall },
       normality:{ ad:ad.A2star, adRaw:ad.A2, p:ad.p, mean:grandMean, sd:sigmaOverall, N },
-      graph:{ hist, curve, xbarChart, sChart, chartLabels, qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall },
+      graph:{ hist, curve, curveOverall, curveWithin, xbarChart, sChart, chartLabels, qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall, sigmaWithin },
       interpretation:{ verdict, cpk, acceptability:verdict.label, acceptabilityClass:verdict.cls }
     };
   }
