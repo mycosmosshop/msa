@@ -48,9 +48,13 @@
       standard: stdByPart[String(m.part)]
     }));
 
+    // Pozitif referans (Kabul kategorisi) — analysis_options'tan, ?pref= ile override edilebilir
+    const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    const positiveReference = MSA.q('pref') || (opts.positive_reference != null ? String(opts.positive_reference) : '1');
+
     let results;
     try {
-      results = window.attrCalculations.calculateAttributeAgreement(data);
+      results = window.attrCalculations.calculateAttributeAgreement(data, { positiveReference: positiveReference });
     } catch (calcErr) {
       return MSA.renderError('Hesaplama Hatası', calcErr.message);
     }

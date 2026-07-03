@@ -54,6 +54,11 @@
       </div>
       <label>Değerlendirici İsimleri</label>
       <div class="apps" id="apps"></div>
+      <div style="margin-top:12px;max-width:260px">
+        <label>Pozitif Referans (Kabul kategorisi)</label>
+        <input name="positive_reference" value="1" maxlength="10">
+        <div class="hint">Etkinlik / kaçırma / yanlış alarm hesabı için “iyi/kabul” değeri. Genelde <b>1</b>.</div>
+      </div>
       <div class="hint">Değerlendirme kategorisi: <b>1 = Kabul (Geçer)</b>, <b>0 = Ret (Kalır)</b>. Standart ve değerlendirmeler bir sonraki adımda girilir.</div>
     </div>
 
@@ -93,7 +98,7 @@
         gauge_name:g('gauge_name')||null, gauge_number:g('gauge_number')||null,
         location:g('location')||null, part_name:g('part_name')||null, characteristic:g('characteristic')||null,
         owner_email:(user.email&&user.email!=='no-session')?user.email:null,
-        status:'draft', analysis_options:{ attribute:true }
+        status:'draft', analysis_options:{ attribute:true, positive_reference:(g('positive_reference')||'1') }
       }).select('id').single();
       MSA.throwIf(ins.error,'study insert');
       const sid=ins.data.id;

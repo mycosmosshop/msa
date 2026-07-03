@@ -87,7 +87,24 @@
     return { label: 'Zayıf', cls: 'bad' };
   }
 
-  function calculateAttributeAgreement(measurements) {
+  // Etkinlik / kaçırma oranı / yanlış alarm oranı sınıflandırması (AIAG / JASP)
+  function effVerdict(x) { if (x == null) return { label: '—', cls: 'neutral' };
+    if (x > 90) return { label: 'Kabul edilebilir', cls: 'good' };
+    if (x >= 80) return { label: 'Marjinal', cls: 'marginal' };
+    return { label: 'Kabul edilemez', cls: 'bad' }; }
+  function missVerdict(x) { if (x == null) return { label: '—', cls: 'neutral' };
+    if (x <= 2) return { label: 'Kabul edilebilir', cls: 'good' };
+    if (x <= 5) return { label: 'Marjinal', cls: 'marginal' };
+    return { label: 'Kabul edilemez', cls: 'bad' }; }
+  function faVerdict(x) { if (x == null) return { label: '—', cls: 'neutral' };
+    if (x <= 5) return { label: 'Kabul edilebilir', cls: 'good' };
+    if (x < 10) return { label: 'Marjinal', cls: 'marginal' };
+    return { label: 'Kabul edilemez', cls: 'bad' }; }
+
+  function calculateAttributeAgreement(measurements, options) {
+    options = options || {};
+    const positiveRef = (options.positiveReference === undefined || options.positiveReference === null || String(options.positiveReference).trim() === '')
+      ? '1' : String(options.positiveReference).trim();
     if (!measurements || !measurements.length) {
       throw new Error('Değerlendirme verisi bulunamadı');
     }
@@ -235,16 +252,70 @@
       between: kappaBetween
     });
 
+    // ---- Study effectiveness summary (Pozitif referans gerektirir) ----
+    // Etkinlik = tüm tekrarları standartla eşleşen parça oranı (= vs standard %).
+    // Kaçırma oranı = NEGATİF (referans-dışı) parçaları POZİTİF sayma / negatif fırsat.
+    // Yanlış alarm = POZİTİF parçaları negatif sayma / pozitif fırsat.
+    let effectiveness = null;
+    if (hasStandard) {
+      const isPos = v => v === positiveRef;
+      effectiveness = appraisers.map(a => {
+        const evs = eachVsStandard.find(x => x.appraiser === a);
+        const eff = evs ? evs.percent : 0;
+        let missNum = 0, missDen = 0, faNum = 0, faDen = 0;
+        parts.forEach(p => {
+          const std = standardOf[p]; if (std === undefined) return;
+          const cell = ratingsOfCell(a, p);
+          if (isPos(std)) { // pozitif (iyi) parça → yanlış alarm fırsatı
+            cell.forEach(v => { faDen++; if (!isPos(v)) faNum++; });
+          } else {          // negatif (kötü) parça → kaçırma fırsatı
+            cell.forEach(v => { missDen++; if (isPos(v)) missNum++; });
+          }
+        });
+        const miss = missDen ? missNum / missDen * 100 : 0;
+        const fa = faDen ? faNum / faDen * 100 : 0;
+        return {
+          appraiser: a, effectiveness: eff, missRate: miss, falseAlarm: fa,
+          effVerdict: effVerdict(eff), missVerdict: missVerdict(miss), faVerdict: faVerdict(fa)
+        };
+      });
+    }
+
+    // ---- Cohen's kappa: appraiser vs standard (ayrı tablo) ----
+    let cohenVsStandard = null;
+    if (hasStandard) {
+      cohenVsStandard = appraisers.map(a => ({ appraiser: a, kappa: kappaVsStd[a] }));
+      cohenVsStandard.push({ appraiser: 'Tümü', kappa: kappaAllVsStd });
+    }
+
+    // ---- Cohen's kappa correlations (değerlendiriciler arası ikili) ----
+    const cohenPairwise = { appraisers, matrix: {} };
+    appraisers.forEach(a => {
+      cohenPairwise.matrix[a] = {};
+      appraisers.forEach(b => {
+        if (a === b) { cohenPairwise.matrix[a][b] = null; return; }
+        const pairs = [];
+        parts.forEach(p => { trials.forEach(t => {
+          const va = R[a][p][t], vb = R[b][p][t];
+          if (va !== undefined && vb !== undefined) pairs.push([va, vb]);
+        }); });
+        cohenPairwise.matrix[a][b] = cohenKappa(pairs);
+      });
+    });
+
     // Genel karar (vs standard varsa ona, yoksa between'e göre)
     const decisiveKappa = hasStandard ? kappaAllVsStd : kappaBetween;
     const overall = kappaVerdict(decisiveKappa);
 
     return {
-      studyInfo: { numAppraisers, numParts, numTrials: trials.length, appraisers, parts, categories: cats, hasStandard },
+      studyInfo: { numAppraisers, numParts, numTrials: trials.length, appraisers, parts, categories: cats, hasStandard, positiveReference: positiveRef },
       withinAppraisers,
       betweenAppraisers,
       eachVsStandard,
       allVsStandard,
+      effectiveness,
+      cohenVsStandard,
+      cohenPairwise,
       fleissKappa: fleissTable,
       kappa: { within: kappaWithin, vsStandard: kappaVsStd, between: kappaBetween, allVsStandard: kappaAllVsStd },
       interpretation: {

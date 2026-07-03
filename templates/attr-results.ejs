@@ -119,6 +119,30 @@
   </div>
   <% } %>
 
+  <% if(si.hasStandard && results.effectiveness){
+       function evPill(v){ return '<span class="pill '+v.cls+'">'+v.label+'</span>'; } %>
+  <div class="card">
+    <h2><i class="bi bi-clipboard-check i"></i> Çalışma Etkinliği Özeti (Study Effectiveness)</h2>
+    <div class="exp">Pozitif referans = <b><%= si.positiveReference %></b> (Kabul kategorisi). <b>Etkinlik</b>: tüm tekrarları standartla eşleşen parça oranı. <b>Kaçırma oranı</b>: hatalı (negatif) parçayı yanlışlıkla <i>kabul</i> etme. <b>Yanlış alarm</b>: iyi (pozitif) parçayı yanlışlıkla <i>ret</i> etme.</div>
+    <table>
+      <thead><tr><th>Değerlendirici</th><th>Etkinlik %</th><th>Değerlendirme</th><th>Kaçırma %</th><th>Değerlendirme</th><th>Yanlış Alarm %</th><th>Değerlendirme</th></tr></thead>
+      <tbody>
+        <% results.effectiveness.forEach(function(e){ %>
+          <tr><td><%= e.appraiser %></td>
+            <td class="num"><%= e.effectiveness.toFixed(2) %></td><td><%- evPill(e.effVerdict) %></td>
+            <td class="num"><%= e.missRate.toFixed(2) %></td><td><%- evPill(e.missVerdict) %></td>
+            <td class="num"><%= e.falseAlarm.toFixed(2) %></td><td><%- evPill(e.faVerdict) %></td></tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <div class="exp" style="border-left-color:#9aa4bf">
+      <b>Kabul edilebilir:</b> Etkinlik ≥ %90, Kaçırma ≤ %2, Yanlış alarm ≤ %5 &nbsp;·&nbsp;
+      <b>Marjinal:</b> Etkinlik ≥ %80, Kaçırma ≤ %5, Yanlış alarm &lt; %10 &nbsp;·&nbsp;
+      <b>Kabul edilemez:</b> Etkinlik &lt; %80, Kaçırma &gt; %5, Yanlış alarm &gt; %10
+    </div>
+  </div>
+  <% } %>
+
   <div class="card">
     <h2><i class="bi bi-people i"></i> Değerlendiriciler Arası & Tümü–Standart</h2>
     <div class="exp"><b>Between:</b> tüm değerlendiricilerin tüm tekrarlarında aynı kararı verdiği parça sayısı. <b>All vs Standard:</b> tüm kararların standartla eşleştiği parça sayısı.</div>
@@ -169,6 +193,40 @@
     </table>
     <div class="chartbox" style="height:250px;margin-top:12px"><canvas id="chartKappa"></canvas></div>
   </div>
+
+  <% if(si.hasStandard && results.cohenVsStandard){ %>
+  <div class="card">
+    <h2><i class="bi bi-bullseye i"></i> Cohen's Kappa — Değerlendirici vs Standart</h2>
+    <div class="exp">Her değerlendiricinin standartla uyumunun <b>Cohen kappa</b> katsayısı (şansa göre düzeltilmiş). 1'e yakın = güçlü uyum.</div>
+    <table>
+      <thead><tr><th>Değerlendirici</th><th>Cohen's kappa</th><th>Değerlendirme</th></tr></thead>
+      <tbody>
+        <% results.cohenVsStandard.forEach(function(c){ %>
+          <tr <%= c.appraiser==='Tümü'?'style="font-weight:700;background:#f3f5fb"':'' %>>
+            <td><%= c.appraiser %></td><td><%- kv(c.kappa) %></td>
+            <td><% var vv=it.kappaVerdict(c.kappa); %><span class="pill <%= vv.cls %>"><%= vv.label %></span></td></tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-grid-3x3 i"></i> Cohen's Kappa — Değerlendiriciler Arası İkili Uyum</h2>
+    <div class="exp">Her değerlendirici çiftinin birbiriyle uyumu (Cohen kappa). Düşük değerler, o iki operatörün farklı karar verme eğiliminde olduğunu gösterir.</div>
+    <table>
+      <thead><tr><th>Değerlendirici</th><% si.appraisers.forEach(function(a){ %><th><%= a %></th><% }); %></tr></thead>
+      <tbody>
+        <% si.appraisers.forEach(function(a){ %>
+          <tr><td><%= a %></td>
+            <% si.appraisers.forEach(function(b){ var val=results.cohenPairwise.matrix[a][b]; %>
+              <td><% if(a===b){ %><span style="color:#c9d2e3">—</span><% } else { %><%- kv(val) %><% } %></td>
+            <% }); %>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
 
   <div class="foot">GageAI · Öznitelik Uyum Analizi — AIAG MSA 4. Baskı / JASP metodolojisi ile doğrulanmıştır.</div>
 </div>
