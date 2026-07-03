@@ -98,12 +98,14 @@
     const isRet = s => stype(s) === 'testretest';
     const isNested = s => stype(s) === 'nested';
     const isPod = s => stype(s) === 'pod';
+    const isCap = s => stype(s) === 'capability';
     const attributeStudies = myStudies.filter(isAttr);
     const linearityStudies = myStudies.filter(isLin);
     const testretestStudies = myStudies.filter(isRet);
     const nestedStudies = myStudies.filter(isNested);
     const podStudies = myStudies.filter(isPod);
-    const gageStudies = myStudies.filter(s => !isAttr(s) && !isLin(s) && !isRet(s) && !isNested(s) && !isPod(s));
+    const capabilityStudies = myStudies.filter(isCap);
+    const gageStudies = myStudies.filter(s => !isAttr(s) && !isLin(s) && !isRet(s) && !isNested(s) && !isPod(s) && !isCap(s));
     const type1Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type1');
     const type2Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type2');
     const type3Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type3');
@@ -197,6 +199,7 @@
       testretestStudies,
       nestedStudies,
       podStudies,
+      capabilityStudies,
       draftStudies,
       sharedStudies,
       allStudies: [],

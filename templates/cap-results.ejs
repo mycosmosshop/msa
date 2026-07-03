@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proses Yeterliliği - <%= study.study_name %></title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root{ --p:#667eea; --p2:#764ba2; --bg:#f5f7fb; --card:#fff; --ink:#232a35; --muted:#6b7280;
+         --line:#e6e9f2; --good:#1e7e4a; --gbg:#eaf6ef; --mar:#b7791f; --mbg:#fdf6e6; --bad:#c0392b; --bbg:#fdecea; --shadow:0 2px 10px rgba(30,40,70,.07); }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .hdr h1{margin:0;font-size:20px;font-weight:700} .hdr .sub{opacity:.9;font-size:12.5px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px}
+  .badge.good{background:var(--gbg);color:var(--good)} .badge.marginal{background:var(--mbg);color:var(--mar)} .badge.bad{background:var(--bbg);color:var(--bad)} .badge.neutral{background:#eef1f8;color:var(--muted)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
+  .card{background:var(--card);border-radius:13px;box-shadow:var(--shadow);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 3px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:10px 0 4px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#f3f5fb;font-weight:600;color:#39415a;font-size:12px} td:first-child,th:first-child{text-align:left}
+  .num{font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:12px}
+  .pill.good{background:var(--gbg);color:var(--good)} .pill.marginal{background:var(--mbg);color:var(--mar)} .pill.bad{background:var(--bbg);color:var(--bad)}
+  .info{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));display:grid;gap:10px;margin-top:6px}
+  .info .kv{background:#f8f9fd;border-radius:9px;padding:9px 12px}
+  .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .info .kv span{font-size:16px;font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .chartbox{position:relative;height:300px} .chartbox.tall{height:340px}
+  .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
+  @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <% var it=results.interpretation; var si=results.studyInfo; var W=results.within; var O=results.overall; var perf=results.performance; var nm=results.normality;
+     function fn(x,d){ return x==null?'—':Number(x).toFixed(d==null?3:d); }
+     function idxPill(v){ if(v==null)return '—'; var c=v>=1.33?'good':(v>=1.0?'marginal':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; } %>
+  <div class="hdr">
+    <div><h1><i class="bi bi-graph-up"></i> Proses Yeterliliği</h1>
+      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
+    <span class="badge <%= it.acceptabilityClass %>">
+      <i class="bi bi-<%= it.acceptabilityClass==='good'?'check-circle-fill':(it.acceptabilityClass==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
+      Cpk = <%= fn(it.cpk) %> · <%= it.acceptability %>
+    </span>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
+    <a class="btn ghost" href="cap-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
+    <a class="btn ghost" href="index.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Özet</h2>
+    <div class="info">
+      <div class="kv"><b>Cp</b><span><%= fn(W.cp) %></span></div>
+      <div class="kv"><b>Cpk</b><span><%= fn(W.cpk) %></span></div>
+      <div class="kv"><b>Pp</b><span><%= fn(O.cp) %></span></div>
+      <div class="kv"><b>Ppk</b><span><%= fn(O.cpk) %></span></div>
+      <div class="kv"><b>Ortalama</b><span><%= fn(si.mean,3) %></span></div>
+      <div class="kv"><b>σ (within)</b><span><%= fn(si.sigmaWithin,4) %></span></div>
+      <div class="kv"><b>σ (overall)</b><span><%= fn(si.sigmaOverall,4) %></span></div>
+      <div class="kv"><b>n / altgrup</b><span><%= si.N %> / <%= si.subgroupSize %></span></div>
+    </div>
+    <div class="exp"><b>Proses yeterliliği</b>, sürecin çıktısının spesifikasyon sınırlarına (LSL–USL) ne kadar sığdığını ölçer.
+      <b>Cp/Cpk</b> kısa dönem (within, σ = R̄/d₂), <b>Pp/Ppk</b> uzun dönem (overall) yeteneği gösterir.
+      Genel kabul: <b>Cpk ≥ 1.33 yeterli</b>, 1.00–1.33 marjinal, &lt; 1.00 yetersiz. Cp≈Cpk ise süreç ortalanmıştır.
+      Spesifikasyon: LSL=<%= fn(si.lsl,2) %>, Hedef=<%= si.target!=null?fn(si.target,2):'—' %>, USL=<%= fn(si.usl,2) %>.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-table i"></i> Yeterlilik İndeksleri</h2>
+    <div class="grid2">
+      <div>
+        <div style="font-weight:600;font-size:13px;margin:2px 0 0">Kısa Dönem (Within — Potansiyel)</div>
+        <table>
+          <thead><tr><th>İndeks</th><th>Değer</th></tr></thead>
+          <tbody>
+            <tr><td>Cp</td><td><%- idxPill(W.cp) %></td></tr>
+            <tr><td>Cpk</td><td><%- idxPill(W.cpk) %></td></tr>
+            <tr><td>Cpl (alt)</td><td class="num"><%= fn(W.cpl) %></td></tr>
+            <tr><td>Cpu (üst)</td><td class="num"><%= fn(W.cpu) %></td></tr>
+            <tr><td>Cpm (hedefe göre)</td><td class="num"><%= fn(results.cpm) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:13px;margin:2px 0 0">Uzun Dönem (Overall — Performans)</div>
+        <table>
+          <thead><tr><th>İndeks</th><th>Değer</th></tr></thead>
+          <tbody>
+            <tr><td>Pp</td><td><%- idxPill(O.cp) %></td></tr>
+            <tr><td>Ppk</td><td><%- idxPill(O.cpk) %></td></tr>
+            <tr><td>Ppl (alt)</td><td class="num"><%= fn(O.cpl) %></td></tr>
+            <tr><td>Ppu (üst)</td><td class="num"><%= fn(O.cpu) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-percent i"></i> Performans (Milyonda Kusurlu — PPM)</h2>
+    <div class="exp">Gözlenen = veride spesifikasyon dışı kalan oran. Beklenen = normal dağılıma göre teorik oran (within: potansiyel, overall: gerçek performans).</div>
+    <table>
+      <thead><tr><th>Kaynak</th><th>LSL Altı</th><th>USL Üstü</th><th>Toplam</th></tr></thead>
+      <tbody>
+        <tr><td>Gözlenen</td><td class="num"><%= fn(perf.observed.below,1) %></td><td class="num"><%= fn(perf.observed.above,1) %></td><td class="num" style="font-weight:600"><%= fn(perf.observed.total,1) %></td></tr>
+        <tr><td>Beklenen (within)</td><td class="num"><%= fn(perf.expectedWithin.below,1) %></td><td class="num"><%= fn(perf.expectedWithin.above,1) %></td><td class="num"><%= fn(perf.expectedWithin.total,1) %></td></tr>
+        <tr><td>Beklenen (overall)</td><td class="num"><%= fn(perf.expectedOverall.below,1) %></td><td class="num"><%= fn(perf.expectedOverall.above,1) %></td><td class="num"><%= fn(perf.expectedOverall.total,1) %></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-bar-chart-line i"></i> Histogram & Yeterlilik Grafiği</h2>
+    <div class="exp">Gri barlar = veri dağılımı, mavi eğri = normal dağılım. Kırmızı kesikli çizgiler = spesifikasyon sınırları (LSL/USL), yeşil = hedef. Barlar sınırların içinde ve ortalanmışsa süreç yeterlidir.</div>
+    <div class="chartbox tall"><canvas id="chartHist"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-activity i"></i> Kontrol Kartları (X̄ & S)</h2>
+    <div class="exp">Süreç <b>kararlılığını</b> gösterir. Noktalar kontrol sınırları (UCL/LCL) içinde ve rastgele dağılmışsa süreç stabildir — yeterlilik analizi ancak stabil süreçte anlamlıdır.</div>
+    <div class="grid2">
+      <div><div style="font-weight:600;font-size:12.5px;text-align:center">X̄ Kartı (alt grup ortalaması)</div><div class="chartbox"><canvas id="chartXbar"></canvas></div></div>
+      <div><div style="font-weight:600;font-size:12.5px;text-align:center">S Kartı (alt grup std sapması)</div><div class="chartbox"><canvas id="chartS"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-clipboard-data i"></i> Normallik Testi (Anderson-Darling)</h2>
+    <table>
+      <thead><tr><th>N</th><th>Ortalama</th><th>Std. Sapma</th><th>AD</th><th>p-değeri</th><th>Sonuç</th></tr></thead>
+      <tbody><tr><td class="num"><%= nm.N %></td><td class="num"><%= fn(nm.mean,3) %></td><td class="num"><%= fn(nm.sd,4) %></td><td class="num"><%= fn(nm.ad,3) %></td><td class="num"><%= nm.p<0.001?'< .001':fn(nm.p,3) %></td>
+        <td><%- nm.p>=0.05 ? '<span class="pill good">Normal</span>' : '<span class="pill bad">Normal değil</span>' %></td></tr></tbody>
+    </table>
+    <div class="exp" style="border-left-color:#9aa4bf">p ≥ 0.05 ise veri normal dağılıma uyar ve Cp/Cpk yorumları geçerlidir. p &lt; 0.05 ise dönüşüm ya da normal-olmayan yeterlilik yöntemi gerekebilir.</div>
+  </div>
+
+  <div class="foot">GageAI · Proses Yeterliliği (Process Capability) — AIAG/ISO / JASP metodolojisi ile doğrulanmıştır.</div>
+</div>
+
+<script>
+(function(){
+  var R = <%- JSON.stringify(results) %>;
+  var g=R.graph;
+  // Histogram + normal + spec limits
+  var hEl=document.getElementById('chartHist');
+  if(hEl){
+    var specPlugin={ id:'spec', afterDatasetsDraw:function(c){ var ctx=c.ctx,x=c.scales.x,y=c.scales.y;
+      function vline(val,col,lbl){ if(val==null)return; var px=x.getPixelForValue(val); if(px<x.left-2||px>x.right+2)return;
+        ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([6,4]); ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='bold 11px Segoe UI'; ctx.fillText(lbl,px+3,y.top+12); ctx.restore(); }
+      vline(g.lsl,'#c0392b','LSL'); vline(g.usl,'#c0392b','USL'); vline(g.target,'#1e7e4a','Hedef');
+    }};
+    new Chart(hEl,{
+      data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:[
+        { type:'bar', label:'Frekans', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(120,130,150,.45)', borderColor:'#9aa4bf', borderWidth:1, categoryPercentage:1.0, barPercentage:1.0, order:2 },
+        { type:'line', label:'Normal', data:g.curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#2563eb', pointRadius:0, borderWidth:2.5, tension:0.3, order:1, xAxisID:'xLin' }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ title:{display:true,text:'Ölçüm'} },
+          xLin:{ type:'linear', display:false, min:g.hist[0].x0, max:g.hist[g.hist.length-1].x1 },
+          y:{ beginAtZero:true, title:{display:true,text:'Frekans'} } },
+        plugins:{ legend:{display:false} } },
+      plugins:[specPlugin]
+    });
+  }
+  function ctrlChart(id, ch, label){
+    var el=document.getElementById(id); if(!el)return;
+    var n=ch.points.length;
+    new Chart(el,{ data:{ labels:ch.points.map(function(p){return p.x;}), datasets:[
+      { type:'line', label:label, data:ch.points.map(function(p){return p.y;}), borderColor:'#667eea', backgroundColor:'#667eea', pointRadius:3, borderWidth:1.8, tension:0 },
+      { type:'line', label:'UCL', data:Array(n).fill(ch.ucl), borderColor:'#c0392b', borderDash:[6,4], pointRadius:0, borderWidth:1.3 },
+      { type:'line', label:'CL', data:Array(n).fill(ch.cl), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.3 },
+      { type:'line', label:'LCL', data:Array(n).fill(ch.lcl), borderColor:'#c0392b', borderDash:[6,4], pointRadius:0, borderWidth:1.3 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:'Alt grup'}} },
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+': '+Number(c.raw).toFixed(3); } } } } }
+    });
+  }
+  ctrlChart('chartXbar', g.xbarChart, 'X̄');
+  ctrlChart('chartS', g.sChart, 'S');
+})();
+</script>
+</body>
+</html>

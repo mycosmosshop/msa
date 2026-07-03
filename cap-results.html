@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/cap-calculations.js?v=1"></script>
+<title>Proses Yeterliliği</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// Process Capability — msa_studies(study_type='capability'), msa_measurements.measurement=değer (sırayla).
+(async () => {
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) return MSA.renderError('Bulunamadı', 'Çalışma bulunamadı');
+
+    const { data: meas, error: mErr } = await MSA.db.from(MSA.T.measurements)
+      .select('part, measurement').eq('study_id', studyId);
+    MSA.throwIf(mErr, 'measurements select');
+    if (!meas || !meas.length) {
+      return location.replace('cap-data-entry.html?id=' + encodeURIComponent(studyId) + '&error=' + encodeURIComponent('Önce ölçüm verisi girmelisiniz!'));
+    }
+    // sıraya göre (part numarası)
+    const data = meas.map(m => ({ part: parseInt(m.part), value: Number(m.measurement) }))
+      .filter(m => isFinite(m.value)).sort((a, b) => a.part - b.part).map(m => ({ value: m.value }));
+
+    const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    let results;
+    try {
+      results = window.capCalculations.calculateCapability(data, {
+        lsl: opts.lsl, usl: opts.usl, target: opts.target, subgroupSize: study.num_trials || opts.subgroup_size || 5
+      });
+    } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+
+    try {
+      await MSA.db.from(MSA.T.studies).update({
+        gauge_evaluation: { capability: true, cp: results.within.cp, cpk: results.within.cpk, pp: results.overall.cp, ppk: results.overall.cpk },
+        status: 'calculated',
+        is_acceptable: results.interpretation.acceptabilityClass === 'good' ? 'acceptable' : (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable')
+      }).eq('id', studyId);
+    } catch (e) { console.warn('özet kaydedilemedi', e); }
+
+    await MSA.renderPage('cap-results.ejs', { user, study, results, branding: MSA.BRANDING });
+  } catch (error) {
+    console.error('Capability sonuç hatası:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>

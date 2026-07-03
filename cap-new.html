@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Yeni Proses Yeterliliği</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:760px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between}
+  .hdr h1{margin:0;font-size:19px}
+  .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 12px;font-size:15px;display:flex;gap:8px;align-items:center} .card h2 .i{color:var(--p)}
+  label{display:block;font-size:12.5px;color:#41506b;font-weight:600;margin:0 0 4px}
+  input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+  @media(max-width:600px){.row,.row3{grid-template-columns:1fr}}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .btn{border:0;border-radius:9px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
+  .foot{display:flex;justify-content:space-between;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr"><h1><i class="bi bi-graph-up"></i> Yeni Proses Yeterliliği Çalışması</h1>
+    <a class="btn ghost" href="index.html" style="background:rgba(255,255,255,.2);color:#fff"><i class="bi bi-arrow-left"></i> Pano</a></div>
+  <form id="f">
+    <div class="card">
+      <h2><i class="bi bi-info-circle i"></i> Genel Bilgiler</h2>
+      <div class="row"><div><label>Çalışma Adı *</label><input name="study_name" required placeholder="ör. Mil Çapı Yeterlilik"></div>
+        <div><label>Karakteristik</label><input name="characteristic" placeholder="ör. Çap (mm)"></div></div>
+      <div class="row"><div><label>Proses / Hat</label><input name="gauge_name"></div>
+        <div><label>Ölçüm Sayısı *</label><input type="number" name="num_parts" min="10" max="2000" value="100" required>
+          <div class="hint">Toplam ölçüm adedi</div></div></div>
+    </div>
+    <div class="card">
+      <h2><i class="bi bi-rulers i"></i> Spesifikasyon & Alt Grup</h2>
+      <div class="row3">
+        <div><label>Alt Spesifikasyon (LSL) *</label><input type="number" step="any" name="lsl" required></div>
+        <div><label>Hedef (Target)</label><input type="number" step="any" name="target" placeholder="opsiyonel"></div>
+        <div><label>Üst Spesifikasyon (USL) *</label><input type="number" step="any" name="usl" required></div>
+      </div>
+      <div class="row"><div><label>Alt Grup Boyutu *</label><input type="number" name="subgroup_size" min="1" max="25" value="5" required>
+        <div class="hint">Ardışık kaç ölçüm bir alt grup (X̄&S için, tipik 5)</div></div><div></div></div>
+    </div>
+    <div class="foot">
+      <a class="btn ghost" href="index.html">İptal</a>
+      <button class="btn primary" type="submit" id="sub"><i class="bi bi-arrow-right"></i> Oluştur ve Veri Girişine Geç</button>
+    </div>
+  </form>
+</div>
+<script>
+(async () => {
+  const user = await MSA.currentUser();
+  document.getElementById('f').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const btn=document.getElementById('sub'); btn.disabled=true; btn.textContent='Oluşturuluyor…';
+    try{
+      const fd=new FormData(e.target); const g=n=>fd.get(n);
+      const N=parseInt(g('num_parts')), sg=parseInt(g('subgroup_size'));
+      const ins=await MSA.db.from(MSA.T.studies).insert({
+        study_name:g('study_name'), study_type:'capability', description:'Proses yeterliliği (Cp/Cpk/Pp/Ppk)',
+        num_operators:1, num_parts:N, num_trials:sg,
+        gauge_name:g('gauge_name')||null, characteristic:g('characteristic')||null,
+        owner_email:(user.email&&user.email!=='no-session')?user.email:null,
+        status:'draft', analysis_options:{ capability:true, lsl:parseFloat(g('lsl')), usl:parseFloat(g('usl')), target:(g('target')?parseFloat(g('target')):null), subgroup_size:sg }
+      }).select('id').single();
+      MSA.throwIf(ins.error,'study insert');
+      const sid=ins.data.id;
+      MSA.throwIf((await MSA.db.from(MSA.T.operators).insert([{study_id:sid,operator_number:1,operator_name:'Süreç'}])).error,'op insert');
+      const prt=[]; for(let i=1;i<=N;i++) prt.push({study_id:sid,part_number:i,part_name:('Ölçüm '+i)});
+      for(let i=0;i<prt.length;i+=250){ MSA.throwIf((await MSA.db.from(MSA.T.parts).insert(prt.slice(i,i+250))).error,'parts insert'); }
+      location.href='cap-data-entry.html?id='+sid;
+    }catch(err){ alert('Hata: '+err.message); btn.disabled=false; btn.innerHTML='<i class="bi bi-arrow-right"></i> Oluştur ve Veri Girişine Geç'; }
+  });
+})();
+</script>
+</body>
+</html>
