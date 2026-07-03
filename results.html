@@ -105,50 +105,24 @@
     // Get tolerance width from study
     const toleranceWidth = (analysisOptions && analysisOptions.tolerance && analysisOptions.tolerance.width) || null;
 
-    // Check if results already exist in database
+    // Sonuçları ölçümlerden TAM hesapla.
+    // NOT (hata düzeltmesi): Orijinal Express rotası, kayıtlı sonuçları okurken
+    // yalnızca anovaTable/varianceComponents/gaugeEvaluation'ı geri kuruyor,
+    // ama results.ejs 'anovaTableWithoutInteraction'a da erişiyordu (DB'de
+    // saklanmaz) → "Cannot read properties of undefined (reading 'part')".
+    // Bu yüzden results.ejs'in beklediği TAM nesneyi calculateGaugeRR ile
+    // yeniden üretiyoruz (calculate.html ile birebir aynı, doğrulanmış yol).
+    // Veri değişmediği için varyans/%GRR/NDC kayıtlı değerlerle özdeştir;
+    // ayrıca ANOVA F/p her zaman güncel (JASP-hizalı) motorla üretilir.
     let results, controlCharts;
-
-    if (study.anova_results && study.variance_components && study.gauge_evaluation) {
-      // ✅ Results exist in database - just read them (FAST!)
-      console.log('✅ Reading results from database (no recalculation needed)');
-      try {
-        results = {
-          anovaTable: MSA.parseJson(study.anova_results, null),
-          varianceComponents: MSA.parseJson(study.variance_components, null),
-          gaugeEvaluation: MSA.parseJson(study.gauge_evaluation, null)
-        };
-
-        // Add interpretation from stored data
-        const grr = results.gaugeEvaluation.totalGaugeRR.pctStudyVar;
-        results.interpretation = {
-          acceptability: study.is_acceptable === 'acceptable' ? 'Acceptable' :
-                        study.is_acceptable === 'marginal' ? 'Marginal' : 'Unacceptable',
-          recommendation: grr < 10 ? 'Ölçüm sistemi kabul edilebilir' :
-                         grr < 30 ? 'Duruma göre kabul edilebilir' :
-                         'Ölçüm sistemi kabul edilemez'
-        };
-
-        // Calculate control charts (lightweight operation)
-        controlCharts = window.msaCalculations.calculateControlCharts(numericMeasurements);
-        console.log('✅ Results loaded from database successfully');
-      } catch (parseError) {
-        console.error('❌ Error parsing stored results, will recalculate:', parseError);
-        // Fall through to recalculation below
-        results = null;
-      }
-    }
-
-    // Only recalculate if results don't exist or parsing failed
-    if (!results) {
-      try {
-        console.log('🔄 Recalculating results (no stored results found)...');
-        results = window.msaCalculations.calculateGaugeRR(numericMeasurements, toleranceWidth, analysisOptions);
-        controlCharts = window.msaCalculations.calculateControlCharts(numericMeasurements);
-        console.log('✅ Results recalculated successfully');
-      } catch (calcError) {
-        console.error('❌ Recalculation error:', calcError);
-        return MSA.renderError('Hesaplama Hatası', 'Sonuçlar hesaplanırken bir hata oluştu: ' + calcError.message);
-      }
+    try {
+      console.log('🔄 Sonuçlar ölçümlerden hesaplanıyor (tam nesne)...');
+      results = window.msaCalculations.calculateGaugeRR(numericMeasurements, toleranceWidth, analysisOptions);
+      controlCharts = window.msaCalculations.calculateControlCharts(numericMeasurements);
+      console.log('✅ Sonuçlar hazır');
+    } catch (calcError) {
+      console.error('❌ Hesaplama hatası:', calcError);
+      return MSA.renderError('Hesaplama Hatası', 'Sonuçlar hesaplanırken bir hata oluştu: ' + calcError.message);
     }
 
     console.log('👥 Operators found:', operators.length);
