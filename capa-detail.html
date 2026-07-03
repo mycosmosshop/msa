@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>DÖF Detayı - MSA</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// GET /msa/:studyId/capa/:capaId portu — msaRoutes.js:3677 (CAPA görüntüle/düzenle)
+// POST /msa/:studyId/capa/:capaId/update portu şablonun kendi <script>'inde (capaForm onsubmit).
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const studyId = MSA.requireQ('study');
+    const capaId = MSA.requireQ('id');
+    const branding = MSA.BRANDING;
+
+    // Get CAPA details — capa_actions LEFT JOIN msa_studies (study_name; owner erişim kontrolü düştü)
+    const { data: capaRow, error: capaErr } = await MSA.db.from(MSA.T.capa)
+      .select('*, msa_studies(study_name)')
+      .eq('id', capaId)
+      .maybeSingle();
+    MSA.throwIf(capaErr, 'capa select');
+
+    if (!capaRow) {
+      MSA.renderError('Hata', 'CAPA bulunamadı');
+      return;
+    }
+
+    const capa = Object.assign({}, capaRow, {
+      study_name: (capaRow.msa_studies && capaRow.msa_studies.study_name) || null
+    });
+    delete capa.msa_studies;
+
+    // Creator / responsible adları: users JOIN düştü — e-posta doğrudan gösterilir.
+    if (capa.created_by_email) {
+      capa.creator_name = capa.created_by_email;
+    }
+    if (capa.responsible_email) {
+      capa.responsible_name = capa.responsible_email;
+    }
+
+    // Orijinaldeki erişim kontrolü (admin/oluşturan/sorumlu/çalışma sahibi) düşen özellik —
+    // herkes görüntüleyebilir/düzenleyebilir.
+
+    // Sorumlu atama açılır listesi: users tablosu düştü —
+    // bilinen e-postalar (çalışma sahipleri + DÖF oluşturan/sorumlu) derlenir.
+    const [allCapaEmailsRes, ownersRes] = await Promise.all([
+      MSA.db.from(MSA.T.capa).select('created_by_email, responsible_email'),
+      MSA.db.from(MSA.T.studies).select('owner_email')
+    ]);
+    MSA.throwIf(allCapaEmailsRes.error, 'capa emails select');
+    MSA.throwIf(ownersRes.error, 'owners select');
+    const emailSet = new Set();
+    if (user.email && user.email !== 'no-session') emailSet.add(user.email);
+    (allCapaEmailsRes.data || []).forEach(c => {
+      if (c.created_by_email) emailSet.add(c.created_by_email);
+      if (c.responsible_email) emailSet.add(c.responsible_email);
+    });
+    (ownersRes.data || []).forEach(s => { if (s.owner_email) emailSet.add(s.owner_email); });
+    const users = Array.from(emailSet).sort().map(e => ({ id: e, name: null, email: e }));
+
+    // Get study details
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('id', studyId)
+      .maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+
+    if (!study) {
+      MSA.renderError('Hata', 'MSA çalışması bulunamadı');
+      return;
+    }
+
+    await MSA.renderPage('capa-detail.ejs', {
+      user,
+      branding,
+      capa,
+      study,
+      users
+    });
+  } catch (e) {
+    console.error('CAPA detail error:', e);
+    MSA.renderError('Hata', 'CAPA detayı yüklenirken hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

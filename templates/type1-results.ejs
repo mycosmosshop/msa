@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type 1 Study Results</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #f5f5f5; 
+            padding: 20px; 
+        }
+        .navbar {
+            background: linear-gradient(135deg, <%= branding?.primary_color || '#667eea' %>, <%= branding?.secondary_color || '#764ba2' %>);
+            color: white;
+            padding: 15px 30px;
+            margin: -20px -20px 30px -20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .navbar h1 { font-size: 18px; }
+        .navbar a { color: white; text-decoration: none; margin-left: 15px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; }
+        h1 { font-size: 20px; font-weight: bold; margin-bottom: 20px; }
+        h2 { font-size: 16px; font-weight: bold; margin: 25px 0 15px; }
+        h3 { font-size: 14px; font-style: italic; margin: 15px 0 10px; font-weight: normal; }
+        .chart-box { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #ccc; 
+            background: #fafafa; 
+        }
+        canvas { width: 100% !important; height: 350px !important; background: white; }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 15px 0; 
+            font-size: 13px; 
+            background: white; 
+        }
+        th, td { 
+            padding: 8px 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #333; 
+        }
+        th { font-weight: 600; background: #f5f5f5; }
+        .note { font-style: italic; font-size: 11px; color: #666; margin: 8px 0; }
+        
+        /* Tooltip Styles */
+        .tooltip-cell {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dotted #999;
+        }
+        .tooltip-cell:hover {
+            background: #f0f9ff;
+        }
+        .tooltip-content {
+            visibility: hidden;
+            position: absolute;
+            z-index: 1000;
+            background: #1f2937;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.6;
+            width: 350px;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .tooltip-content::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -8px;
+            border-width: 8px;
+            border-style: solid;
+            border-color: #1f2937 transparent transparent transparent;
+        }
+        .tooltip-cell:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip-formula {
+            background: rgba(255,255,255,0.1);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin: 6px 0;
+            border-left: 3px solid #3b82f6;
+        }
+        .tooltip-calc {
+            color: #93c5fd;
+            font-style: italic;
+            margin-top: 6px;
+        }
+        
+        .btn { 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block; 
+            margin: 10px 5px 10px 0; 
+            font-size: 14px;
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, <%= branding?.primary_color || '#667eea' %>, <%= branding?.secondary_color || '#764ba2' %>);
+            color: white; 
+            border: none; 
+        }
+        .btn-secondary { background: #6c757d; color: white; border: none; }
+        
+        /* Print styles */
+        @media print {
+            .screen-only { display: none !important; }
+            .navbar { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <h1>📏 Type 1 Instrument Capability Study</h1>
+        <div>
+            <a href="index.html">Dashboard</a>
+            <a href="index.html">Logout</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;">Type 1 Instrument Capability Study</h1>
+            <div style="display: flex; gap: 10px;">
+                <a href="type1-edit.html?id=<%= study.id %>" class="btn btn-secondary" style="padding: 8px 15px; font-size: 13px; text-decoration: none;">
+                    ⚙️ Ayarlar
+                </a>
+            </div>
+        </div>
+        
+        <!-- Study Information -->
+        <div class="chart-box" style="margin-bottom: 20px;">
+            <h2><%= study.study_name %></h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
+                <% if (study.gauge_name) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">GAUGE NAME</div>
+                    <div style="font-weight: 600;"><%= study.gauge_name %></div>
+                </div>
+                <% } %>
+                
+                <% if (study.gauge_number) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">GAUGE NUMBER</div>
+                    <div style="font-weight: 600;"><%= study.gauge_number %></div>
+                </div>
+                <% } %>
+                
+                <% if (study.location) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">LOCATION</div>
+                    <div style="font-weight: 600;"><%= study.location %></div>
+                </div>
+                <% } %>
+                
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">DATE</div>
+                    <div style="font-weight: 600;">
+                        <% if (study.created_at) { %>
+                            <%= new Date(study.created_at).toLocaleDateString('tr-TR') %>
+                        <% } else { %>
+                            <span style="color: var(--text-secondary); font-style: italic;">Tarih belirtilmemiş</span>
+                        <% } %>
+                    </div>
+                </div>
+                
+                <% if (study.part_name) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">PART NAME</div>
+                    <div style="font-weight: 600;"><%= study.part_name %></div>
+                </div>
+                <% } %>
+                
+                <% if (study.characteristic) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">CHARACTERISTIC</div>
+                    <div style="font-weight: 600;"><%= study.characteristic %></div>
+                </div>
+                <% } %>
+                
+                <% if (study.tolerance_spec) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">TOLERANCE (SPECIFICATION)</div>
+                    <div style="font-weight: 600;"><%= study.tolerance_spec %></div>
+                </div>
+                <% } %>
+                
+                <% if (study.performed_by) { %>
+                <div style="padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 4px;">PERFORMED BY</div>
+                    <div style="font-weight: 600;"><%= study.performed_by %></div>
+                </div>
+                <% } %>
+            </div>
+        </div>
+        
+        <div class="chart-box">
+            <h2>Run chart of Column 1</h2>
+            <canvas id="runChart"></canvas>
+        </div>
+        
+        <div class="chart-box">
+            <h2>Bias and instrument capability table</h2>
+            
+            <h3>Basic statistics</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th rowspan="2">Reference value</th>
+                        <th rowspan="2">Mean</th>
+                        <th rowspan="2">Bias</th>
+                        <th rowspan="2">Std. dev. (s)</th>
+                        <th rowspan="2">Instrument variation</th>
+                        <th rowspan="2">Tolerance</th>
+                        <th colspan="2">Tolerance bounds</th>
+                        <th rowspan="2">% Bias</th>
+                    </tr>
+                    <tr>
+                        <th>Lower</th>
+                        <th>Upper</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <!-- Reference Value -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.reference_value).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>Reference Value (Referans Değer)</strong>
+                                <div class="tooltip-formula">
+                                    Kalibrasyon standardı veya bilinen gerçek değer
+                                </div>
+                                <div class="tooltip-calc">
+                                    Bu değer: <%= parseFloat(results.reference_value).toFixed(2) %><br>
+                                    Tüm ölçümler bu değerle karşılaştırılır
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Mean -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.mean).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>Mean (Ortalama)</strong>
+                                <div class="tooltip-formula">
+                                    x̄ = Σxᵢ / n
+                                </div>
+                                <div class="tooltip-calc">
+                                    Hesaplama: Tüm ölçümlerin toplamı / Ölçüm sayısı<br>
+                                    Sonuç: <%= parseFloat(results.mean).toFixed(3) %><br>
+                                    n = <%= measurements.length %> ölçüm
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Bias -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.bias).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>Bias (Sapma)</strong>
+                                <div class="tooltip-formula">
+                                    Bias = x̄ - Reference Value
+                                </div>
+                                <div class="tooltip-calc">
+                                    <%= parseFloat(results.mean).toFixed(3) %> - <%= parseFloat(results.reference_value).toFixed(3) %> = <%= parseFloat(results.bias).toFixed(3) %><br>
+                                    <% if (Math.abs(parseFloat(results.bias)) < 0.01) { %>
+                                        ✅ Çok düşük sapma (ideal)
+                                    <% } else if (parseFloat(results.bias) > 0) { %>
+                                        ⬆️ Pozitif: Alet yüksek ölçüyor
+                                    <% } else { %>
+                                        ⬇️ Negatif: Alet düşük ölçüyor
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Std Dev -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.std_dev).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>Std. Dev. (Standart Sapma)</strong>
+                                <div class="tooltip-formula">
+                                    s = √[Σ(xᵢ - x̄)² / (n-1)]
+                                </div>
+                                <div class="tooltip-calc">
+                                    Ölçümlerin ne kadar dağıldığını gösterir<br>
+                                    s = <%= parseFloat(results.std_dev).toFixed(3) %><br>
+                                    Küçük = Tutarlı ölçümler ✓<br>
+                                    Büyük = Dağınık ölçümler ✗
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Instrument Variation -->
+                        <td class="tooltip-cell">
+                            <%= (parseFloat(results.std_dev) * 6).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>Instrument Variation (Alet Varyasyonu)</strong>
+                                <div class="tooltip-formula">
+                                    6σ = 6 × s
+                                </div>
+                                <div class="tooltip-calc">
+                                    6 × <%= parseFloat(results.std_dev).toFixed(3) %> = <%= (parseFloat(results.std_dev) * 6).toFixed(3) %><br>
+                                    Ölçüm aralığının %99.73'ünü kapsar<br>
+                                    Aletin toplam değişkenliği
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Tolerance -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.tolerance).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>Tolerance (Tolerans)</strong>
+                                <div class="tooltip-formula">
+                                    Kabul edilebilir varyasyon aralığı
+                                </div>
+                                <div class="tooltip-calc">
+                                    Tolerance: <%= parseFloat(results.tolerance).toFixed(3) %><br>
+                                    USL - LSL veya belirlenen aralık<br>
+                                    Alet varyasyonu bundan küçük olmalı
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Lower Bound -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.lower_bound).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>Lower Tolerance Bound (Alt Sınır)</strong>
+                                <div class="tooltip-formula">
+                                    Lower = Reference - (Tolerance / 2)
+                                </div>
+                                <div class="tooltip-calc">
+                                    <%= parseFloat(results.reference_value).toFixed(2) %> - (<%= parseFloat(results.tolerance).toFixed(2) %> / 2) = <%= parseFloat(results.lower_bound).toFixed(2) %><br>
+                                    Alt tolerans limiti
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Upper Bound -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.upper_bound).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>Upper Tolerance Bound (Üst Sınır)</strong>
+                                <div class="tooltip-formula">
+                                    Upper = Reference + (Tolerance / 2)
+                                </div>
+                                <div class="tooltip-calc">
+                                    <%= parseFloat(results.reference_value).toFixed(2) %> + (<%= parseFloat(results.tolerance).toFixed(2) %> / 2) = <%= parseFloat(results.upper_bound).toFixed(2) %><br>
+                                    Üst tolerans limiti
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- % Bias -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.percent_bias).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>% Bias (Sapma Yüzdesi)</strong>
+                                <div class="tooltip-formula">
+                                    % Bias = |Bias| / Tolerance × 100
+                                </div>
+                                <div class="tooltip-calc">
+                                    |<%= parseFloat(results.bias).toFixed(3) %>| / <%= parseFloat(results.tolerance).toFixed(3) %> × 100 = <%= parseFloat(results.percent_bias).toFixed(2) %>%<br>
+                                    <% const pctBias = parseFloat(results.percent_bias); %>
+                                    <% if (pctBias < 5) { %>
+                                        ✅ Mükemmel (&lt;5%)
+                                    <% } else if (pctBias < 10) { %>
+                                        ✓ İyi (&lt;10%)
+                                    <% } else if (pctBias < 20) { %>
+                                        ⚠️ Sınırda (10-20%)
+                                    <% } else { %>
+                                        ❌ Yüksek (&gt;20%)
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="note">Note: The instrument variation is calculated as 6 * s.</p>
+            
+            <!-- Detailed Interpretations for Basic Statistics -->
+            <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 4px;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #667eea;">📊 Basic Statistics Açıklamaları</h4>
+                
+                <!-- Bias Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">Bias (Sapma): <%= parseFloat(results.bias).toFixed(3) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const bias = parseFloat(results.bias);
+                        const absBias = Math.abs(bias);
+                        const tolerance = parseFloat(results.tolerance);
+                        const biasPercent = parseFloat(results.percent_bias);
+                        %>
+                        <% if (absBias < tolerance * 0.05) { %>
+                            ✅ <strong style="color: #10b981;">Mükemmel:</strong> Bias çok düşük (&lt;5% tolerance). Ölçüm aleti referans değere çok yakın ölçüm yapıyor.
+                        <% } else if (absBias < tolerance * 0.10) { %>
+                            ✓ <strong style="color: #3b82f6;">İyi:</strong> Bias kabul edilebilir seviyede (&lt;10% tolerance). Ölçüm aleti referans değere yakın.
+                        <% } else if (absBias < tolerance * 0.20) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Sınırda:</strong> Bias yüksek (10-20% tolerance). Kalibrasyon gerekebilir.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Yetersiz:</strong> Bias çok yüksek (&gt;20% tolerance). Ölçüm aleti sistemik sapma gösteriyor, kalibrasyon zorunlu!
+                        <% } %>
+                        <br><em style="color: #6b7280;">% Bias: <%= biasPercent.toFixed(2) %>% (Tolerance'a göre)</em>
+                    </div>
+                </div>
+                
+                <!-- Std Dev Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">Std. Dev. (Standart Sapma): <%= parseFloat(results.std_dev).toFixed(3) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const stdDev = parseFloat(results.std_dev);
+                        const cv = (stdDev / parseFloat(results.mean)) * 100; // Coefficient of Variation
+                        %>
+                        <% if (cv < 1) { %>
+                            ✅ <strong style="color: #10b981;">Çok İyi:</strong> Tekrarlanabirlik mükemmel (CV &lt;1%). Ölçümler çok tutarlı.
+                        <% } else if (cv < 3) { %>
+                            ✓ <strong style="color: #3b82f6;">İyi:</strong> Tekrarlanabirlik iyi (CV &lt;3%). Ölçümler tutarlı.
+                        <% } else if (cv < 5) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Orta:</strong> Tekrarlanabirlik orta (CV 3-5%). Varyasyon biraz yüksek.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Zayıf:</strong> Tekrarlanabirlik zayıf (CV &gt;5%). Ölçümler çok dağınık, alet kararsız!
+                        <% } %>
+                        <br><em style="color: #6b7280;">Variation Coefficient (CV): <%= cv.toFixed(2) %>%</em>
+                    </div>
+                </div>
+                
+                <!-- Instrument Variation Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">Instrument Variation (6σ): <%= (parseFloat(results.std_dev) * 6).toFixed(3) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const instVar = parseFloat(results.std_dev) * 6;
+                        const varToleranceRatio = (instVar / tolerance) * 100;
+                        %>
+                        <% if (varToleranceRatio < 10) { %>
+                            ✅ <strong style="color: #10b981;">Mükemmel:</strong> Alet varyasyonu çok düşük (&lt;10% tolerance). Ölçüm aralığı tolerance'ın küçük bir bölümü.
+                        <% } else if (varToleranceRatio < 30) { %>
+                            ✓ <strong style="color: #3b82f6;">Kabul Edilebilir:</strong> Alet varyasyonu uygun (10-30% tolerance). Kullanıma uygundur.
+                        <% } else if (varToleranceRatio < 50) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Sınırda:</strong> Alet varyasyonu yüksek (30-50% tolerance). İyileştirme önerilir.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Yetersiz:</strong> Alet varyasyonu çok yüksek (&gt;50% tolerance). Alet ölçüm aralığı çok geniş!
+                        <% } %>
+                        <br><em style="color: #6b7280;">Tolerance'a Oran: <%= varToleranceRatio.toFixed(1) %>%</em>
+                    </div>
+                </div>
+            </div>
+            
+            <h3>Capability</h3>
+            <table style="width: 70%;">
+                <thead>
+                    <tr>
+                        <th>Cg</th>
+                        <th>Cgk</th>
+                        <th>% Var(repeatability)</th>
+                        <th>% Var(repeatability and bias)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <!-- Cg -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.cg).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>Cg (Precision Capability - Hassasiyet)</strong>
+                                <div class="tooltip-formula">
+                                    Cg = Tolerance / (6σ)
+                                </div>
+                                <div class="tooltip-calc">
+                                    <%= parseFloat(results.tolerance).toFixed(3) %> / (6 × <%= parseFloat(results.std_dev).toFixed(3) %>) = <%= parseFloat(results.cg).toFixed(2) %><br>
+                                    <% const cgValue = parseFloat(results.cg); %>
+                                    <% if (cgValue >= 1.33) { %>
+                                        ✅ Mükemmel (≥ 1.33)
+                                    <% } else if (cgValue >= 1.0) { %>
+                                        ✓ Kabul Edilebilir (1.00 - 1.33)
+                                    <% } else { %>
+                                        ❌ Yetersiz (&lt; 1.00)
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Cgk -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.cgk).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>Cgk (Total Capability - Doğruluk + Hassasiyet)</strong>
+                                <div class="tooltip-formula">
+                                    Cgk = Cg × [1 - |Bias| / (Tolerance/2)]
+                                </div>
+                                <div class="tooltip-calc">
+                                    <%= parseFloat(results.cg).toFixed(2) %> × [1 - |<%= parseFloat(results.bias).toFixed(3) %>| / <%= (parseFloat(results.tolerance) / 2).toFixed(3) %>]<br>
+                                    = <%= parseFloat(results.cgk).toFixed(2) %><br>
+                                    <% const cgkValue = parseFloat(results.cgk); %>
+                                    <% if (cgkValue >= 1.33) { %>
+                                        ✅ Mükemmel (≥ 1.33) - Kullanıma hazır
+                                    <% } else if (cgkValue >= 1.0) { %>
+                                        ✓ Kabul Edilebilir (1.00 - 1.33)
+                                    <% } else { %>
+                                        ❌ Yetersiz (&lt; 1.00) - Kalibrasyon gerekli
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- % Var(repeatability) -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.percent_var_repeatability || 0).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>% Var(repeatability) - Tekrarlanabirlik Varyansı</strong>
+                                <div class="tooltip-formula">
+                                    % Var = (6σ / Tolerance)² × 100
+                                </div>
+                                <div class="tooltip-calc">
+                                    Sadece aletin tekrarlanabirliğinden kaynaklanan varyans<br>
+                                    = <%= parseFloat(results.percent_var_repeatability || 0).toFixed(2) %>%<br>
+                                    <% const pctRepValue = parseFloat(results.percent_var_repeatability || 0); %>
+                                    <% if (pctRepValue < 10) { %>
+                                        ✅ Mükemmel (&lt;10%)
+                                    <% } else if (pctRepValue < 30) { %>
+                                        ✓ Kabul Edilebilir (10-30%)
+                                    <% } else { %>
+                                        ❌ Yüksek (&gt;30%)
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- % Var(repeatability and bias) -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.percent_var_repeatability_bias || 0).toFixed(2) %>
+                            <div class="tooltip-content">
+                                <strong>% Var(repeatability and bias) - Toplam Varyans</strong>
+                                <div class="tooltip-formula">
+                                    % Var(total) = % Var(repeat) + % Bias²
+                                </div>
+                                <div class="tooltip-calc">
+                                    Hem tekrarlanabirlik hem bias'ın etkisi<br>
+                                    = <%= parseFloat(results.percent_var_repeatability_bias || 0).toFixed(2) %>%<br>
+                                    <% const pctTotalValue = parseFloat(results.percent_var_repeatability_bias || 0); %>
+                                    <% if (pctTotalValue < 10) { %>
+                                        ✅ Mükemmel (&lt;10%)
+                                    <% } else if (pctTotalValue < 30) { %>
+                                        ✓ Kabul Edilebilir (10-30%)
+                                    <% } else { %>
+                                        ❌ Yüksek (&gt;30%)
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Detailed Interpretations for Capability Metrics -->
+            <div style="background: #f0f9ff; padding: 15px; border-left: 4px solid #3b82f6; margin: 20px 0; border-radius: 4px;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #3b82f6;">🎯 Capability Metrics Açıklamaları</h4>
+                
+                <!-- Cg Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">Cg (Hassasiyet - Precision Capability): <%= parseFloat(results.cg).toFixed(2) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const cg = parseFloat(results.cg);
+                        %>
+                        <% if (cg >= 1.33) { %>
+                            ✅ <strong style="color: #10b981;">Mükemmel (≥ 1.33):</strong> Ölçüm aletinin hassasiyeti çok iyi. Tolerance içinde tekrarlanabilir ölçümler yapıyor. Bias olmasa bile kullanıma hazır.
+                        <% } else if (cg >= 1.0) { %>
+                            ✓ <strong style="color: #3b82f6;">Kabul Edilebilir (1.00 - 1.33):</strong> Hassasiyet yeterli. Aletin tekrarlanabilirliği tolerance için uygun, ancak iyileştirme yapılabilir.
+                        <% } else if (cg >= 0.67) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Sınıfırda (0.67 - 1.00):</strong> Hassasiyet düşük. Aletin varyasyonu tolerance'a göre fazla. Dikkatli kullanılmalı veya iyileştirilmeli.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Yetersiz (&lt; 0.67):</strong> Hassasiyet çok zayıf! Alet varyasyonu tolerance'tan büyük. Kullanıma uygun değil, değiştirilmeli veya onarılmalı.
+                        <% } %>
+                        <br><em style="color: #6b7280;">Formül: Cg = Tolerance / (6σ)</em>
+                        <br><em style="color: #6b7280;">Anlamı: Alet ne kadar tutarlı ölçüm yapıyor (bias'tan bağımsız)</em>
+                    </div>
+                </div>
+                
+                <!-- Cgk Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">Cgk (Doğruluk + Hassasiyet - Total Capability): <%= parseFloat(results.cgk).toFixed(2) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const cgk = parseFloat(results.cgk);
+                        %>
+                        <% if (cgk >= 1.33) { %>
+                            ✅ <strong style="color: #10b981;">Mükemmel (≥ 1.33):</strong> Hem hassasiyet hem doğruluk mükemmel! Alet hem tutarlı hem de referans değere çok yakın ölçüyor. Kullanıma tamamen uygun.
+                        <% } else if (cgk >= 1.0) { %>
+                            ✓ <strong style="color: #3b82f6;">Kabul Edilebilir (1.00 - 1.33):</strong> Alet kullanılabilir. Bias ve varyasyon kabul edilebilir seviyede, ancak iyileştirme fırsatı var.
+                        <% } else if (cgk >= 0.67) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Koşullu Kullanım (0.67 - 1.00):</strong> Alet sınırda. Bias ve/veya varyasyon yüksek. Dikkatli kullanılmalı, sık kalibrasyon gerekebilir.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Kullanıma Uygun Değil (&lt; 0.67):</strong> Cgk çok düşük! Alet hem sapmalı hem de varyasyonlu. Kalibrasyon, onarım veya değiştirme zorunlu!
+                        <% } %>
+                        <br><em style="color: #6b7280;">Formül: Cgk = Cg × (1 - |Bias| / (Tolerance/2))</em>
+                        <br><em style="color: #6b7280;">Anlamı: Hem tutarlılık hem doğruluk birlikte değerlendirilir (en önemli metrik)</em>
+                    </div>
+                </div>
+                
+                <!-- % Var(repeatability) Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">% Var(repeatability): <%= parseFloat(results.percent_var_repeatability || 0).toFixed(2) %>%</strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const percentRepeat = parseFloat(results.percent_var_repeatability || 0);
+                        %>
+                        <% if (percentRepeat < 10) { %>
+                            ✅ <strong style="color: #10b981;">Mükemmel (&lt;10%):</strong> Tekrarlanabirlik varyansı çok düşük. Alet aynı parçayı tekrar tekrar ölçse bile sonuçlar çok yakın çıkıyor.
+                        <% } else if (percentRepeat < 30) { %>
+                            ✓ <strong style="color: #3b82f6;">Kabul Edilebilir (10-30%):</strong> Tekrarlanabirlik varyansı makul. Alet tutarlı ölçüm yapıyor.
+                        <% } else if (percentRepeat < 50) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Yüksek (30-50%):</strong> Tekrarlanabirlik varyansı fazla. Aynı parçada ölçümler arası fark büyük.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Çok Yüksek (&gt;50%):</strong> Tekrarlanabirlik çok zayıf! Alet kararsız, aynı şeyi bile tutarlı ölçemiyor.
+                        <% } %>
+                        <br><em style="color: #6b7280;">Anlamı: Sadece aletin tekrarlanabirliğinden kaynaklanan varyans yüzdesi</em>
+                    </div>
+                </div>
+                
+                <!-- % Var(repeatability and bias) Interpretation -->
+                <div style="margin-bottom: 0; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">% Var(repeatability and bias): <%= parseFloat(results.percent_var_repeatability_bias || 0).toFixed(2) %>%</strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const percentTotal = parseFloat(results.percent_var_repeatability_bias || 0);
+                        %>
+                        <% if (percentTotal < 10) { %>
+                            ✅ <strong style="color: #10b981;">Mükemmel (&lt;10%):</strong> Toplam varyans (tekrarlanabilirlik + bias) çok düşük. Alet hem tutarlı hem doğru ölçüyor.
+                        <% } else if (percentTotal < 30) { %>
+                            ✓ <strong style="color: #3b82f6;">Kabul Edilebilir (10-30%):</strong> Toplam varyans makul. Alet genel olarak iyi performans gösteriyor.
+                        <% } else if (percentTotal < 50) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Yüksek (30-50%):</strong> Toplam varyans fazla. Bias ve tekrarlanabilirlik birlikte hatayı artırıyor.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Çok Yüksek (&gt;50%):</strong> Toplam varyans kabul edilemez! Hem bias hem varyasyon problemi var.
+                        <% } %>
+                        <br><em style="color: #6b7280;">Anlamı: Hem tekrarlanabirlik hem bias'ın birleşik etkisi (toplam ölçüm sistemi hatası)</em>
+                        <br><em style="color: #6b7280;">Not: % Var(repeatability) &lt; % Var(total) olmalı (bias eklenir)</em>
+                    </div>
+                </div>
+            </div>
+            
+            <% if (results.degrees_of_freedom) { %>
+            <h3>t-test of observed bias against 0</h3>
+            <table style="width: 75%;">
+                <thead>
+                    <tr>
+                        <th rowspan="2">df</th>
+                        <th rowspan="2">Bias</th>
+                        <th colspan="2">95% CI for bias</th>
+                        <th rowspan="2">t</th>
+                        <th rowspan="2">p-value</th>
+                    </tr>
+                    <tr>
+                        <th>Lower</th>
+                        <th>Upper</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <!-- df -->
+                        <td class="tooltip-cell">
+                            <%= results.degrees_of_freedom %>
+                            <div class="tooltip-content">
+                                <strong>df (Degrees of Freedom - Serbestlik Derecesi)</strong>
+                                <div class="tooltip-formula">
+                                    df = n - 1
+                                </div>
+                                <div class="tooltip-calc">
+                                    df = <%= measurements.length %> - 1 = <%= results.degrees_of_freedom %><br>
+                                    t-dağılımı için gerekli parametre<br>
+                                    Daha fazla df = Daha güvenilir test
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- Bias -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.bias).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>Bias (Sapma)</strong>
+                                <div class="tooltip-formula">
+                                    Bias = x̄ - Reference
+                                </div>
+                                <div class="tooltip-calc">
+                                    <%= parseFloat(results.mean).toFixed(3) %> - <%= parseFloat(results.reference_value).toFixed(3) %> = <%= parseFloat(results.bias).toFixed(3) %><br>
+                                    t-test ile sıfırdan farklı mı test edilir
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- CI Lower -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.ci_lower).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>95% CI Lower (Alt Güven Sınırı)</strong>
+                                <div class="tooltip-formula">
+                                    Lower = Bias - t(α/2, df) × SE
+                                </div>
+                                <div class="tooltip-calc">
+                                    SE = s / √n (Standart Hata)<br>
+                                    Alt sınır: <%= parseFloat(results.ci_lower).toFixed(3) %><br>
+                                    Gerçek bias'ın %95 olasılıkla üzerinde olduğu değer
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- CI Upper -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.ci_upper).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>95% CI Upper (Üst Güven Sınırı)</strong>
+                                <div class="tooltip-formula">
+                                    Upper = Bias + t(α/2, df) × SE
+                                </div>
+                                <div class="tooltip-calc">
+                                    Üst sınır: <%= parseFloat(results.ci_upper).toFixed(3) %><br>
+                                    Gerçek bias'ın %95 olasılıkla altında olduğu değer<br>
+                                    <% if (parseFloat(results.ci_lower) <= 0 && parseFloat(results.ci_upper) >= 0) { %>
+                                        ✅ 0 aralıkta: Bias anlamlı olmayabilir
+                                    <% } else { %>
+                                        ❌ 0 aralık dışında: Bias kesin!
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- t-statistic -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.t_statistic).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>t-statistic (t İstatistiği)</strong>
+                                <div class="tooltip-formula">
+                                    t = Bias / (s / √n)
+                                </div>
+                                <div class="tooltip-calc">
+                                    Bias'ın standart hataya oranı<br>
+                                    t = <%= parseFloat(results.t_statistic).toFixed(3) %><br>
+                                    <% const absTStatTooltip = Math.abs(parseFloat(results.t_statistic)); %>
+                                    <% if (absTStatTooltip > 2.0) { %>
+                                        ⚠️ Yüksek: Bias istatistiksel olarak anlamlı
+                                    <% } else { %>
+                                        ✓ Düşük: Bias muhtemelen rastgele
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                        
+                        <!-- p-value -->
+                        <td class="tooltip-cell">
+                            <%= parseFloat(results.p_value) < 0.001 ? '< .001' : parseFloat(results.p_value).toFixed(3) %>
+                            <div class="tooltip-content">
+                                <strong>p-value (Olasılık Değeri)</strong>
+                                <div class="tooltip-formula">
+                                    H₀: Bias = 0 (alet doğru ölçüyor)
+                                </div>
+                                <div class="tooltip-calc">
+                                    p = <%= parseFloat(results.p_value) < 0.001 ? '< 0.001' : parseFloat(results.p_value).toFixed(3) %><br>
+                                    α = 0.05 (anlamlılık seviyesi)<br>
+                                    <% const pValueTooltip = parseFloat(results.p_value); %>
+                                    <% if (pValueTooltip < 0.05) { %>
+                                        ❌ p &lt; 0.05: Bias istatistiksel olarak anlamlı!<br>
+                                        → Kalibrasyon gerekli
+                                    <% } else { %>
+                                        ✅ p ≥ 0.05: Bias anlamlı değil<br>
+                                        → Alet doğru ölçüyor
+                                    <% } %>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- T-test Interpretation -->
+            <div style="background: #fef3c7; padding: 15px; border-left: 4px solid #f59e0b; margin: 20px 0; border-radius: 4px;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #d97706;">📈 t-Test İstatistiksel Açıklama</h4>
+                
+                <!-- p-value Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">p-value: <%= parseFloat(results.p_value) < 0.001 ? '< 0.001' : parseFloat(results.p_value).toFixed(3) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const pValue = parseFloat(results.p_value);
+                        const alpha = 0.05; // Significance level
+                        %>
+                        <% if (pValue < 0.001) { %>
+                            ❌ <strong style="color: #ef4444;">İstatistiksel Olarak Çok Anlamlı (p &lt; 0.001):</strong> Bias kesinlikle 0'dan farklı! Ölçüm aleti sistemik bir sapma gösteriyor. Kalibrasyon zorunlu.
+                        <% } else if (pValue < 0.01) { %>
+                            ❌ <strong style="color: #f97316;">İstatistiksel Olarak Anlamlı (p &lt; 0.01):</strong> Bias 0'dan önemli derecede farklı. Alet sistemik sapmalı, düzeltme gerekli.
+                        <% } else if (pValue < alpha) { %>
+                            ⚠️ <strong style="color: #f59e0b;">Anlamlı (p &lt; 0.05):</strong> Bias istatistiksel olarak anlamlı. Alet hafif sistemik sapma gösteriyor, kontrol edilmeli.
+                        <% } else if (pValue < 0.10) { %>
+                            ⚠️ <strong style="color: #eab308;">Sınırda (p = 0.05-0.10):</strong> Bias istatistiksel olarak sınırda. Dikkatli izlenmeli, gelecekte kalibrasyon gerekebilir.
+                        <% } else { %>
+                            ✅ <strong style="color: #10b981;">Anlamlı Değil (p &gt; 0.10):</strong> Bias istatistiksel olarak anlamlı değil. Gözlenen sapma rastgele varyasyondan kaynaklanıyor olabilir. Alet doğru ölçüyor.
+                        <% } %>
+                        <br><em style="color: #6b7280;">H₀: Bias = 0 (alet sistemik sapma göstermiyor)</em>
+                        <br><em style="color: #6b7280;">Anlamlılık seviyesi: α = 0.05 (standart)</em>
+                    </div>
+                </div>
+                
+                <!-- t-statistic Interpretation -->
+                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">t-statistic: <%= parseFloat(results.t_statistic).toFixed(3) %></strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const tStat = parseFloat(results.t_statistic);
+                        const absTStat = Math.abs(tStat);
+                        %>
+                        <% if (absTStat > 3.0) { %>
+                            <strong style="color: #ef4444;">Çok Yüksek (|t| &gt; 3):</strong> Bias standart hataya göre çok büyük! Sistemik sapma kesin.
+                        <% } else if (absTStat > 2.0) { %>
+                            <strong style="color: #f59e0b;">Yüksek (|t| &gt; 2):</strong> Bias standart hataya göre büyük. İstatistiksel olarak anlamlı sapma var.
+                        <% } else if (absTStat > 1.0) { %>
+                            <strong style="color: #eab308;">Orta (|t| = 1-2):</strong> Bias standart hataya yakın. Hafif sapma olabilir.
+                        <% } else { %>
+                            <strong style="color: #10b981;">Düşük (|t| &lt; 1):</strong> Bias standart hatadan küçük. Gözlenen sapma muhtemelen rastgele.
+                        <% } %>
+                        <br><em style="color: #6b7280;">Formül: t = Bias / (s / √n)</em>
+                        <br><em style="color: #6b7280;">Anlamı: Bias'ın standart hata cinsinden büyüklüğü</em>
+                    </div>
+                </div>
+                
+                <!-- 95% CI Interpretation -->
+                <div style="margin-bottom: 0; padding: 10px; background: white; border-radius: 4px;">
+                    <strong style="color: #333;">95% Güven Aralığı: [<%= parseFloat(results.ci_lower).toFixed(3) %>, <%= parseFloat(results.ci_upper).toFixed(3) %>]</strong>
+                    <div style="margin-top: 5px; font-size: 12px; color: #555;">
+                        <% 
+                        const ciLower = parseFloat(results.ci_lower);
+                        const ciUpper = parseFloat(results.ci_upper);
+                        const ciContainsZero = (ciLower <= 0 && ciUpper >= 0);
+                        const ciWidth = ciUpper - ciLower;
+                        %>
+                        <% if (ciContainsZero) { %>
+                            ✅ <strong style="color: #10b981;">Güven aralığı 0'ı içeriyor:</strong> Gerçek bias'ın 0 olma ihtimali var. Gözlenen sapma istatistiksel olarak anlamlı olmayabilir.
+                        <% } else { %>
+                            ❌ <strong style="color: #ef4444;">Güven aralığı 0'ı içermiyor:</strong> Gerçek bias'ın 0 olmadığından %95 eminiz. Sistemik sapma kesin!
+                        <% } %>
+                        <br><em style="color: #6b7280;">Anlamı: Gerçek bias değerinin %95 olasılıkla bu aralıkta olduğundan eminiz</em>
+                        <br><em style="color: #6b7280;">CI genişliği: <%= ciWidth.toFixed(3) %> (dar CI = daha kesin tahmin)</em>
+                    </div>
+                </div>
+            </div>
+            <% } %>
+            
+            <!-- Overall Acceptability Interpretation -->
+            <div style="margin-top: 30px; padding: 20px; border-radius: 8px; 
+                <% 
+                let bgColor = '#f0f9ff';
+                let borderColor = '#3b82f6';
+                let statusIcon = '✓';
+                let statusText = 'UYGUN';
+                
+                // Cgk < 1.0 → Uygun Değil
+                if (results.cgk < 1.0) {
+                    bgColor = '#fef2f2';
+                    borderColor = '#ef4444';
+                    statusIcon = '✗';
+                    statusText = 'UYGUN DEĞİL';
+                } 
+                // Cgk 1.0-1.33 VEYA bias anlamlı → Sınırda
+                else if (results.cgk < 1.33 || results.bias_significant) {
+                    bgColor = '#fffbeb';
+                    borderColor = '#f59e0b';
+                    statusIcon = '⚠';
+                    statusText = 'SINIRDA';
+                }
+                // Cgk ≥ 1.33 VE bias anlamlı değil → Uygun
+                // (default değer zaten UYGUN)
+                %>
+                background: <%= bgColor %>; border-left: 4px solid <%= borderColor %>;">
+                
+                <div style="text-align: center; margin-bottom: 20px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div style="font-size: 18px; color: #6b7280; margin-bottom: 10px; font-weight: 500;">
+                        Ölçüm Cihazı Yeterliliği
+                    </div>
+                    <div style="font-size: 48px; font-weight: 900; color: <%= borderColor %>; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);">
+                        <%= statusIcon %> <%= statusText %>
+                    </div>
+                    <div style="font-size: 13px; color: #6b7280; margin-top: 10px; font-style: italic;">
+                        <% if (results.cgk >= 1.33) { %>
+                            Alet mükemmel performans gösteriyor, kullanıma hazır
+                        <% } else if (results.cgk >= 1.0) { %>
+                            Alet kullanılabilir, ancak iyileştirme önerilir
+                        <% } else { %>
+                            Alet kalibrasyon veya değiştirme gerektirir
+                        <% } %>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div style="padding: 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Cg (Hassasiyet)</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #1f2937;">
+                            <%= parseFloat(results.cg).toFixed(2) %>
+                        </div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            <% if (results.cg >= 1.33) { %>
+                                ✓ Mükemmel (≥ 1.33)
+                            <% } else if (results.cg >= 1.0) { %>
+                                ⚠ Sınırda (1.0-1.33)
+                            <% } else { %>
+                                ✗ Zayıf (< 1.0)
+                            <% } %>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Cgk (Doğruluk + Hassasiyet)</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #1f2937;">
+                            <%= parseFloat(results.cgk).toFixed(2) %>
+                        </div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            <% if (results.cgk >= 1.33) { %>
+                                ✓ Mükemmel (≥ 1.33)
+                            <% } else if (results.cgk >= 1.0) { %>
+                                ⚠ Sınırda (1.0-1.33)
+                            <% } else { %>
+                                ✗ Zayıf (< 1.0)
+                            <% } %>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Bias Anlamlılığı</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #1f2937;">
+                            <%= results.bias_significant ? 'Evet' : 'Hayır' %>
+                        </div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            p-değeri: <%= parseFloat(results.p_value) < 0.001 ? '< 0.001' : parseFloat(results.p_value).toFixed(3) %>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">%Değişkenlik (Tekrarlanabilirlik)</div>
+                        <div style="font-size: 20px; font-weight: bold; color: #1f2937;">
+                            <%= parseFloat(results.percent_var_repeatability).toFixed(1) %>%
+                        </div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            <% if (results.percent_var_repeatability < 10) { %>
+                                ✓ Mükemmel (< 10%)
+                            <% } else if (results.percent_var_repeatability < 30) { %>
+                                ⚠ Sınırda (10-30%)
+                            <% } else { %>
+                                ✗ Zayıf (> 30%)
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #374151;">Yorumlama ve Öneriler:</h4>
+                    <ul style="margin: 0; padding-left: 20px; color: #4b5563; font-size: 13px; line-height: 1.6;">
+                        <% if (results.cgk >= 1.33) { %>
+                            <li><strong>Mükemmel yeterlilik:</strong> Cgk = <%= parseFloat(results.cgk).toFixed(2) %> ≥ 1.33. Ölçüm cihazı gereksinimleri karşılıyor.</li>
+                        <% } else if (results.cgk >= 1.0) { %>
+                            <li><strong>Sınırda yeterlilik:</strong> Cgk = <%= parseFloat(results.cgk).toFixed(2) %> (1.0-1.33 arası). Dikkatle kullanın ve yakından izleyin.</li>
+                        <% } else { %>
+                            <li><strong>Yetersiz yeterlilik:</strong> Cgk = <%= parseFloat(results.cgk).toFixed(2) %> < 1.0. Ölçüm cihazı düzeltici faaliyet gerektirir.</li>
+                        <% } %>
+                        
+                        <% if (results.bias_significant) { %>
+                            <li><strong>Anlamlı bias tespit edildi:</strong> p-değeri = <%= parseFloat(results.p_value).toFixed(4) %> < 0.001. Sistematik hatayı azaltmak için cihazı kalibre edin.</li>
+                        <% } else { %>
+                            <li><strong>Anlamlı bias yok:</strong> p-değeri = <%= parseFloat(results.p_value).toFixed(4) %>. Ölçüm cihazı doğru kalibre edilmiş.</li>
+                        <% } %>
+                        
+                        <% if (results.percent_var_repeatability >= 30) { %>
+                            <li><strong>Yüksek değişkenlik:</strong> %Değişkenlik(tekrarlanabilirlik) = <%= parseFloat(results.percent_var_repeatability).toFixed(1) %>% > 30%. Ölçüm değişkenliğini azaltın.</li>
+                        <% } else if (results.percent_var_repeatability >= 10) { %>
+                            <li><strong>Orta seviye değişkenlik:</strong> %Değişkenlik(tekrarlanabilirlik) = <%= parseFloat(results.percent_var_repeatability).toFixed(1) %>% (10-30%). İyileştirme fırsatları için izleyin.</li>
+                        <% } else { %>
+                            <li><strong>Mükemmel hassasiyet:</strong> %Değişkenlik(tekrarlanabilirlik) = <%= parseFloat(results.percent_var_repeatability).toFixed(1) %>% < 10%. Çok iyi tekrarlanabilirlik.</li>
+                        <% } %>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CAPA Alert Banner (if exists and open/in_progress) - Screen Only -->
+        <% if (typeof capa !== 'undefined' && capa && analysisOptions.show_capa_banner === true && capa.status !== 'completed' && capa.status !== 'cancelled') { %>
+        <div class="card no-print" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(255,107,107,0.3); border: 3px solid #ff4757; border-radius: 12px;">
+          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+            <div style="font-size: 36px;">🔴</div>
+            <div style="flex: 1;">
+              <h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: bold;">
+                Düzeltici Faaliyet (CAPA) Gerekiyor!
+              </h3>
+              <p style="margin: 0; font-size: 14px; opacity: 0.95;">
+                MSA Fourth Edition standartlarına göre, bu ölçüm sistemi kabul edilebilir seviyede değil.
+              </p>
+            </div>
+          </div>
+          
+          <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+              <div>
+                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">CAPA Numarası</div>
+                <div style="font-size: 16px; font-weight: bold;"><%= capa.capa_number %></div>
+              </div>
+              <div>
+                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Durum</div>
+                <div style="font-size: 15px; font-weight: bold;">
+                  <% if (capa.status === 'open') { %>
+                    <span style="background: rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 20px; display: inline-block;">🔴 Açık</span>
+                  <% } else if (capa.status === 'in_progress') { %>
+                    <span style="background: rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 20px; display: inline-block;">🟡 Devam Ediyor</span>
+                  <% } else if (capa.status === 'completed') { %>
+                    <span style="background: rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 20px; display: inline-block;">🟢 Tamamlandı</span>
+                  <% } else if (capa.status === 'overdue') { %>
+                    <span style="background: rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 20px; display: inline-block;">⚠️ Gecikmiş</span>
+                  <% } else { %>
+                    <span style="background: rgba(255,255,255,0.3); padding: 6px 12px; border-radius: 20px; display: inline-block;">● <%= capa.status %></span>
+                  <% } %>
+                </div>
+              </div>
+              <% if (capa.due_date) { %>
+              <div>
+                <div style="font-size: 11px; opacity: 0.9; margin-bottom: 3px;">Termin Tarihi</div>
+                <div style="font-size: 14px; font-weight: 600;">
+                  <%= new Date(capa.due_date).toLocaleDateString('tr-TR') %>
+                </div>
+              </div>
+              <% } %>
+            </div>
+          </div>
+          
+          <div style="background: rgba(255,255,255,0.2); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 5px; opacity: 0.95;">📋 Sorun Açıklaması:</div>
+            <div style="font-size: 13px; line-height: 1.4; white-space: pre-line;"><%= capa.issue_description %></div>
+          </div>
+          
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="capa-detail.html?study=<%= study.id %>&id=<%= capa.id %>" 
+               class="btn" 
+               style="background: white; color: #ff6b6b; font-weight: bold; padding: 10px 20px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-size: 13px;">
+              📝 DÖF Detayları
+            </a>
+            <a href="capa-list.html" 
+               style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+              <span>📊</span> Tüm CAPA'lar
+            </a>
+          </div>
+        </div>
+        <% } %>
+        
+        <div class="chart-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">Bias histogram</h2>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <label style="font-size: 13px; color: #374151;">Bin width type:</label>
+                    <select id="binWidthType" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
+                        <option value="sturges" selected>Sturges</option>
+                        <option value="scott">Scott</option>
+                        <option value="doane">Doane</option>
+                        <option value="fd">Freedman-Diaconis</option>
+                        <option value="manual">Manual</option>
+                    </select>
+                    <input type="number" id="manualBins" min="1" max="100" value="10" 
+                           style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 80px; display: none;">
+                    
+                    <label style="font-size: 13px; color: #374151; margin-left: 15px;">Bin boundaries:</label>
+                    <select id="binBoundary" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
+                        <option value="right_open" <%= analysisOptions.histogram_bin_boundary === 'right_open' || !analysisOptions.histogram_bin_boundary ? 'selected' : '' %>>Right-open [a, b)</option>
+                        <option value="left_open" <%= analysisOptions.histogram_bin_boundary === 'left_open' ? 'selected' : '' %>>Left-open (a, b]</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="histogramChart"></canvas>
+        </div>
+        
+        <div style="margin-top: 25px;">
+            <a href="index.html" class="btn btn-secondary">← Back</a>
+            <button onclick="window.print()" class="btn btn-primary">🖨️ Print</button>
+        </div>
+    </div>
+    
+    <script>
+        console.log('Chart.js loaded:', typeof Chart !== 'undefined');
+        console.log('Raw histogramData:', <%- JSON.stringify(histogramData) %>);
+        console.log('Raw runChartData:', <%- JSON.stringify(runChartData) %>);
+        
+        const data = {
+            measurements: <%- JSON.stringify(runChartData.values || []) %>,
+            mean: parseFloat(<%= results.mean %>),
+            stdev: parseFloat(<%= results.std_dev %>),
+            reference: parseFloat(<%= results.reference_value %>),
+            tolerance: parseFloat(<%= results.tolerance %>),
+            percentTol: parseFloat(<%= analysisOptions.percent_tolerance_cg || 20 %>),
+            histBins: <%- JSON.stringify(histogramData.labels || []) %>,
+            histFreqs: <%- JSON.stringify(histogramData.frequencies || []) %>
+        };
+        
+        console.log('Data:', data);
+        
+        const runChartCanvas = document.getElementById('runChart');
+        console.log('Run chart canvas:', runChartCanvas);
+        
+        if (runChartCanvas && typeof Chart !== 'undefined') {
+            try {
+                const runChart = new Chart(runChartCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: data.measurements.map((v, i) => i + 1),
+                        datasets: [{
+                            label: 'Measurement',
+                            data: data.measurements,
+                            borderColor: '#000',
+                            pointBackgroundColor: '#000',
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            pointHitRadius: 10,
+                            borderWidth: 2,
+                            tension: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'nearest',
+                            intersect: false,
+                            axis: 'x'
+                        },
+                        plugins: {
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                borderColor: '#666',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: true,
+                                callbacks: {
+                                    title: function(context) {
+                                        return 'Observation #' + context[0].label;
+                                    },
+                                    label: function(context) {
+                                        return 'Value: ' + context.parsed.y.toFixed(4);
+                                    }
+                                }
+                            },
+                            legend: { display: false },
+                            annotation: {
+                                annotations: {
+                                    mean: {
+                                        type: 'line',
+                                        scaleID: 'y',
+                                        value: data.mean,
+                                        borderColor: '#4a90e2',
+                                        borderWidth: 2,
+                                        label: {
+                                            display: true,
+                                            content: 'Mean',
+                                            position: 'end',
+                                            backgroundColor: 'transparent',
+                                            color: '#4a90e2',
+                                            font: { size: 12, weight: 'bold' }
+                                        }
+                                    },
+                                    ref: {
+                                        type: 'line',
+                                        scaleID: 'y',
+                                        value: data.reference,
+                                        borderColor: '#2d5016',
+                                        borderWidth: 2,
+                                        label: {
+                                            display: true,
+                                            content: 'Ref.',
+                                            position: 'end',
+                                            backgroundColor: 'transparent',
+                                            color: '#2d5016',
+                                            font: { size: 12, weight: 'bold' }
+                                        }
+                                    },
+                                    refPlus: {
+                                        type: 'line',
+                                        scaleID: 'y',
+                                        value: data.reference + (data.tolerance * data.percentTol / 100),
+                                        borderColor: '#c74a4a',
+                                        borderWidth: 1.5,
+                                        borderDash: [8, 4],
+                                        label: {
+                                            display: true,
+                                            content: 'Ref. + 0.10 * tol.',
+                                            position: 'end',
+                                            backgroundColor: 'transparent',
+                                            color: '#c74a4a',
+                                            font: { size: 11, weight: 'bold' }
+                                        }
+                                    },
+                                    refMinus: {
+                                        type: 'line',
+                                        scaleID: 'y',
+                                        value: data.reference - (data.tolerance * data.percentTol / 100),
+                                        borderColor: '#c74a4a',
+                                        borderWidth: 1.5,
+                                        borderDash: [8, 4],
+                                        label: {
+                                            display: true,
+                                            content: 'Ref. - 0.10 * tol.',
+                                            position: 'end',
+                                            backgroundColor: 'transparent',
+                                            color: '#c74a4a',
+                                            font: { size: 11, weight: 'bold' }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Observation' },
+                                grid: { display: false }
+                            },
+                            y: {
+                                title: { display: true, text: 'Column 1' }
+                            }
+                        }
+                    }
+                });
+                console.log('Run chart created successfully');
+            } catch (error) {
+            console.error('Error creating run chart:', error);
+        }
+    } else {
+        console.error('Canvas not found or Chart.js not loaded');
+    }
+        
+        const histChartCanvas = document.getElementById('histogramChart');
+        if (histChartCanvas && typeof Chart !== 'undefined') {
+            try {
+                // Calculate reference tolerance lines (10% of tolerance)
+                const refMinus10Percent = data.reference - (data.tolerance * 0.10);
+                const refPlus10Percent = data.reference + (data.tolerance * 0.10);
+                
+                const histChart = new Chart(histChartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: data.histBins,  // Bin centers (numeric values)
+                        datasets: [
+                            {
+                                label: 'Frequency',
+                                data: data.histFreqs,
+                                backgroundColor: 'rgba(169, 169, 169, 0.6)',
+                                borderColor: '#666',
+                                borderWidth: 1,
+                                barPercentage: 1.0,
+                                categoryPercentage: 1.0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: true
+                        },
+                        plugins: {
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                borderColor: '#666',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false,
+                                callbacks: {
+                                    title: function(context) {
+                                        const index = context[0].dataIndex;
+                                        const binLabel = currentBinLabels[index] || context[0].label;
+                                        return 'Bin: ' + binLabel;
+                                    },
+                                    label: function(context) {
+                                        return 'Count: ' + context.parsed.y + ' measurements';
+                                    }
+                                }
+                            },
+                            legend: { 
+                                display: true,
+                                position: 'right',
+                                labels: {
+                                    generateLabels: function(chart) {
+                                        return [
+                                            {
+                                                text: 'Mean',
+                                                fillStyle: '#1E90FF',
+                                                strokeStyle: '#1E90FF',
+                                                lineWidth: 1,
+                                                hidden: false
+                                            },
+                                            {
+                                                text: 'Mean - 3s',
+                                                fillStyle: '#FF6B6B',
+                                                strokeStyle: '#FF6B6B',
+                                                lineWidth: 1,
+                                                lineDash: [5, 5],
+                                                hidden: false
+                                            },
+                                            {
+                                                text: 'Mean + 3s',
+                                                fillStyle: '#FF6B6B',
+                                                strokeStyle: '#FF6B6B',
+                                                lineWidth: 1,
+                                                lineDash: [5, 5],
+                                                hidden: false
+                                            },
+                                            {
+                                                text: 'Reference',
+                                                fillStyle: '#8B0000',
+                                                strokeStyle: '#8B0000',
+                                                lineWidth: 1,
+                                                lineDash: [10, 5],
+                                                hidden: false
+                                            },
+                                            {
+                                                text: 'Ref. - 0.10 * tol.',
+                                                fillStyle: '#8B0000',
+                                                strokeStyle: '#8B0000',
+                                                lineWidth: 1,
+                                                lineDash: [10, 5],
+                                                hidden: false
+                                            },
+                                            {
+                                                text: 'Ref. + 0.10 * tol.',
+                                                fillStyle: '#228B22',
+                                                strokeStyle: '#228B22',
+                                                lineWidth: 1,
+                                                lineDash: [10, 5],
+                                                hidden: false
+                                            }
+                                        ];
+                                    },
+                                    usePointStyle: true,
+                                    pointStyle: 'line',
+                                    boxWidth: 20,
+                                    boxHeight: 2,
+                                    padding: 8,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            annotation: {
+                                annotations: {
+                                    mean: {
+                                        type: 'line',
+                                        yMin: 0,
+                                        yMax: Math.max(...data.histFreqs) * 1.1,
+                                        xMin: data.mean,
+                                        xMax: data.mean,
+                                        borderColor: '#1E90FF',
+                                        borderWidth: 2
+                                    },
+                                    meanMinus3s: {
+                                        type: 'line',
+                                        yMin: 0,
+                                        yMax: Math.max(...data.histFreqs) * 1.1,
+                                        xMin: data.mean - 3 * data.stdev,
+                                        xMax: data.mean - 3 * data.stdev,
+                                        borderColor: '#FF6B6B',
+                                        borderWidth: 2,
+                                        borderDash: [5, 5]
+                                    },
+                                    meanPlus3s: {
+                                        type: 'line',
+                                        yMin: 0,
+                                        yMax: Math.max(...data.histFreqs) * 1.1,
+                                        xMin: data.mean + 3 * data.stdev,
+                                        xMax: data.mean + 3 * data.stdev,
+                                        borderColor: '#FF6B6B',
+                                        borderWidth: 2,
+                                        borderDash: [5, 5]
+                                    },
+                                    ref: {
+                                        type: 'line',
+                                        yMin: 0,
+                                        yMax: Math.max(...data.histFreqs) * 1.1,
+                                        xMin: data.reference,
+                                        xMax: data.reference,
+                                        borderColor: '#8B0000',
+                                        borderWidth: 2,
+                                        borderDash: [10, 5]
+                                    },
+                                    refMinus10: {
+                                        type: 'line',
+                                        yMin: 0,
+                                        yMax: Math.max(...data.histFreqs) * 1.1,
+                                        xMin: refMinus10Percent,
+                                        xMax: refMinus10Percent,
+                                        borderColor: '#8B0000',
+                                        borderWidth: 2,
+                                        borderDash: [10, 5]
+                                    },
+                                    refPlus10: {
+                                        type: 'line',
+                                        yMin: 0,
+                                        yMax: Math.max(...data.histFreqs) * 1.1,
+                                        xMin: refPlus10Percent,
+                                        xMax: refPlus10Percent,
+                                        borderColor: '#228B22',
+                                        borderWidth: 2,
+                                        borderDash: [10, 5]
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: { display: true, text: 'Column 1' },
+                                grid: { display: false }
+                            },
+                            y: {
+                                title: { display: true, text: 'Count' },
+                                beginAtZero: true,
+                                ticks: { stepSize: 1 }
+                            }
+                        }
+                    }
+                });
+                console.log('Histogram created successfully');
+                
+                // Bin width type selector functionality
+                const binWidthSelect = document.getElementById('binWidthType');
+                const manualBinsInput = document.getElementById('manualBins');
+                const binBoundarySelect = document.getElementById('binBoundary');
+                const rawMeasurements = data.measurements;
+                let currentBinLabels = []; // Store bin boundary labels for tooltip
+                
+                binWidthSelect.addEventListener('change', function() {
+                    if (this.value === 'manual') {
+                        manualBinsInput.style.display = 'block';
+                    } else {
+                        manualBinsInput.style.display = 'none';
+                        recalculateHistogram(this.value, null);
+                    }
+                });
+                
+                manualBinsInput.addEventListener('change', function() {
+                    if (binWidthSelect.value === 'manual') {
+                        recalculateHistogram('manual', parseInt(this.value));
+                    }
+                });
+                
+                binBoundarySelect.addEventListener('change', function() {
+                    console.log('Bin boundary changed to:', this.value);
+                    const currentMethod = binWidthSelect.value;
+                    const currentBins = binWidthSelect.value === 'manual' ? parseInt(manualBinsInput.value) : null;
+                    console.log('Recalculating with method:', currentMethod, 'bins:', currentBins);
+                    recalculateHistogram(currentMethod, currentBins);
+                });
+                
+                function recalculateHistogram(method, manualBinCount) {
+                    console.log('recalculateHistogram called with method:', method, 'manualBinCount:', manualBinCount);
+                    let numBins;
+                    const n = rawMeasurements.length;
+                    const min = Math.min(...rawMeasurements);
+                    const max = Math.max(...rawMeasurements);
+                    const range = max - min;
+                    
+                    // Calculate number of bins based on method
+                    if (method === 'manual') {
+                        numBins = manualBinCount || 10;
+                    } else if (method === 'sturges') {
+                        numBins = Math.ceil(Math.log2(n) + 1);
+                    } else if (method === 'scott') {
+                        const stdev = Math.sqrt(rawMeasurements.reduce((sum, x) => sum + Math.pow(x - data.mean, 2), 0) / n);
+                        const binWidth = 3.5 * stdev / Math.pow(n, 1/3);
+                        numBins = Math.ceil(range / binWidth);
+                    } else if (method === 'doane') {
+                        const g1 = rawMeasurements.reduce((sum, x) => sum + Math.pow((x - data.mean) / data.stdev, 3), 0) / n;
+                        numBins = Math.ceil(1 + Math.log2(n) + Math.log2(1 + Math.abs(g1) / Math.sqrt((6 * (n - 2)) / ((n + 1) * (n + 3)))));
+                    } else if (method === 'fd') {
+                        const sorted = [...rawMeasurements].sort((a, b) => a - b);
+                        const q1 = sorted[Math.floor(n * 0.25)];
+                        const q3 = sorted[Math.floor(n * 0.75)];
+                        const iqr = q3 - q1;
+                        const binWidth = 2 * iqr / Math.pow(n, 1/3);
+                        numBins = Math.ceil(range / binWidth);
+                    }
+                    
+                    numBins = Math.max(1, Math.min(100, numBins)); // Limit between 1-100
+                    
+                    // Get bin boundary setting
+                    const binBoundary = binBoundarySelect.value;
+                    const isRightOpen = binBoundary === 'right_open'; // [a, b)
+                    
+                    // Create bins
+                    const binWidth = range / numBins;
+                    const binCenters = [];
+                    const binLabels = [];
+                    const frequencies = [];
+                    
+                    for (let i = 0; i < numBins; i++) {
+                        const binStart = min + i * binWidth;
+                        const binEnd = binStart + binWidth;
+                        
+                        // Position bars based on boundary type
+                        // Right-open [a,b): bar aligned to left boundary (binStart)
+                        // Left-open (a,b]: bar aligned to right boundary (binEnd)
+                        const binPosition = isRightOpen ? binStart : binEnd;
+                        
+                        binCenters.push(binPosition);
+                        
+                        // Create label with boundary notation
+                        let label;
+                        if (isRightOpen) {
+                            label = i === numBins - 1 
+                                ? `[${binStart.toFixed(2)}, ${binEnd.toFixed(2)}]`
+                                : `[${binStart.toFixed(2)}, ${binEnd.toFixed(2)})`;
+                        } else {
+                            label = i === 0
+                                ? `[${binStart.toFixed(2)}, ${binEnd.toFixed(2)}]`
+                                : `(${binStart.toFixed(2)}, ${binEnd.toFixed(2)}]`;
+                        }
+                        binLabels.push(label);
+                        
+                        // Count based on boundary type
+                        const count = rawMeasurements.filter(x => {
+                            if (isRightOpen) {
+                                // Right-open: [a, b) - includes left, excludes right
+                                if (i === numBins - 1) {
+                                    return x >= binStart && x <= binEnd; // Last bin includes both boundaries
+                                }
+                                return x >= binStart && x < binEnd;
+                            } else {
+                                // Left-open: (a, b] - excludes left, includes right
+                                if (i === 0) {
+                                    return x >= binStart && x <= binEnd; // First bin includes both boundaries
+                                }
+                                return x > binStart && x <= binEnd;
+                            }
+                        }).length;
+                        frequencies.push(count);
+                    }
+                    
+                    // Update chart with bin centers and frequencies
+                    currentBinLabels = binLabels; // Store for tooltip
+                    console.log('Updating histogram - bins:', numBins, 'boundary:', binBoundary);
+                    console.log('Bin labels:', binLabels);
+                    console.log('Bin labels detail:');
+                    binLabels.forEach((label, i) => console.log(`  Bin ${i}: ${label} -> Count: ${frequencies[i]}`));
+                    console.log('Bin centers:', binCenters);
+                    console.log('Frequencies:', frequencies);
+                    histChart.data.labels = binCenters;
+                    histChart.data.datasets[0].data = frequencies;
+                    histChart.update();
+                    console.log('Histogram updated successfully');
+                }
+                
+            } catch (error) {
+                console.error('Error creating histogram:', error);
+            }
+        } else {
+            console.error('Histogram canvas not found or Chart.js not loaded');
+        }
+    </script>
+</body>
+</html>
+

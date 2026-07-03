@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/type1-calculations.js"></script>
+<title>Type 1 Study Results</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// ============================================================================
+// createType1CapaIfNeeded portu — type1Routes.js:41-188 birebir.
+// Farklar: created_by (int FK) → created_by_email, responsible_user_id →
+// responsible_email; logActivity (activity_logs) düştü; knex → supabase-js.
+// Hem iç içe (hesaplamadan) hem düz (veritabanından) sonuç yapısını destekler.
+// ============================================================================
+async function createType1CapaIfNeeded(studyId, results, userEmail, tolerance) {
+  try {
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*').eq('id', studyId).maybeSingle();
+    if (stErr) throw stErr;
+    if (!study) return null;
+
+    // Check if study is acceptable from interpretation
+    const overall = (results.interpretation && results.interpretation.overall) || 'acceptable';
+
+    if (overall !== 'unacceptable') {
+      console.log(`✅ Type 1: Study is ${overall}, no CAPA needed`);
+      return null;
+    }
+
+    // Handle both nested (from calculation) and flat (from database) result structures
+    const cg = parseFloat((results.capability && results.capability.cg) || results.cg) || 0;
+    const cgk = parseFloat((results.capability && results.capability.cgk) || results.cgk) || 0;
+    const percentBias = parseFloat((results.basicStatistics && results.basicStatistics.percentBias) || results.percent_bias) || 0;
+    const percentVar = parseFloat((results.capability && results.capability.percentVarRepeatability) || results.percent_var_repeatability) || 0;
+
+    console.log('❌ Type 1: Study is UNACCEPTABLE, creating CAPA...');
+    console.log(`📊 Cg: ${cg.toFixed(3)}, Cgk: ${cgk.toFixed(3)}, Bias: ${percentBias.toFixed(2)}%, %Var: ${percentVar.toFixed(2)}%`);
+
+    // Collect all issues
+    const issues = [];
+
+    if (cg < 1.0) {
+      issues.push({
+        type: 'cg_unacceptable',
+        severity: 'critical',
+        description: `Cg = ${cg.toFixed(3)} (<1.0) - Kabul Edilemez! Ölçüm aleti varyasyonu toleransa göre çok büyük.`,
+        value: cg
+      });
+    } else if (cg < 1.33) {
+      issues.push({
+        type: 'cg_marginal',
+        severity: 'high',
+        description: `Cg = ${cg.toFixed(3)} (1.0-1.33) - Marjinal. Ölçüm hassasiyeti iyileştirilebilir.`,
+        value: cg
+      });
+    }
+
+    if (cgk < 1.0) {
+      issues.push({
+        type: 'cgk_unacceptable',
+        severity: 'critical',
+        description: `Cgk = ${cgk.toFixed(3)} (<1.0) - Kabul Edilemez! Bias ile düzeltilmiş kapasite çok düşük.`,
+        value: cgk
+      });
+    } else if (cgk < 1.33) {
+      issues.push({
+        type: 'cgk_marginal',
+        severity: 'high',
+        description: `Cgk = ${cgk.toFixed(3)} (1.0-1.33) - Marjinal. Bias etkisi yüksek.`,
+        value: cgk
+      });
+    }
+
+    if (Math.abs(percentBias) > 10) {
+      issues.push({
+        type: 'bias_high',
+        severity: 'critical',
+        description: `Bias = ${percentBias.toFixed(2)}% (>10%) - Sistematik hata yüksek, kalibrasyon gerekli.`,
+        value: Math.abs(percentBias)
+      });
+    } else if (Math.abs(percentBias) > 5) {
+      issues.push({
+        type: 'bias_moderate',
+        severity: 'medium',
+        description: `Bias = ${percentBias.toFixed(2)}% (5-10%) - Kalibrasyon önerilir.`,
+        value: Math.abs(percentBias)
+      });
+    }
+
+    if (percentVar > 30) {
+      issues.push({
+        type: 'variance_high',
+        severity: 'critical',
+        description: `%Var = ${percentVar.toFixed(2)}% (>30%) - Tekrarlanabilirlik kabul edilemez.`,
+        value: percentVar
+      });
+    } else if (percentVar > 10) {
+      issues.push({
+        type: 'variance_moderate',
+        severity: 'medium',
+        description: `%Var = ${percentVar.toFixed(2)}% (10-30%) - Tekrarlanabilirlik marjinal.`,
+        value: percentVar
+      });
+    }
+
+    if (issues.length === 0) {
+      console.log('⚠️ Study marked unacceptable but no specific issues found');
+      return null;
+    }
+
+    // Check for existing OPEN CAPAs only
+    // Don't create duplicate if already open, but DO create new one if previous was closed
+    const { data: existingOpenCapa, error: exErr } = await MSA.db.from(MSA.T.capa)
+      .select('*')
+      .eq('study_id', studyId)
+      .in('status', ['open', 'in_progress'])
+      .maybeSingle();
+    if (exErr) throw exErr;
+
+    if (existingOpenCapa) {
+      console.log('⚠️ This Type 1 study already has an open CAPA:', existingOpenCapa.capa_number);
+      return existingOpenCapa;
+    }
+
+    console.log('✅ Creating new CAPA for unacceptable study...');
+
+    // Filter critical and high severity issues
+    const criticalIssues = issues.filter(i => i.severity === 'critical' || i.severity === 'high');
+    const mainIssue = criticalIssues.length > 0 ? criticalIssues[0] : issues[0];
+    const capaNumber = await MSA.generateCapaNumber();
+
+    const issueDescription = issues.map(i => i.description).join('\n\n');
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30); // 30 gün sonra
+
+    const ins = await MSA.db.from(MSA.T.capa).insert({
+      capa_number: capaNumber,
+      study_id: studyId,
+      created_by_email: userEmail || null,
+      issue_type: mainIssue.type,
+      issue_description: issueDescription,
+      root_cause: null,
+      corrective_action: null,
+      preventive_action: null,
+      responsible_email: null,
+      responsible_name: null,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'open'
+    }).select('*').single();
+    if (ins.error) throw ins.error;
+    const capa = ins.data;
+
+    console.log(`🚨 Type 1 CAPA Oluşturuldu: ${capaNumber} (${mainIssue.type})`);
+
+    return capa;
+
+  } catch (error) {
+    console.error('Type 1 CAPA oluşturma hatası:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// GET /msa/type1/:id/results portu — type1Routes.js:564-730 birebir.
+// Farklar: study_permissions yetki kontrolü düştü (modülde herkes görebilir);
+// users/branding tabloları düştü: user ERP oturumundan, branding = MSA.BRANDING;
+// grafik verileri tarayıcıda window.type1Calculations ile üretilir.
+// ============================================================================
+(async () => {
+  try {
+    const studyId = parseInt(MSA.requireQ('id'));
+    const user = await MSA.currentUser();
+    const branding = MSA.BRANDING;
+
+    // Get study
+    const stSel = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('id', studyId)
+      .eq('study_type', 'type1')
+      .maybeSingle();
+    if (stSel.error) throw new Error(stSel.error.message);
+    const study = stSel.data;
+
+    if (!study) {
+      MSA.renderError('Hata', 'Type 1 study not found');
+      return;
+    }
+
+    console.log(`[TYPE 1 RESULTS] Study ID: ${studyId}, created_at: ${study.created_at}, study_name: ${study.study_name}`);
+
+    // Get measurements
+    const mSel = await MSA.db.from(MSA.T.type1Measurements)
+      .select('*')
+      .eq('study_id', studyId)
+      .order('observation_number', { ascending: true });
+    if (mSel.error) throw new Error(mSel.error.message);
+    const measurements = mSel.data || [];
+
+    // Get results
+    const rSel = await MSA.db.from(MSA.T.type1Results)
+      .select('*')
+      .eq('study_id', studyId)
+      .maybeSingle();
+    if (rSel.error) throw new Error(rSel.error.message);
+    const results = rSel.data;
+
+    if (!results) {
+      MSA.renderError('Hata', 'Study results not found');
+      return;
+    }
+
+    // Generate chart data
+    const measurementValues = measurements.map(m => parseFloat(m.measurement_value));
+    const runChartData = window.type1Calculations.generateRunChartData(
+      measurementValues,
+      parseFloat(results.reference_value),
+      parseFloat(results.mean),
+      parseFloat(results.tolerance)
+    );
+    const histogramData = window.type1Calculations.generateHistogramData(
+      measurementValues,
+      parseFloat(results.reference_value),
+      parseFloat(results.mean),
+      parseFloat(results.std_dev)
+    );
+
+    // Parse analysis options (stored as JSON string)
+    let analysisOptions = {
+      show_bias_table: true,
+      show_t_test: true,
+      confidence_interval: 95,
+      percent_tolerance_cg: 20,
+      show_run_chart: true,
+      run_chart_individual: true,
+      run_chart_boundaries: true,
+      show_histogram: true,
+      histogram_bin_type: 'sturges',
+      num_bins: 30,
+      histogram_bin_boundary: 'right_open',  // Default: right-open [a, b)
+      histogram_show_mean: true,
+      histogram_show_ci: true,
+      histogram_show_reference: true,
+      show_capa_banner: true  // Show CAPA alert banner
+    };
+
+    if (study.analysis_options) {
+      try {
+        const parsedOptions = MSA.parseJson(study.analysis_options, {});
+        if (parsedOptions && typeof parsedOptions === 'object') {
+          analysisOptions = { ...analysisOptions, ...parsedOptions };
+        }
+      } catch (e) {
+        console.error('Failed to parse analysis_options:', e.message);
+        console.error('analysis_options value:', study.analysis_options);
+        console.error('analysis_options type:', typeof study.analysis_options);
+      }
+    }
+
+    // Get CAPA if exists (only open/in_progress - same as Type 3)
+    let capa = null;
+    try {
+      const cSel = await MSA.db.from(MSA.T.capa)
+        .select('*')
+        .eq('study_id', studyId)
+        .in('status', ['open', 'in_progress'])
+        .maybeSingle();
+      if (cSel.error) throw cSel.error;
+      capa = cSel.data;
+
+      console.log('📋 Type 1 CAPA Check:');
+      console.log('  Study ID:', studyId);
+      console.log('  Study is_acceptable:', study.is_acceptable);
+      console.log('  CAPA found:', capa ? 'YES' : 'NO');
+
+      if (capa) {
+        console.log('  CAPA Number:', capa.capa_number);
+        console.log('  CAPA Status:', capa.status);
+        console.log('  ✅ CAPA will be shown in banner');
+      } else {
+        console.log('  ⚪ No open CAPA - banner will be hidden');
+      }
+
+      // Auto-create CAPA if study is unacceptable and no CAPA exists
+      if (!capa && study.is_acceptable === 'unacceptable' && study.status === 'calculated') {
+        console.log('  ⚡ Auto-creating CAPA for unacceptable study...');
+        // Correct parameter order: studyId, results, userEmail, tolerance
+        // (orijinalde study.user_id geçirilir → burada owner_email karşılığı)
+        capa = await createType1CapaIfNeeded(studyId, results, study.owner_email, study.tolerance);
+        if (capa) {
+          console.log('  ✅ CAPA created:', capa.capa_number);
+        } else {
+          console.log('  ⚠️  CAPA creation failed or not needed');
+        }
+      }
+
+    } catch (error) {
+      console.log('CAPA table not found or error:', error.message);
+    }
+
+    await MSA.renderPage('type1-results.ejs', {
+      user,
+      branding,
+      study,
+      measurements,
+      results,
+      runChartData,
+      histogramData,
+      analysisOptions,
+      capa
+    });
+
+  } catch (e) {
+    console.error('Error loading Type 1 results:', e);
+    MSA.renderError('Hata', e.message);
+  }
+})();
+</script>
+</body>
+</html>

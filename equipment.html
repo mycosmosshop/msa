@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Ekipman Listesi</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+(async () => {
+  try {
+    // GET /msa/equipment rotasının portu — msaRoutes.js:4600
+    // requireAuth → erp-guard; branding tablosu düştü → MSA.BRANDING sabiti.
+    // Ekipman JSON rotalarının (list/POST/PUT/DELETE, msaRoutes.js:4636-4995)
+    // portları şablonun kendi script'indedir (orijinalde de fetch'ler oradaydı).
+    const user = await MSA.currentUser();
+    await MSA.renderPage('equipment.ejs', { user, branding: MSA.BRANDING });
+  } catch (e) {
+    console.error(e);
+    MSA.renderError('Hata', e.message);
+  }
+})();
+</script>
+</body>
+</html>

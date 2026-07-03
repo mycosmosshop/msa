@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Çalışma Ayarları - GageAI</title>
+    
+    <!-- Prevent theme flashing - load theme before any rendering -->
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme_mode') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    
+    <!-- Bootstrap Icons for theme toggle -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Dark Mode CSS -->
+    <link rel="stylesheet" href="css/dark-mode.css">
+
+    <!-- Responsive CSS -->
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-secondary);
+            min-height: 100vh;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .navbar h1 {
+            font-size: 24px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .navbar h1 img {
+            height: 40px;
+            width: auto;
+        }
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .navbar a {
+            color: #667eea;
+            text-decoration: none;
+            padding: 10px 24px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        .navbar a:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+        .container {
+            max-width: 1100px;
+            margin: 30px auto 50px;
+            padding: 0 20px;
+        }
+        .form-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .card-header {
+            background: var(--bg-tertiary);
+            padding: 32px 40px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        h2 {
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 0;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        .form-content {
+            padding: 40px;
+        }
+        .form-section {
+            margin-bottom: 40px;
+        }
+        .form-section h3 {
+            color: #667eea;
+            margin-bottom: 24px;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e8eaf6;
+        }
+        .form-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            background: var(--input-bg);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        input::placeholder,
+        textarea::placeholder {
+            color: var(--text-tertiary);
+            opacity: 0.7;
+        }
+        select option {
+            background-color: var(--input-bg);
+            color: var(--text-primary);
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        .info-box {
+            background: var(--bg-tertiary);
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 32px;
+            border-left: 4px solid #667eea;
+        }
+        .info-box p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.7;
+            margin-bottom: 8px;
+        }
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 20px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--input-bg);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        .checkbox-item:hover {
+            background: var(--bg-hover);
+            transform: translateX(4px);
+        }
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+        .checkbox-item label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+            text-transform: none;
+            letter-spacing: normal;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        .analysis-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+        }
+        .option-group {
+            background: var(--bg-tertiary);
+            padding: 24px;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        .option-group:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        .option-group h4 {
+            color: #667eea;
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 40px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: var(--card-bg);
+            color: #667eea;
+            padding: 16px 40px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-3px);
+        }
+        .button-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 0;
+            padding: 30px 40px;
+            background: var(--bg-tertiary);
+            border-top: 2px solid var(--border-color);
+        }
+        .help-text {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 6px;
+            font-style: italic;
+            line-height: 1.6;
+        }
+        select {
+            cursor: pointer;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <h1>
+            <img src="images/gageai-logo.png" alt="GageAI Logo">
+            GageAI – Çalışma Ayarları
+        </h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <!-- Theme Toggle Button -->
+            <button id="theme-toggle" class="theme-toggle" title="Temayı Değiştir" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: 2px solid rgba(255,255,255,0.3);">
+                <i class="bi bi-sun-fill" id="theme-icon-light"></i>
+                <i class="bi bi-moon-fill" id="theme-icon-dark" style="display:none;"></i>
+            </button>
+            
+            <a href="index.html?view=studies">← Çalışmalarıma Dön</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="form-card">
+            <div class="card-header">
+                <h2>
+                    <%= study.study_name %>
+                    <% if (study.study_type === 'type3') { %>
+                        <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 6px; font-size: 14px; margin-left: 15px; vertical-align: middle;">Type 3 study (automatic equipment)</span>
+                    <% } %>
+                </h2>
+                <p class="subtitle">Tolerans, grafik seçenekleri ve diğer analiz parametrelerini düzenleyin</p>
+            </div>
+            
+            <div class="form-content">
+            <!-- Statik dönüşüm: sunucuya POST yerine Supabase portu (yükleyici sayfada tanımlı) çalıştırılır -->
+            <form id="settingsForm" action="#" method="POST" onsubmit="event.preventDefault(); window.msaSubmitEditStudy(this); return false;">
+                <!-- Basic Information -->
+                <div class="form-section">
+                    <h3>📋 Genel Bilgiler</h3>
+                    
+                    <div class="info-box">
+                        <p><strong>📊 Çalışma Parametreleri:</strong></p>
+                        <p>Operatör: <%= study.num_operators %> | Parça: <%= study.num_parts %> | Tekrar: <%= study.num_trials %></p>
+                        <p style="font-size: 12px; color: #666; margin-top: 4px;">
+                            💡 Not: Operatör, parça ve tekrar sayıları değiştirilemez. Veri girişi yapılmışsa bu değerler korunur.
+                        </p>
+                    </div>
+                    
+                    <!-- Operator Names Section -->
+                    <div style="margin: 25px 0;">
+                        <h4 style="color: #667eea; margin-bottom: 15px; font-size: 16px;">👥 Operatör İsimleri</h4>
+                        <div class="form-row">
+                            <% if (operators && operators.length > 0) { %>
+                                <% operators.forEach((operator, index) => { %>
+                                    <div class="form-group" style="flex: 1;">
+                                        <label for="operator_name_<%= operator.operator_number %>">Operatör <%= operator.operator_number %></label>
+                                        <input type="text" 
+                                               id="operator_name_<%= operator.operator_number %>" 
+                                               name="operator_names[]" 
+                                               value="<%= operator.operator_name %>"
+                                               placeholder="Operatör <%= operator.operator_number %> ismi"
+                                               required>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="study_name">Title (Çalışma Adı) *</label>
+                        <input type="text" id="study_name" name="study_name" required 
+                               value="<%= study.study_name %>"
+                               placeholder="Örn: Gauge R&R Study">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Açıklama</label>
+                        <textarea id="description" name="description" 
+                                  placeholder="Çalışma hakkında notlar veya açıklama ekleyin..."><%= study.description || '' %></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="gauge_name">Gauge name</label>
+                            <input type="text" id="gauge_name" name="gauge_name" 
+                                   value="<%= study.gauge_name || '' %>"
+                                   placeholder="Ölçüm cihazının adı">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="gauge_number">Gauge number</label>
+                            <input type="text" id="gauge_number" name="gauge_number" 
+                                   value="<%= study.gauge_number || '' %>"
+                                   placeholder="Cihaz seri numarası">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="location">Location</label>
+                            <input type="text" id="location" name="location" 
+                                   value="<%= study.location || '' %>"
+                                   placeholder="Konum/Lokasyon">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="part_name">Part name</label>
+                            <input type="text" id="part_name" name="part_name" 
+                                   value="<%= study.part_name || '' %>"
+                                   placeholder="Parça adı">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="characteristic">Characteristic</label>
+                            <input type="text" id="characteristic" name="characteristic" 
+                                   value="<%= study.characteristic || '' %>"
+                                   placeholder="Ölçülen özellik">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tolerance_spec">Tolerance (Specification)</label>
+                            <input type="text" id="tolerance_spec" name="tolerance_spec" 
+                                   value="<%= study.tolerance_spec || '' %>"
+                                   placeholder="Örn: ±0.05 veya 10.00 - 10.10">
+                            <p class="help-text">Tolerans aralığı veya üst-alt limitleri</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="performed_by">Performed by</label>
+                            <input type="text" id="performed_by" name="performed_by" 
+                                   value="<%= study.performed_by || '' %>"
+                                   placeholder="Çalışmayı yapan kişi">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="study_date">Date</label>
+                        <input type="date" id="study_date" name="study_date" 
+                               value="<%= study.created_at ? new Date(study.created_at).toISOString().split('T')[0] : '' %>"
+                               class="form-control">
+                        <p class="help-text">Bu tarih oluşturulma tarihi olarak kullanılacaktır</p>
+                    </div>
+                </div>
+                
+                <% const opts = study.analysis_options || {}; %>
+                    </div>
+                </div>
+                
+                <!-- Analysis Options -->
+                <div class="form-section">
+                    <h3>⚙️ Analysis Options</h3>
+                    
+                    <div class="analysis-options">
+                        <!-- Left Column -->
+                        <div>
+                            <div class="option-group">
+                                <h4>Process variation based on</h4>
+                                <select name="process_variation" class="form-control">
+                                    <option value="study_variation" <%= opts.process_variation === 'study_variation' || !opts.process_variation ? 'selected' : '' %>>Study variation</option>
+                                    <option value="tolerance" <%= opts.process_variation === 'tolerance' ? 'selected' : '' %>>Tolerance</option>
+                                </select>
+                            </div>
+                            
+                            <div class="option-group" style="margin-top: 15px;">
+                                <div class="form-group">
+                                    <label for="historical_std">Historical standard deviation</label>
+                                    <input type="number" id="historical_std" name="historical_std" 
+                                           value="<%= opts.historical_std || 3 %>" step="0.01">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="tolerance_width">Tolerance width</label>
+                                    <input type="number" id="tolerance_width" name="tolerance_width" 
+                                           value="<%= opts.tolerance?.width || 10 %>" step="0.01" min="0">
+                                    <small style="color: #666; display: block; margin-top: 5px;">
+                                        Tolerans genişliği (üst limit - alt limit). Tolerance ile ilgili metrikleri hesaplamak için kullanılır.
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="option-group" style="margin-top: 15px;">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="anova_table" name="anova_table" <%= opts.anova_table !== false ? 'checked' : '' %>>
+                                    <label for="anova_table">r&R ANOVA table</label>
+                                </div>
+                                
+                                <div class="form-group" style="margin-top: 10px;">
+                                    <label for="f_statistic_type">Type of model for F-statistic</label>
+                                    <select name="f_statistic_type">
+                                        <option value="fixed_effects" <%= opts.f_statistic_type === 'fixed_effects' || !opts.f_statistic_type ? 'selected' : '' %>>Fixed effects</option>
+                                        <option value="random_effects" <%= opts.f_statistic_type === 'random_effects' ? 'selected' : '' %>>Random effects</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="alpha_removal">Alpha interaction removal</label>
+                                    <input type="number" id="alpha_removal" name="alpha_removal" 
+                                           value="<%= opts.alpha_removal || 0.05 %>" step="0.01" min="0" max="1">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="interaction_pooling">Interaction pooling method</label>
+                                    <select id="interaction_pooling" name="interaction_pooling">
+                                        <option value="auto" <%= !opts.interaction_pooling || opts.interaction_pooling === 'auto' ? 'selected' : '' %>>Auto (pool if F < 1.5)</option>
+                                        <option value="always" <%= opts.interaction_pooling === 'always' ? 'selected' : '' %>>Always use interaction</option>
+                                        <option value="never" <%= opts.interaction_pooling === 'never' ? 'selected' : '' %>>Never use interaction (always pool)</option>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 5px;">
+                                        Auto: Interaction'ı repeatability ile pool et (Minitab/JASP gibi). Always: Her zaman interaction modeli kullan. Never: Her zaman pool et.
+                                    </small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="study_var_multiplier">Study var. multiplier type</label>
+                                    <select name="study_var_multiplier">
+                                        <option value="std_deviation" <%= opts.study_var_multiplier === 'std_deviation' || !opts.study_var_multiplier ? 'selected' : '' %>>Std. Deviation</option>
+                                        <option value="variance" <%= opts.study_var_multiplier === 'variance' ? 'selected' : '' %>>Variance</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="multiplier_value">Study var. multiplier value</label>
+                                    <input type="number" id="multiplier_value" name="multiplier_value" 
+                                           value="<%= opts.multiplier_value || 6 %>" min="1" max="10">
+                                </div>
+                                
+                                <div class="checkbox-item" style="margin-top: 15px;">
+                                    <input type="checkbox" id="show_tooltips" name="show_tooltips" <%= opts.show_tooltips !== false ? 'checked' : '' %>>
+                                    <label for="show_tooltips">Show formula tooltips on hover</label>
+                                    <small style="color: #666; display: block; margin-top: 5px; margin-left: 24px;">
+                                        Tablo değerlerinin üzerine gelince formül ve açıklama gösterir
+                                    </small>
+                                </div>
+                                
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="show_recommendations" name="show_recommendations" <%= opts.show_recommendations !== false ? 'checked' : '' %>>
+                                    <label for="show_recommendations">Show recommendations and corrective actions</label>
+                                    <small style="color: #666; display: block; margin-top: 5px; margin-left: 24px;">
+                                        Sonuçlara göre öneriler ve düzeltici faaliyetler gösterir
+                                    </small>
+                                </div>
+                                
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="show_capa_banner" name="show_capa_banner" <%= opts.show_capa_banner !== false ? 'checked' : '' %>>
+                                    <label for="show_capa_banner">Show CAPA alert banner (DÖF Uyarısı)</label>
+                                    <small style="color: #666; display: block; margin-top: 5px; margin-left: 24px;">
+                                        Sonuç sayfasında DÖF uyarı kutusunu gösterir (varsa)
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Column - Plots -->
+                        <div>
+                            <div class="option-group">
+                                <h4>Plots</h4>
+                                <div class="checkbox-group">
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_components" name="plot_components" <%= opts.plots?.components !== false ? 'checked' : '' %>>
+                                        <label for="plot_components">Components of variation</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_range_charts" name="plot_range_charts" <%= opts.plots?.range_charts !== false ? 'checked' : '' %>>
+                                        <label for="plot_range_charts">Range charts by operator</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_average_chart" name="plot_average_chart" <%= opts.plots?.average_chart !== false ? 'checked' : '' %>>
+                                        <label for="plot_average_chart">Average chart by operator</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_scatter" name="plot_scatter" <%= opts.plots?.scatter !== false ? 'checked' : '' %>>
+                                        <label for="plot_scatter">Scatter plots operators</label>
+                                    </div>
+                                    
+                                    <!-- Sub-options for Scatter plots (indented) -->
+                                    <div class="checkbox-item" style="margin-left: 30px;">
+                                        <input type="checkbox" id="plot_fit_line" name="plot_fit_line" <%= opts.plots?.fit_line === true ? 'checked' : '' %>>
+                                        <label for="plot_fit_line">Fit line</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item" style="margin-left: 30px;">
+                                        <input type="checkbox" id="plot_origin_line" name="plot_origin_line" <%= opts.plots?.origin_line === true ? 'checked' : '' %>>
+                                        <label for="plot_origin_line">Show origin line</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_measurements_part" name="plot_measurements_part" <%= opts.plots?.measurements_part !== false ? 'checked' : '' %>>
+                                        <label for="plot_measurements_part">Measurements by part plot</label>
+                                    </div>
+                                    
+                                    <!-- Sub-option for Measurements by part plot (indented) -->
+                                    <div class="checkbox-item" style="margin-left: 30px;">
+                                        <input type="checkbox" id="plot_display_all" name="plot_display_all" <%= opts.plots?.display_all === true ? 'checked' : '' %>>
+                                        <label for="plot_display_all">Display all measurements</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_measurements_op" name="plot_measurements_op" <%= opts.plots?.measurements_op !== false ? 'checked' : '' %>>
+                                        <label for="plot_measurements_op">Measurements by operator plot</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_interaction" name="plot_interaction" <%= opts.plots?.interaction !== false ? 'checked' : '' %>>
+                                        <label for="plot_interaction">Part × operator interaction plot</label>
+                                    </div>
+                                    
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="plot_traffic_light" name="plot_traffic_light" checked>
+                                        <label for="plot_traffic_light">Traffic light chart</label>
+                                    </div>
+                                    
+                                    <!-- Histogram Bin Boundaries Option -->
+                                    <div class="form-group" style="margin-top: 20px;">
+                                        <label for="histogram_bin_boundary" style="font-weight: 600; color: #667eea; text-transform: none; letter-spacing: normal;">Histogram Bin Boundaries</label>
+                                        <select id="histogram_bin_boundary" name="histogram_bin_boundary" class="form-control">
+                                            <option value="right_open" <%= opts.histogram_bin_boundary === 'right_open' || !opts.histogram_bin_boundary ? 'selected' : '' %>>Right-open intervals [a, b)</option>
+                                            <option value="left_open" <%= opts.histogram_bin_boundary === 'left_open' ? 'selected' : '' %>>Left-open intervals (a, b]</option>
+                                        </select>
+                                        <small style="color: #666; display: block; margin-top: 5px;">
+                                            Defines how bin boundaries are handled in histograms.<br>
+                                            Right-open: includes left boundary, excludes right (e.g., 0 ≤ x < 1)<br>
+                                            Left-open: excludes left boundary, includes right (e.g., 0 < x ≤ 1)
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Buttons -->
+            </form>
+            </div>
+            <div class="button-group">
+                <a href="index.html?view=studies" class="btn-secondary" style="flex: 1;">❌ İptal</a>
+                <button type="submit" form="settingsForm" class="btn-primary" style="flex: 2;">✅ Değişiklikleri Kaydet</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Plot Options Dependency Script -->
+    <script>
+        // Parent-child checkbox dependencies
+        document.addEventListener('DOMContentLoaded', function() {
+            const studyType = '<%= study.study_type || "type2" %>';
+            
+            const scatterPlot = document.getElementById('plot_scatter');
+            const fitLine = document.getElementById('plot_fit_line');
+            const originLine = document.getElementById('plot_origin_line');
+            
+            const measurementsPart = document.getElementById('plot_measurements_part');
+            const displayAll = document.getElementById('plot_display_all');
+            
+            // Type 3 specific: disable operator-related plots
+            if (studyType === 'type3') {
+                const operatorPlots = [
+                    'plot_range_charts',
+                    'plot_average_chart',
+                    'plot_scatter',
+                    'plot_fit_line',
+                    'plot_origin_line',
+                    'plot_measurements_op',
+                    'plot_interaction'
+                ];
+                
+                operatorPlots.forEach(plotId => {
+                    const checkbox = document.getElementById(plotId);
+                    if (checkbox) {
+                        checkbox.disabled = true;
+                        checkbox.checked = false;
+                        const label = checkbox.parentElement;
+                        label.style.opacity = '0.5';
+                        label.style.cursor = 'not-allowed';
+                        label.title = 'Not available for Type 3 (automatic equipment) studies';
+                    }
+                });
+            }
+            
+            // Function to toggle child checkboxes
+            function toggleChildCheckboxes(parent, children) {
+                children.forEach(child => {
+                    if (parent.checked) {
+                        child.disabled = false;
+                        child.parentElement.style.opacity = '1';
+                    } else {
+                        child.disabled = true;
+                        child.checked = false;
+                        child.parentElement.style.opacity = '0.5';
+                    }
+                });
+            }
+            
+            // Initialize on page load
+            toggleChildCheckboxes(scatterPlot, [fitLine, originLine]);
+            toggleChildCheckboxes(measurementsPart, [displayAll]);
+            
+            // Add event listeners
+            scatterPlot.addEventListener('change', function() {
+                toggleChildCheckboxes(scatterPlot, [fitLine, originLine]);
+            });
+            
+            measurementsPart.addEventListener('change', function() {
+                toggleChildCheckboxes(measurementsPart, [displayAll]);
+            });
+        });
+    </script>
+    
+    <!-- Theme Switcher Script -->
+    <script src="js/theme-switcher.js"></script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Yeni Çalışma - GageAI</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// ============================================================================
+// POST /msa/new portu — msaRoutes.js:1082-1290 birebir (knex → supabase-js).
+// Şablondaki handleFormSubmit doğrulamadan sonra bu fonksiyonu çağırır.
+// Farklar: user_id → owner_email; analysis_options json kolonuna OBJE yazılır
+// (JSON.stringify yok); logActivity (activity_logs) düştü; redirect → location.href.
+// ============================================================================
+window.msaSubmitNewStudy = async function (form) {
+  try {
+    console.log('📝 Yeni çalışma oluşturma isteği alındı');
+    const user = await MSA.currentUser();
+    console.log('User:', user.email);
+
+    // req.body eşleniği: FormData → düz obje (checkbox işaretli değilse alan yok,
+    // işaretliyse 'on' — Express body-parser ile aynı semantik). operator_names[] dizidir.
+    const fd = new FormData(form);
+    const body = {};
+    fd.forEach(function (v, k) { if (k !== 'operator_names[]') body[k] = v; });
+    body.operator_names = fd.getAll('operator_names[]');
+    console.log('Body:', body);
+
+    const {
+      study_name,
+      description,
+      num_operators,
+      num_parts,
+      num_trials,
+      grr_study_type,  // Type 2 (manual) or Type 3 (automatic)
+      // Analysis options
+      process_variation,
+      historical_std,
+      tolerance_width,
+      tolerance_value,
+      anova_table,
+      f_statistic_type,
+      alpha_removal,
+      interaction_pooling,
+      study_var_multiplier,
+      multiplier_value,
+      show_tooltips,
+      show_recommendations,
+      show_capa_banner,
+      // Plot checkboxes
+      plot_components,
+      plot_range_charts,
+      plot_average_chart,
+      plot_scatter,
+      plot_fit_line,
+      plot_origin_line,
+      plot_measurements_part,
+      plot_display_all,
+      plot_measurements_op,
+      plot_interaction,
+      plot_traffic_light,
+      histogram_bin_boundary
+    } = body;
+
+    // Validasyon
+    if (!study_name || !num_operators || !num_parts || !num_trials) {
+      console.log('❌ Validasyon hatası: Eksik alanlar');
+      alert('Tüm alanları doldurun');
+      return;
+    }
+
+    // Auto-add equipment if gauge_name and gauge_number provided and not in equipment table
+    if (body.gauge_name && body.gauge_number) {
+      try {
+        // Check if equipment already exists (serial_number VEYA device_number eşleşmesi)
+        const escapedNumber = String(body.gauge_number).replace(/,/g, '\\,'); // PostgREST or() virgül ayracı
+        const eqSel = await MSA.db.from(MSA.T.equipment)
+          .select('id')
+          .or('serial_number.eq.' + escapedNumber + ',device_number.eq.' + escapedNumber)
+          .limit(1);
+        if (eqSel.error) throw eqSel.error;
+        const existingEquipment = eqSel.data && eqSel.data[0];
+
+        if (!existingEquipment) {
+          // Add to equipment table
+          const eqIns = await MSA.db.from(MSA.T.equipment).insert({
+            name: body.gauge_name,
+            serial_number: body.gauge_number,
+            device_number: body.gauge_number,
+            description: 'MSA çalışmasından otomatik eklendi',
+            is_active: true,
+            created_by_email: user.email
+          });
+          if (eqIns.error) throw eqIns.error;
+
+          console.log('✅ Auto-added equipment: ' + body.gauge_name + ' (' + body.gauge_number + ') by ' + user.email);
+        }
+      } catch (equipError) {
+        // Don't fail the study creation if equipment insert fails
+        console.error('⚠️ Auto-add equipment error:', equipError);
+      }
+    }
+
+    // Analysis options nesnesini oluştur
+    console.log('🔍 Plot checkbox değerleri:');
+    console.log('  plot_scatter:', plot_scatter, '→', plot_scatter !== 'off' && plot_scatter !== false);
+    console.log('  plot_measurements_part:', plot_measurements_part, '→', plot_measurements_part !== 'off' && plot_measurements_part !== false);
+    console.log('  plot_measurements_op:', plot_measurements_op, '→', plot_measurements_op !== 'off' && plot_measurements_op !== false);
+
+    const analysisOptions = {
+      process_variation: process_variation || 'study_variation',
+      historical_std: historical_std ? parseFloat(historical_std) : 3,
+      tolerance: {
+        width: tolerance_width ? parseFloat(tolerance_width) : 10
+      },
+      anova_table: !!anova_table,
+      f_statistic_type: f_statistic_type || 'fixed_effects',
+      alpha_removal: alpha_removal ? parseFloat(alpha_removal) : 0.05,
+      interaction_pooling: interaction_pooling || 'auto',
+      show_tooltips: show_tooltips === 'on' || show_tooltips === true,
+      show_recommendations: show_recommendations === 'on' || show_recommendations === true,
+      show_capa_banner: show_capa_banner === 'on' || show_capa_banner === true,
+      study_var_multiplier: {
+        type: study_var_multiplier || 'std_deviation',
+        value: multiplier_value ? parseFloat(multiplier_value) : 6
+      },
+      plots: {
+        components: plot_components !== 'off' && plot_components !== false,  // Default: true
+        range_charts: plot_range_charts !== 'off' && plot_range_charts !== false,  // Default: true
+        average_chart: plot_average_chart !== 'off' && plot_average_chart !== false,  // Default: true
+        scatter: plot_scatter !== 'off' && plot_scatter !== false,  // Default: true (Matrix Plot)
+        fit_line: !!plot_fit_line,  // Default: false (sub-option)
+        origin_line: !!plot_origin_line,  // Default: false (sub-option)
+        measurements_part: plot_measurements_part !== 'off' && plot_measurements_part !== false,  // Default: true
+        display_all: !!plot_display_all,  // Default: false (sub-option)
+        measurements_op: plot_measurements_op !== 'off' && plot_measurements_op !== false,  // Default: true
+        interaction: plot_interaction !== 'off' && plot_interaction !== false,  // Default: true
+        traffic_light: plot_traffic_light !== 'off' && plot_traffic_light !== false  // Default: true
+      },
+      histogram_bin_boundary: histogram_bin_boundary || 'right_open'  // Default: right-open [a, b)
+    };
+
+    console.log('✅ Analysis options oluşturuldu:');
+    console.log('  plots.scatter:', analysisOptions.plots.scatter);
+    console.log('  plots.measurements_part:', analysisOptions.plots.measurements_part);
+    console.log('  plots.measurements_op:', analysisOptions.plots.measurements_op);
+
+    const studyData = {
+      owner_email: user.email,
+      study_name,
+      description: description || null,
+      study_type: grr_study_type === 'type3' ? 'type3' : 'type2',  // type2 = manual GRR (default), type3 = automatic equipment GRR
+      num_operators: parseInt(num_operators),
+      num_parts: parseInt(num_parts),
+      num_trials: parseInt(num_trials),
+      status: 'draft',
+      // Yeni metadata alanları
+      gauge_name: body.gauge_name || null,
+      gauge_number: body.gauge_number || null,
+      location: body.location || null,
+      study_date: body.study_date || null,
+      part_name: body.part_name || null,
+      characteristic: body.characteristic || null,
+      tolerance_spec: body.tolerance_spec || null,
+      performed_by: body.performed_by || null,
+      // json kolonuna OBJE yazılır (rehber kuralı — JSON.stringify edilmez)
+      analysis_options: analysisOptions
+    };
+
+    console.log('📝 Study data hazır:', studyData);
+
+    const ins = await MSA.db.from(MSA.T.studies).insert(studyData).select('id').single();
+    if (ins.error) throw new Error(ins.error.message);
+    console.log('✅ Insert result:', ins.data);
+
+    // studyId'yi doğru şekilde al
+    const studyId = ins.data && ins.data.id;
+    console.log('📌 Study ID:', studyId, 'Type:', typeof studyId);
+
+    if (!studyId || typeof studyId !== 'number') {
+      throw new Error('Invalid study ID returned: ' + JSON.stringify(ins.data));
+    }
+
+    // Operatörleri oluştur
+    const operatorNames = body.operator_names || [];
+    const operators = [];
+    for (let i = 1; i <= parseInt(num_operators); i++) {
+      operators.push({
+        study_id: studyId,
+        operator_name: operatorNames[i - 1] || ('Operatör ' + i),
+        operator_number: i
+      });
+    }
+    console.log('👥 Operators data:', operators);
+    const opIns = await MSA.db.from(MSA.T.operators).insert(operators);
+    if (opIns.error) throw new Error(opIns.error.message);
+
+    // Parçaları oluştur
+    const parts = [];
+    for (let i = 1; i <= parseInt(num_parts); i++) {
+      parts.push({
+        study_id: studyId,
+        part_name: 'Parça ' + i,
+        part_number: i
+      });
+    }
+    console.log('📦 Parts data:', parts);
+    const pIns = await MSA.db.from(MSA.T.parts).insert(parts);
+    if (pIns.error) throw new Error(pIns.error.message);
+
+    console.log('✅ Çalışma başarıyla oluşturuldu, ID:', studyId);
+
+    // res.redirect(`/msa/${studyId}/data-entry`) karşılığı
+    location.href = 'data-entry.html?id=' + studyId;
+  } catch (error) {
+    console.error('❌ Create study error:', error);
+    console.error('Error details:', error.message);
+    alert('Bir hata oluştu: ' + error.message);
+  }
+};
+
+// ============================================================================
+// GET /msa/new portu — msaRoutes.js:1026-1079.
+// Rol filtresi (admin/kendi ekipmanı) düştü: modülde herkes her şeyi görür.
+// ============================================================================
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+
+    // Get equipment list
+    let equipmentList = [];
+    try {
+      const { data, error } = await MSA.db.from(MSA.T.equipment)
+        .select('id, name, serial_number, device_number, created_by_email')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      equipmentList = data || [];
+    } catch (e) {
+      console.error('Error loading new study form:', e);
+      equipmentList = [];
+    }
+
+    await MSA.renderPage('new-study.ejs', { user, equipmentList });
+  } catch (e) {
+    console.error(e);
+    MSA.renderError('Hata', e.message);
+  }
+})();
+</script>
+</body>
+</html>

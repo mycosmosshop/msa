@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= study.study_name %> - Detay</title>
+    
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme_mode') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/dark-mode.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .detail-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        .detail-card h1 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status-draft {
+            background: #ffc107;
+            color: #856404;
+        }
+        .status-active {
+            background: #28a745;
+            color: white;
+        }
+        .status-completed {
+            background: #007bff;
+            color: white;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .info-item {
+            padding: 15px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .info-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            font-size: 16px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #856404;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .section-title {
+            font-size: 18px;
+            color: var(--text-primary);
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .list-item {
+            padding: 10px;
+            background: var(--bg-secondary);
+            border-radius: 5px;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="container">
+        <!-- Header Navigation -->
+        <div class="header-card">
+            <a href="index.html?view=studies" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Çalışmalarıma Dön
+            </a>
+            <button id="theme-toggle" class="btn btn-primary">
+                <i class="bi bi-sun-fill" id="theme-icon-light"></i>
+                <i class="bi bi-moon-fill" id="theme-icon-dark" style="display:none;"></i>
+            </button>
+        </div>
+
+        <!-- Main Detail Card -->
+        <div class="detail-card">
+            <h1>
+                📊 <%= study.study_name %>
+                <% 
+                let statusClass = 'status-draft';
+                let statusText = 'Taslak';
+                if (study.status === 'active') {
+                    statusClass = 'status-active';
+                    statusText = 'Aktif';
+                } else if (study.status === 'completed') {
+                    statusClass = 'status-completed';
+                    statusText = 'Tamamlandı';
+                }
+                %>
+                <span class="status-badge <%= statusClass %>"><%= statusText %></span>
+            </h1>
+            
+            <!-- Basic Info Grid -->
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Ölçüm Cihazı</div>
+                    <div class="info-value"><%= study.gauge_name || 'Belirtilmemiş' %></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Operatör Sayısı</div>
+                    <div class="info-value"><%= operators.length %></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Parça Sayısı</div>
+                    <div class="info-value"><%= parts.length %></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Toplam Ölçüm</div>
+                    <div class="info-value"><%= measurementsCount %></div>
+                </div>
+            </div>
+
+            <% if (study.schedule_id) { %>
+            <div style="margin-top: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
+                <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 5px;">📅 Bu çalışma bir planlamadan oluşturuldu</div>
+                <div style="color: var(--text-primary); font-weight: 600;"><%= study.schedule_title %></div>
+                <% if (study.planned_date) { %>
+                <div style="color: var(--text-secondary); font-size: 14px; margin-top: 5px;">
+                    Planlanan Tarih: <%= new Date(study.planned_date).toLocaleDateString('tr-TR') %>
+                </div>
+                <% } %>
+            </div>
+            <% } %>
+
+            <!-- Operators Section -->
+            <% if (operators.length > 0) { %>
+            <div class="section-title">👥 Operatörler</div>
+            <% operators.forEach(op => { %>
+            <div class="list-item">
+                <strong>Operatör <%= op.operator_number %>:</strong> <%= op.name %>
+            </div>
+            <% }); %>
+            <% } %>
+
+            <!-- Parts Section -->
+            <% if (parts.length > 0) { %>
+            <div class="section-title">🔧 Parçalar</div>
+            <% parts.forEach(part => { %>
+            <div class="list-item">
+                <strong>Parça <%= part.part_number %>:</strong> <%= part.name %>
+            </div>
+            <% }); %>
+            <% } %>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <% if (study.status === 'completed') { %>
+                <a href="results.html?id=<%= study.id %>" class="btn btn-success">
+                    📊 Sonuçları Görüntüle
+                </a>
+                <a href="data-entry.html?id=<%= study.id %>" class="btn btn-primary">
+                    ✏️ Veriyi Düzenle
+                </a>
+                <% } else if (study.status === 'active') { %>
+                <a href="results.html?id=<%= study.id %>" class="btn btn-success">
+                    📊 Sonuçları Görüntüle
+                </a>
+                <a href="data-entry.html?id=<%= study.id %>" class="btn btn-primary">
+                    ✏️ Veriyi Düzenle
+                </a>
+                <% } else { %>
+                <a href="data-entry.html?id=<%= study.id %>" class="btn btn-warning">
+                    ✏️ Ölçüm Verisi Gir
+                </a>
+                <% } %>
+                
+                <% if (study.schedule_id) { %>
+                <a href="schedule-detail.html?id=<%= study.schedule_id %>" class="btn btn-secondary">
+                    📅 Planlamayı Görüntüle
+                </a>
+                <% } %>
+                
+                <a href="index.html?view=studies" class="btn btn-secondary">
+                    🏠 Çalışmalarıma Dön
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Theme Toggle Script
+        const themeToggle = document.getElementById('theme-toggle');
+        const iconLight = document.getElementById('theme-icon-light');
+        const iconDark = document.getElementById('theme-icon-dark');
+        
+        function updateThemeIcon() {
+            const theme = localStorage.getItem('theme_mode') || 'light';
+            if (theme === 'dark') {
+                iconLight.style.display = 'none';
+                iconDark.style.display = 'inline-block';
+            } else {
+                iconLight.style.display = 'inline-block';
+                iconDark.style.display = 'none';
+            }
+        }
+        
+        updateThemeIcon();
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = localStorage.getItem('theme_mode') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            localStorage.setItem('theme_mode', newTheme);
+            document.documentElement.setAttribute('data-theme', newTheme);
+            updateThemeIcon();
+        });
+    </script>
+</body>
+</html>

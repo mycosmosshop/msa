@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>MSA Planlama</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yukleniyor...</div>
+<script>
+// GET /msa/msa-plan portu -- msaRoutes.js:5222
+// users JOIN'leri dustu (planner/responsible = e-posta kolonlari); admin/rol
+// filtresi dustu (herkes tum planlari gorur). Satir aksiyonu: MSA_SCHEDULE_API.remove.
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+
+    window.MSA_SCHEDULE_API = {
+      async remove(scheduleId) {
+        try {
+          const { data: schedule, error } = await MSA.db.from(MSA.T.schedule)
+            .select('*').eq('id', scheduleId).maybeSingle();
+          MSA.throwIf(error, 'schedule select');
+
+          if (!schedule) {
+            return { success: false, message: 'Planlama bulunamadı' };
+          }
+
+          // Delete related draft study if exists
+          if (schedule.completed_study_id) {
+            try {
+              const { data: draftStudy, error: dErr } = await MSA.db.from(MSA.T.studies)
+                .select('id')
+                .eq('id', schedule.completed_study_id)
+                .eq('is_from_schedule', true)
+                .maybeSingle();
+              MSA.throwIf(dErr, 'draft study select');
+
+              if (draftStudy) {
+                const del = await MSA.db.from(MSA.T.studies).delete().eq('id', schedule.completed_study_id);
+                MSA.throwIf(del.error, 'draft study delete');
+                console.log(`✅ Deleted related draft study ${schedule.completed_study_id}`);
+              }
+            } catch (draftError) {
+              console.error('Error deleting draft study:', draftError);
+              // Don't fail the schedule deletion if draft deletion fails
+            }
+          }
+
+          // Delete schedule
+          const del = await MSA.db.from(MSA.T.schedule).delete().eq('id', scheduleId);
+          MSA.throwIf(del.error, 'schedule delete');
+          console.log(`✅ Deleted schedule ${scheduleId}`);
+
+          return { success: true, message: 'Planlama ve ilişkili taslak çalışma başarıyla silindi' };
+        } catch (error) {
+          console.error('Schedule delete error:', error);
+          return { success: false, message: 'Silme hatası: ' + error.message };
+        }
+      }
+    };
+
+    // ---- GET verisi ----
+    // Ekipman listesi (dropdown)
+    let equipment = [];
+    try {
+      const { data, error } = await MSA.db.from(MSA.T.equipment)
+        .select('id, name, serial_number, device_number')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      MSA.throwIf(error, 'equipment select');
+      equipment = data || [];
+    } catch (e) {
+      console.error('Error fetching equipment:', e);
+    }
+
+    // Planlar (tamamlanmis/iptal haric degil -- msa-plan tumunu listeler)
+    let schedules = [];
+    try {
+      const { data, error } = await MSA.db.from(MSA.T.schedule)
+        .select('*')
+        .order('planned_date', { ascending: true });
+      MSA.throwIf(error, 'schedule select');
+      schedules = (data || []).map(s => Object.assign({}, s, {
+        planner_name: s.planned_by_email,
+        planner_email: s.planned_by_email,
+        assigned_to_name: s.responsible_email,
+        assigned_to_email: s.responsible_email,
+        equipment_name: s.gauge_name
+      }));
+    } catch (e) {
+      console.error('MSA Plan page schedule query error:', e);
+    }
+
+    const scheduleYears = Array.from(new Set(
+      schedules
+        .map(s => s.planned_date ? new Date(s.planned_date).getFullYear() : null)
+        .filter(Boolean)
+    )).sort((a, b) => b - a);
+
+    await MSA.renderPage('msa-plan.ejs', {
+      user,
+      equipment,
+      schedules,
+      scheduleYears,
+      brandingName: MSA.BRANDING.company_name,
+      logoUrl: MSA.BRANDING.logo_url,
+      primaryColor: MSA.BRANDING.primary_color,
+      isDarkMode: false,
+      userRole: 'user'
+    });
+  } catch (e) {
+    console.error('MSA Plan page error:', e);
+    MSA.renderError('Hata', 'Sayfa yuklenirken hata olustu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

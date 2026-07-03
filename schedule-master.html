@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>MSA Planlamaları</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+
+    // ------------------------------------------------------------------
+    // DELETE /msa/schedule/:scheduleId portu — msaRoutes.js:4537
+    // Düşen özellikler: requireAuth (erp-guard), logActivity (activity_logs),
+    // admin/planlayan erişim kontrolü (herkes silebilir).
+    // ------------------------------------------------------------------
+    window.MSA_SCHEDULE_API = {
+      async remove(scheduleId) {
+        try {
+          const { data: schedule, error } = await MSA.db.from(MSA.T.schedule)
+            .select('*').eq('id', scheduleId).maybeSingle();
+          MSA.throwIf(error, 'schedule select');
+
+          if (!schedule) {
+            return { success: false, message: 'Planlama bulunamadı' };
+          }
+
+          // Delete related draft study if exists
+          if (schedule.completed_study_id) {
+            try {
+              const { data: draftStudy, error: dErr } = await MSA.db.from(MSA.T.studies)
+                .select('id')
+                .eq('id', schedule.completed_study_id)
+                .eq('is_from_schedule', true)
+                .maybeSingle();
+              MSA.throwIf(dErr, 'draft study select');
+
+              if (draftStudy) {
+                const del = await MSA.db.from(MSA.T.studies).delete().eq('id', schedule.completed_study_id);
+                MSA.throwIf(del.error, 'draft study delete');
+                console.log(`✅ Deleted related draft study ${schedule.completed_study_id}`);
+              }
+            } catch (draftError) {
+              console.error('Error deleting draft study:', draftError);
+              // Don't fail the schedule deletion if draft deletion fails
+            }
+          }
+
+          // Delete schedule
+          const del = await MSA.db.from(MSA.T.schedule).delete().eq('id', scheduleId);
+          MSA.throwIf(del.error, 'schedule delete');
+          console.log(`✅ Deleted schedule ${scheduleId}`);
+
+          return { success: true, message: 'Planlama ve ilişkili taslak çalışma başarıyla silindi' };
+        } catch (error) {
+          console.error('Schedule delete error:', error);
+          return { success: false, message: 'Silme hatası: ' + error.message };
+        }
+      }
+    };
+
+    // ------------------------------------------------------------------
+    // GET /msa/schedule portu — msaRoutes.js:4193
+    // users JOIN'leri düştü: planned_by_email / responsible_email doğrudan
+    // gösterilir; admin/rol filtresi düştü (herkes tüm planları görür).
+    // ------------------------------------------------------------------
+    const status = MSA.q('status');
+    const responsible = MSA.q('responsible');
+    const search = MSA.q('search');
+    const sort = MSA.q('sort', 'planned_date_asc');
+
+    let query = MSA.db.from(MSA.T.schedule).select('*');
+
+    // Apply filters
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    if (responsible) {
+      query = query.eq('responsible_email', responsible);
+    }
+
+    if (search) {
+      const esc = search.replace(/,/g, '\\,');
+      query = query.or(`title.ilike.*${esc}*,description.ilike.*${esc}*,part_name.ilike.*${esc}*,characteristic.ilike.*${esc}*`);
+    }
+
+    // Sorting
+    switch (sort) {
+      case 'planned_date_asc':
+        query = query.order('planned_date', { ascending: true });
+        break;
+      case 'planned_date_desc':
+        query = query.order('planned_date', { ascending: false });
+        break;
+      case 'created_desc':
+        query = query.order('created_at', { ascending: false });
+        break;
+      case 'title_asc':
+        query = query.order('title', { ascending: true });
+        break;
+      default:
+        query = query.order('planned_date', { ascending: true });
+    }
+
+    const { data: rawSchedules, error: schErr } = await query;
+    MSA.throwIf(schErr, 'schedule list select');
+
+    // İlişkili kayıtlar (eski LEFT JOIN'lerin JS tarafında birleştirilmesi)
+    const capaIds = [...new Set((rawSchedules || []).map(s => s.capa_id).filter(Boolean))];
+    const studyIds = [...new Set((rawSchedules || [])
+      .flatMap(s => [s.previous_study_id, s.completed_study_id])
+      .filter(Boolean))];
+
+    let capaById = {};
+    if (capaIds.length > 0) {
+      const { data: capaRows, error: cErr } = await MSA.db.from(MSA.T.capa)
+        .select('id, capa_number, study_id').in('id', capaIds);
+      MSA.throwIf(cErr, 'capa select');
+      (capaRows || []).forEach(c => { capaById[c.id] = c; });
+    }
+
+    let studyById = {};
+    if (studyIds.length > 0) {
+      const { data: studyRows, error: sErr } = await MSA.db.from(MSA.T.studies)
+        .select('id, study_name').in('id', studyIds);
+      MSA.throwIf(sErr, 'studies select');
+      (studyRows || []).forEach(s => { studyById[s.id] = s; });
+    }
+
+    const schedules = (rawSchedules || []).map(s => ({
+      ...s,
+      planner_name: null,
+      planner_email: s.planned_by_email || null,
+      responsible_name: null,
+      responsible_email: s.responsible_email || null,
+      capa_number: (s.capa_id && capaById[s.capa_id] && capaById[s.capa_id].capa_number) || null,
+      capa_study_id: (s.capa_id && capaById[s.capa_id] && capaById[s.capa_id].study_id) || null,
+      previous_study_name: (s.previous_study_id && studyById[s.previous_study_id] && studyById[s.previous_study_id].study_name) || null,
+      completed_study_name: (s.completed_study_id && studyById[s.completed_study_id] && studyById[s.completed_study_id].study_name) || null
+    }));
+
+    // Kullanıcı listesi (users tablosu yok → kayıtlı e-postalardan derlenir)
+    const emails = new Set();
+    const [uSch, uSt] = await Promise.all([
+      MSA.db.from(MSA.T.schedule).select('planned_by_email, responsible_email'),
+      MSA.db.from(MSA.T.studies).select('owner_email')
+    ]);
+    (uSch.data || []).forEach(r => {
+      if (r.planned_by_email) emails.add(r.planned_by_email);
+      if (r.responsible_email) emails.add(r.responsible_email);
+    });
+    (uSt.data || []).forEach(r => { if (r.owner_email) emails.add(r.owner_email); });
+    if (user.email && user.email !== 'no-session') emails.add(user.email);
+    const users = [...emails].sort((a, b) => a.localeCompare(b)).map(e => ({ id: e, name: null, email: e }));
+
+    // Count by status (filtre uygulanmadan, orijinaldeki gibi tüm kayıtlar üzerinden)
+    const { data: statusRows, error: stcErr } = await MSA.db.from(MSA.T.schedule).select('status');
+    MSA.throwIf(stcErr, 'status counts select');
+
+    const counts = {
+      all: schedules.length,
+      planned: 0,
+      reminded: 0,
+      in_progress: 0,
+      completed: 0,
+      cancelled: 0
+    };
+
+    (statusRows || []).forEach(r => {
+      counts[r.status] = (counts[r.status] || 0) + 1;
+    });
+
+    await MSA.renderPage('schedule-master.ejs', {
+      user,
+      branding: MSA.BRANDING,
+      schedules,
+      users,
+      counts,
+      filters: { status, responsible, search, sort }
+    });
+  } catch (e) {
+    console.error(e);
+    MSA.renderError('Hata', 'Sayfa yüklenirken hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

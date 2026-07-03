@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>DÖF Yönetimi - MSA</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// GET /msa/capa portu — msaRoutes.js:3556 (CAPA listesi + filtreler + istatistikler)
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const branding = MSA.BRANDING;
+
+    // Get filter parameters (orijinal: req.query)
+    const status = MSA.q('status');
+    const responsible = MSA.q('responsible');
+    const search = MSA.q('search');
+
+    // Build query — capa_actions LEFT JOIN msa_studies (study_name, study_type);
+    // gauge_evaluation da gömülü çekilir (orijinal rota GRR için study'yi ayrıca okuyordu).
+    let query = MSA.db.from(MSA.T.capa)
+      .select('*, msa_studies(study_name, study_type, gauge_evaluation)');
+
+    // Apply filters
+    if (status) {
+      query = query.eq('status', status);
+    }
+    if (responsible) {
+      // users tablosu düştü — sorumlu filtresi e-posta üzerinden (responsible_user_id → responsible_email)
+      query = query.eq('responsible_email', responsible);
+    }
+
+    // Orijinaldeki admin-değilse "sadece benimkiler" filtresi düşen özellik — herkes her şeyi görür.
+
+    const { data: capaRows, error: capaErr } = await query.order('created_at', { ascending: false });
+    MSA.throwIf(capaErr, 'capa list select');
+
+    // JOIN düzleştirme
+    let capas = (capaRows || []).map(row => {
+      const study = row.msa_studies || {};
+      const capa = Object.assign({}, row, {
+        study_name: study.study_name || null,
+        study_type: study.study_type || null
+      });
+      capa._gauge_evaluation = study.gauge_evaluation || null;
+      delete capa.msa_studies;
+      return capa;
+    });
+
+    // Arama filtresi (orijinal: ilike %search% — capa_number / issue_description / study_name).
+    // Gömülü tablo kolonu PostgREST or() ile aranamadığından birebir ilike JS tarafında.
+    if (search) {
+      const s = search.toLowerCase();
+      capas = capas.filter(c =>
+        (c.capa_number || '').toLowerCase().includes(s) ||
+        (c.issue_description || '').toLowerCase().includes(s) ||
+        (c.study_name || '').toLowerCase().includes(s)
+      );
+    }
+
+    // Sorumlu filtresi açılır listesi: users tablosu düştü —
+    // bilinen e-postalar (çalışma sahipleri + DÖF oluşturan/sorumlu) derlenir.
+    const [allCapaEmailsRes, ownersRes] = await Promise.all([
+      MSA.db.from(MSA.T.capa).select('created_by_email, responsible_email'),
+      MSA.db.from(MSA.T.studies).select('owner_email')
+    ]);
+    MSA.throwIf(allCapaEmailsRes.error, 'capa emails select');
+    MSA.throwIf(ownersRes.error, 'owners select');
+    const emailSet = new Set();
+    if (user.email && user.email !== 'no-session') emailSet.add(user.email);
+    (allCapaEmailsRes.data || []).forEach(c => {
+      if (c.created_by_email) emailSet.add(c.created_by_email);
+      if (c.responsible_email) emailSet.add(c.responsible_email);
+    });
+    (ownersRes.data || []).forEach(s => { if (s.owner_email) emailSet.add(s.owner_email); });
+    const users = Array.from(emailSet).sort().map(e => ({ id: e, name: null, email: e }));
+
+    // Creator / responsible adları: users JOIN düştü — e-posta doğrudan gösterilir.
+    for (const capa of capas) {
+      if (capa.created_by_email) {
+        capa.creator_name = capa.created_by_email;
+      }
+      if (capa.responsible_email) {
+        capa.responsible_name = capa.responsible_email;
+      }
+    }
+
+    // Tip bazlı çalışma verileri (Type 1: Cg/Cgk/Bias — Type 2/3: GRR%/NDC)
+    const type1StudyIds = [...new Set(capas
+      .filter(c => c.study_id && c.study_type === 'type1')
+      .map(c => c.study_id))];
+    let type1ByStudy = {};
+    if (type1StudyIds.length > 0) {
+      const { data: t1Rows, error: t1Err } = await MSA.db.from(MSA.T.type1Results)
+        .select('study_id, cg, cgk, percent_bias')
+        .in('study_id', type1StudyIds);
+      MSA.throwIf(t1Err, 'type1 results select');
+      (t1Rows || []).forEach(r => {
+        if (!(r.study_id in type1ByStudy)) type1ByStudy[r.study_id] = r; // orijinal .first()
+      });
+    }
+
+    for (const capa of capas) {
+      if (capa.study_id) {
+        if (capa.study_type === 'type1') {
+          const type1Results = type1ByStudy[capa.study_id];
+          if (type1Results) {
+            capa.cg = parseFloat(type1Results.cg) || null;
+            capa.cgk = parseFloat(type1Results.cgk) || null;
+            capa.bias = parseFloat(type1Results.percent_bias) || null;
+          }
+        } else {
+          // Type 3 (GRR & R&R) sonuçları — study.gauge_evaluation
+          if (capa._gauge_evaluation) {
+            try {
+              const gaugeEval = MSA.parseJson(capa._gauge_evaluation, null);
+              capa.grr_percent = (gaugeEval && gaugeEval.totalGaugeRR && gaugeEval.totalGaugeRR.pctStudyVar) || null;
+              capa.ndc = (gaugeEval && gaugeEval.numberOfDistinctCategories) || null;
+            } catch (e) {
+              console.error('Failed to parse gauge_evaluation:', e);
+            }
+          }
+        }
+      }
+      delete capa._gauge_evaluation;
+    }
+
+    // Calculate statistics (birebir)
+    const stats = {
+      total: capas.length,
+      open: capas.filter(c => c.status === 'open').length,
+      in_progress: capas.filter(c => c.status === 'in_progress').length,
+      completed: capas.filter(c => c.status === 'completed').length,
+      overdue: capas.filter(c => {
+        if (!c.due_date) return false;
+        return new Date(c.due_date) < new Date() && !['completed', 'closed'].includes(c.status);
+      }).length
+    };
+
+    await MSA.renderPage('capa-list.ejs', {
+      user,
+      branding,
+      capas,
+      users,
+      stats,
+      filters: { status, responsible, search }
+    });
+  } catch (e) {
+    console.error('CAPA list error:', e);
+    MSA.renderError('Hata', 'CAPA listesi yüklenirken hata oluştu');
+  }
+})();
+</script>
+</body>
+</html>

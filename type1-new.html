@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/type1-calculations.js"></script>
+<title>New Type 1 Study - GageAI</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// ============================================================================
+// createType1CapaIfNeeded portu — type1Routes.js:41-188 birebir.
+// Farklar: created_by (int FK) → created_by_email, responsible_user_id →
+// responsible_email; logActivity (activity_logs) düştü; knex → supabase-js.
+// Hem iç içe (hesaplamadan) hem düz (veritabanından) sonuç yapısını destekler.
+// ============================================================================
+async function createType1CapaIfNeeded(studyId, results, userEmail, tolerance) {
+  try {
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*').eq('id', studyId).maybeSingle();
+    if (stErr) throw stErr;
+    if (!study) return null;
+
+    // Check if study is acceptable from interpretation
+    const overall = (results.interpretation && results.interpretation.overall) || 'acceptable';
+
+    if (overall !== 'unacceptable') {
+      console.log(`✅ Type 1: Study is ${overall}, no CAPA needed`);
+      return null;
+    }
+
+    // Handle both nested (from calculation) and flat (from database) result structures
+    const cg = parseFloat((results.capability && results.capability.cg) || results.cg) || 0;
+    const cgk = parseFloat((results.capability && results.capability.cgk) || results.cgk) || 0;
+    const percentBias = parseFloat((results.basicStatistics && results.basicStatistics.percentBias) || results.percent_bias) || 0;
+    const percentVar = parseFloat((results.capability && results.capability.percentVarRepeatability) || results.percent_var_repeatability) || 0;
+
+    console.log('❌ Type 1: Study is UNACCEPTABLE, creating CAPA...');
+    console.log(`📊 Cg: ${cg.toFixed(3)}, Cgk: ${cgk.toFixed(3)}, Bias: ${percentBias.toFixed(2)}%, %Var: ${percentVar.toFixed(2)}%`);
+
+    // Collect all issues
+    const issues = [];
+
+    if (cg < 1.0) {
+      issues.push({
+        type: 'cg_unacceptable',
+        severity: 'critical',
+        description: `Cg = ${cg.toFixed(3)} (<1.0) - Kabul Edilemez! Ölçüm aleti varyasyonu toleransa göre çok büyük.`,
+        value: cg
+      });
+    } else if (cg < 1.33) {
+      issues.push({
+        type: 'cg_marginal',
+        severity: 'high',
+        description: `Cg = ${cg.toFixed(3)} (1.0-1.33) - Marjinal. Ölçüm hassasiyeti iyileştirilebilir.`,
+        value: cg
+      });
+    }
+
+    if (cgk < 1.0) {
+      issues.push({
+        type: 'cgk_unacceptable',
+        severity: 'critical',
+        description: `Cgk = ${cgk.toFixed(3)} (<1.0) - Kabul Edilemez! Bias ile düzeltilmiş kapasite çok düşük.`,
+        value: cgk
+      });
+    } else if (cgk < 1.33) {
+      issues.push({
+        type: 'cgk_marginal',
+        severity: 'high',
+        description: `Cgk = ${cgk.toFixed(3)} (1.0-1.33) - Marjinal. Bias etkisi yüksek.`,
+        value: cgk
+      });
+    }
+
+    if (Math.abs(percentBias) > 10) {
+      issues.push({
+        type: 'bias_high',
+        severity: 'critical',
+        description: `Bias = ${percentBias.toFixed(2)}% (>10%) - Sistematik hata yüksek, kalibrasyon gerekli.`,
+        value: Math.abs(percentBias)
+      });
+    } else if (Math.abs(percentBias) > 5) {
+      issues.push({
+        type: 'bias_moderate',
+        severity: 'medium',
+        description: `Bias = ${percentBias.toFixed(2)}% (5-10%) - Kalibrasyon önerilir.`,
+        value: Math.abs(percentBias)
+      });
+    }
+
+    if (percentVar > 30) {
+      issues.push({
+        type: 'variance_high',
+        severity: 'critical',
+        description: `%Var = ${percentVar.toFixed(2)}% (>30%) - Tekrarlanabilirlik kabul edilemez.`,
+        value: percentVar
+      });
+    } else if (percentVar > 10) {
+      issues.push({
+        type: 'variance_moderate',
+        severity: 'medium',
+        description: `%Var = ${percentVar.toFixed(2)}% (10-30%) - Tekrarlanabilirlik marjinal.`,
+        value: percentVar
+      });
+    }
+
+    if (issues.length === 0) {
+      console.log('⚠️ Study marked unacceptable but no specific issues found');
+      return null;
+    }
+
+    // Check for existing OPEN CAPAs only
+    // Don't create duplicate if already open, but DO create new one if previous was closed
+    const { data: existingOpenCapa, error: exErr } = await MSA.db.from(MSA.T.capa)
+      .select('*')
+      .eq('study_id', studyId)
+      .in('status', ['open', 'in_progress'])
+      .maybeSingle();
+    if (exErr) throw exErr;
+
+    if (existingOpenCapa) {
+      console.log('⚠️ This Type 1 study already has an open CAPA:', existingOpenCapa.capa_number);
+      return existingOpenCapa;
+    }
+
+    console.log('✅ Creating new CAPA for unacceptable study...');
+
+    // Filter critical and high severity issues
+    const criticalIssues = issues.filter(i => i.severity === 'critical' || i.severity === 'high');
+    const mainIssue = criticalIssues.length > 0 ? criticalIssues[0] : issues[0];
+    const capaNumber = await MSA.generateCapaNumber();
+
+    const issueDescription = issues.map(i => i.description).join('\n\n');
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30); // 30 gün sonra
+
+    const ins = await MSA.db.from(MSA.T.capa).insert({
+      capa_number: capaNumber,
+      study_id: studyId,
+      created_by_email: userEmail || null,
+      issue_type: mainIssue.type,
+      issue_description: issueDescription,
+      root_cause: null,
+      corrective_action: null,
+      preventive_action: null,
+      responsible_email: null,
+      responsible_name: null,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'open'
+    }).select('*').single();
+    if (ins.error) throw ins.error;
+    const capa = ins.data;
+
+    console.log(`🚨 Type 1 CAPA Oluşturuldu: ${capaNumber} (${mainIssue.type})`);
+
+    return capa;
+
+  } catch (error) {
+    console.error('Type 1 CAPA oluşturma hatası:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// POST /msa/type1 portu — type1Routes.js:283-499 birebir.
+// Şablondaki submit handler'ı window.msaType1Create(formData) olarak çağırır;
+// dönüş orijinal res.json ile aynı şekildedir ({success, message, studyId}).
+// Farklar: user_id → owner_email; transaction → sıralı supabase işlemleri;
+// analysis_options json kolonuna OBJE yazılır (JSON.stringify yok);
+// logActivity düştü; hesaplama tarayıcıda window.type1Calculations ile yapılır.
+// ============================================================================
+window.msaType1Create = async function (reqBody) {
+  try {
+    const user = await MSA.currentUser();
+
+    const {
+      study_name,
+      description,
+      reference_value,
+      tolerance,
+      measurements,
+      gauge_name,
+      gauge_number,
+      location,
+      part_name,
+      characteristic,
+      analysis_options
+    } = reqBody;
+
+    // Validation
+    if (!study_name || !reference_value || !tolerance || !measurements || measurements.length < 5) {
+      return {
+        success: false,
+        message: 'Type 1 study requires: study name, reference value, tolerance, and at least 5 measurements'
+      };
+    }
+
+    // Parse measurements
+    const measurementValues = measurements.map(m => parseFloat(m)).filter(v => !isNaN(v));
+
+    if (measurementValues.length < 5) {
+      return {
+        success: false,
+        message: 'At least 5 valid measurements are required'
+      };
+    }
+
+    // Default analysis options if not provided
+    const options = analysis_options || {
+      show_bias_table: true,
+      show_t_test: true,
+      confidence_interval: 95,
+      percent_tolerance_cg: 20,
+      show_run_chart: true,
+      run_chart_individual: true,
+      run_chart_boundaries: true,
+      show_histogram: true,
+      histogram_bin_type: 'sturges',
+      num_bins: 30,
+      histogram_bin_boundary: 'right_open',  // Default: right-open [a, b)
+      histogram_show_mean: true,
+      histogram_show_ci: true,
+      histogram_show_reference: true,
+      show_capa_banner: true  // Show CAPA alert banner
+    };
+
+    // Variables to store for CAPA creation after transaction
+    let studyId;
+    let isAcceptable;
+    let results;
+
+    // Orijinaldeki db.transaction → sıralı supabase işlemleri
+    // Create study record with analysis options
+    const stIns = await MSA.db.from(MSA.T.studies).insert({
+      owner_email: user.email,
+      study_name,
+      description: description || null,
+      study_type: 'type1',
+      status: 'calculated',
+      gauge_name: gauge_name || null,
+      gauge_number: gauge_number || null,
+      location: location || null,
+      part_name: part_name || null,
+      characteristic: characteristic || null,
+      reference_value: parseFloat(reference_value),
+      tolerance: parseFloat(tolerance),
+      tolerance_spec: tolerance,
+      analysis_options: options,
+      num_operators: 1,
+      num_parts: 1,
+      num_trials: measurementValues.length
+    }).select('*').single();
+    if (stIns.error) throw new Error(stIns.error.message);
+
+    studyId = stIns.data.id;
+
+    // Insert measurements
+    const measurementRecords = measurementValues.map((value, index) => ({
+      study_id: studyId,
+      observation_number: index + 1,
+      measurement_value: value
+    }));
+
+    const mIns = await MSA.db.from(MSA.T.type1Measurements).insert(measurementRecords);
+    if (mIns.error) throw new Error(mIns.error.message);
+
+    // Calculate results
+    results = window.type1Calculations.calculateType1Study(measurementValues, parseFloat(reference_value), parseFloat(tolerance));
+
+    // Use interpretation overall result (considers Cg, Cgk, bias, and %Var)
+    isAcceptable = results.interpretation.overall;
+
+    // Update study with is_acceptable
+    const accUpd = await MSA.db.from(MSA.T.studies)
+      .update({ is_acceptable: isAcceptable })
+      .eq('id', studyId);
+    if (accUpd.error) throw new Error(accUpd.error.message);
+
+    // Store results
+    const rIns = await MSA.db.from(MSA.T.type1Results).insert({
+      study_id: studyId,
+      reference_value: parseFloat(reference_value),
+      mean: results.basicStatistics.mean,
+      bias: results.basicStatistics.bias,
+      std_dev: results.basicStatistics.stdDev,
+      instrument_variation: results.basicStatistics.instrumentVariation,
+      cg: results.capability.cg,
+      cgk: results.capability.cgk,
+      percent_var_repeatability: results.capability.percentVarRepeatability,
+      percent_var_repeatability_bias: results.capability.percentVarRepeatabilityBias,
+      tolerance: parseFloat(tolerance),
+      lower_bound: results.basicStatistics.lowerBound,
+      upper_bound: results.basicStatistics.upperBound,
+      percent_bias: results.basicStatistics.percentBias,
+      degrees_of_freedom: results.biasTest.degreesOfFreedom,
+      t_statistic: results.biasTest.tStatistic,
+      p_value: results.biasTest.pValue,
+      ci_lower: results.biasTest.ciLower,
+      ci_upper: results.biasTest.ciUpper,
+      bias_significant: results.biasTest.biasSignificant,
+      calculated_at: MSA.nowIso()
+    });
+    if (rIns.error) throw new Error(rIns.error.message);
+
+    // Create CAPA if needed (after transaction commits)
+    if (options.show_capa_banner !== false && isAcceptable === 'unacceptable') {
+      console.log('🔍 Type 1 Study is UNACCEPTABLE, checking CAPA criteria...');
+      try {
+        const capa = await createType1CapaIfNeeded(studyId, results, user.email, parseFloat(tolerance));
+        if (capa) {
+          console.log('✅ CAPA created:', capa.capa_number);
+        } else {
+          console.log('⚠️ CAPA was not created (criteria not met or already exists)');
+        }
+      } catch (capaError) {
+        console.error('❌ CAPA creation error:', capaError);
+      }
+    } else {
+      console.log('ℹ️ CAPA not needed - is_acceptable:', isAcceptable, 'show_capa_banner:', options.show_capa_banner);
+    }
+
+    // Auto schedule next Type 1 study if equipment requires it
+    try {
+      if (gauge_name && gauge_number) {
+        const escapedNumber = String(gauge_number).replace(/,/g, '\\,'); // PostgREST or() virgül ayracı
+        const eqSel = await MSA.db.from(MSA.T.equipment)
+          .select('*')
+          .eq('name', gauge_name)
+          .or('serial_number.eq.' + escapedNumber + ',device_number.eq.' + escapedNumber)
+          .limit(1);
+        if (eqSel.error) throw eqSel.error;
+        const equipment = eqSel.data && eqSel.data[0];
+
+        if (equipment && equipment.auto_schedule_interval) {
+          const scheduleTypes = MSA.parseStoredScheduleTypes(equipment.auto_schedule_types);
+          const shouldScheduleType1 = scheduleTypes.length === 0 || scheduleTypes.includes('type1');
+
+          if (shouldScheduleType1) {
+            await MSA.createAutoScheduleDraft({
+              equipment,
+              studyType: 'type1',
+              intervalMonths: equipment.auto_schedule_interval,
+              plannedByEmail: user.email,
+              responsibleEmail: user.email,
+              context: {
+                previous_study_id: studyId,
+                title: `${study_name} - Tekrar Type 1`,
+                description: `${gauge_name} için otomatik oluşturulan periyodik Type 1 çalışması`,
+                part_name,
+                characteristic,
+                tolerance,
+                gauge_name,
+                gauge_number,
+                location
+              }
+            });
+            console.log('✅ Auto Type 1 schedule created');
+          } else {
+            console.log('ℹ️ Equipment auto schedule types exclude Type 1, skipping schedule');
+          }
+        }
+      }
+    } catch (autoScheduleError) {
+      console.error('⚠️ Failed to auto schedule Type 1 study:', autoScheduleError);
+    }
+
+    return {
+      success: true,
+      message: 'Type 1 study created successfully',
+      studyId: studyId
+    };
+
+  } catch (error) {
+    console.error('Error creating Type 1 study:', error);
+    return {
+      success: false,
+      message: 'Failed to create Type 1 study: ' + error.message
+    };
+  }
+};
+
+// ============================================================================
+// GET /msa/type1/new portu — type1Routes.js:249-277.
+// users/branding tabloları düştü: user ERP oturumundan, branding = MSA.BRANDING.
+// ============================================================================
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const branding = MSA.BRANDING;
+
+    await MSA.renderPage('type1-new.ejs', { user, branding });
+  } catch (e) {
+    console.error(e);
+    MSA.renderError('Hata', e.message);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,585 @@
+/**
+ * Dark Mode Theme System
+ * 
+ * This CSS provides dark mode styles that work with the existing color theme system.
+ * Each user can toggle between light and dark modes.
+ */
+
+/* Light Mode (Default) - Uses brand colors from theme */
+:root {
+  /* These are set dynamically from backend branding settings */
+  /* --primary-color: set by EJS */
+  /* --secondary-color: set by EJS */
+  
+  /* Light mode base colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e5e5e5;
+  --bg-hover: #f0f0f0;
+  
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --text-light: #888888;
+  
+  --border-color: #dee2e6;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --shadow-hover: rgba(0, 0, 0, 0.15);
+  
+  --card-bg: #ffffff;
+  --navbar-text: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #ddd;
+  
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  /* Dark mode base colors */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #252525;
+  --bg-tertiary: #2d2d2d;
+  --bg-hover: #353535;
+  
+  --text-primary: #e8e8e8;
+  --text-secondary: #b8b8b8;
+  --text-tertiary: #9a9a9a;
+  --text-light: #888888;
+  
+  --border-color: #404040;
+  --shadow-color: rgba(0, 0, 0, 0.7);
+  --shadow-hover: rgba(0, 0, 0, 0.9);
+  
+  --card-bg: #2a2a2a;
+  --navbar-text: #ffffff;
+  --input-bg: #2d2d2d;  /* Hafif gri (tam siyah değil) */
+  --input-border: #404040;
+  
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+}
+
+/* Apply theme to body and common elements */
+body {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary) !important;
+}
+
+/* Paragraphs and text */
+p {
+  color: var(--text-primary) !important;
+}
+
+.subtitle {
+  color: var(--text-secondary) !important;
+}
+
+/* Links */
+a {
+  color: var(--text-primary);
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+/* Cards and Containers */
+.card,
+.form-card,
+.study-card,
+.empty-state {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 2px 10px var(--shadow-color) !important;
+}
+
+.card:hover,
+.study-card:hover {
+  box-shadow: 0 4px 20px var(--shadow-hover) !important;
+}
+
+.card-header {
+  background-color: var(--bg-tertiary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.card-body {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Info boxes and welcome messages */
+.info-box,
+div[style*="background: white"],
+div[style*="background-color: white"] {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Study info and descriptions */
+.study-info,
+.study-info span,
+.description {
+  color: var(--text-secondary) !important;
+}
+
+.date-info {
+  color: var(--text-tertiary) !important;
+}
+
+/* Tables */
+.table {
+  color: var(--text-primary) !important;
+}
+
+.table thead th {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.table tbody tr {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.table tbody tr:hover {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Forms */
+.form-control,
+.form-select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--input-border) !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb), 0.25) !important;
+}
+
+/* Select dropdown options */
+select option {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Placeholder text */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary) !important;
+  opacity: 0.7;
+}
+
+.form-label,
+label {
+  color: var(--text-secondary) !important;
+}
+
+/* Checkbox and radio groups */
+.checkbox-group,
+.option-group {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Alerts */
+.alert {
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Text colors */
+.text-muted {
+  color: var(--text-secondary) !important;
+}
+
+.help-text {
+  color: var(--text-tertiary) !important;
+}
+
+/* Empty state */
+.empty-state h3 {
+  color: var(--text-secondary) !important;
+}
+
+.empty-state p {
+  color: var(--text-tertiary) !important;
+}
+
+/* Buttons - preserve gradients but adjust for dark mode */
+.btn-primary,
+.btn-secondary {
+  color: white !important;
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+button:not(.btn-primary):not(.theme-toggle) {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Small buttons */
+.btn-small {
+  color: white !important;
+}
+
+.btn-view,
+.btn-edit,
+.btn-delete {
+  color: white !important;
+}
+
+/* Sidebar (for admin dashboard) */
+.sidebar {
+  background-color: var(--bg-primary) !important;
+  border-right-color: var(--border-color) !important;
+}
+
+.sidebar .nav-link {
+  color: var(--text-secondary) !important;
+}
+
+.sidebar .nav-link:hover {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+.sidebar .nav-link.active {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--primary-color) !important;
+}
+
+/* Modals */
+.modal-content {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.modal-header {
+  background-color: var(--bg-tertiary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.modal-footer {
+  background-color: var(--bg-tertiary) !important;
+  border-top-color: var(--border-color) !important;
+}
+
+/* Dropdowns */
+.dropdown-menu {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dropdown-item {
+  color: var(--text-primary) !important;
+}
+
+.dropdown-item:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Badges */
+.badge {
+  opacity: 0.9;
+}
+
+.status-badge {
+  color: white !important;
+}
+
+/* Status badges - keep their colors */
+.status-draft,
+.status-acceptable,
+.status-unacceptable,
+.status-marginal,
+.status-calculated {
+  color: white !important;
+}
+
+/* Section headers */
+.form-section h3,
+.form-section h4 {
+  color: var(--primary-color) !important;
+  border-bottom-color: var(--primary-color) !important;
+}
+
+/* Labels */
+label {
+  color: var(--text-primary) !important;
+}
+
+/* Welcome message and special divs */
+[data-theme="dark"] div[style*="color: #333"],
+[data-theme="dark"] div[style*="color: #666"],
+[data-theme="dark"] div[style*="color: #999"],
+[data-theme="dark"] h2[style*="color: #333"],
+[data-theme="dark"] p[style*="color: #666"],
+[data-theme="dark"] p[style*="color: #999"] {
+  color: var(--text-primary) !important;
+}
+
+/* Override inline styles for dark mode */
+[data-theme="dark"] .header h2 {
+  color: var(--text-primary) !important;
+}
+
+/* Charts and canvases - keep light background for readability */
+canvas {
+  background-color: var(--card-bg) !important;
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+  position: relative;
+  background-color: rgba(255,255,255,0.2) !important;
+  border: 2px solid rgba(255,255,255,0.4) !important;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  color: white !important;
+  flex-shrink: 0;
+  margin: 0 10px;
+  backdrop-filter: blur(10px);           /* Glass effect */
+}
+
+.theme-toggle:hover {
+  background-color: rgba(255,255,255,0.35) !important;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  border-color: rgba(255,255,255,0.6) !important;
+}
+
+.theme-toggle i {
+  font-size: 20px;
+  color: white !important;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));  /* Text shadow for better visibility */
+}
+
+.theme-toggle:hover i {
+  transform: rotate(20deg);
+}
+
+/* Dark mode specific adjustments for toggle button */
+[data-theme="dark"] .theme-toggle {
+  background-color: rgba(255,255,255,0.15) !important;
+  border-color: rgba(255,255,255,0.3) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+[data-theme="dark"] .theme-toggle:hover {
+  background-color: rgba(255,255,255,0.25) !important;
+  border-color: rgba(255,255,255,0.5) !important;
+}
+
+/* Make sure user-info has proper spacing */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.user-info span {
+  color: white !important;
+  margin-right: 5px;
+}
+
+.user-info a {
+  color: white !important;
+}
+
+/* Navbar - keep gradient but adjust for dark mode */
+[data-theme="dark"] .navbar {
+  opacity: 0.95;
+}
+
+/* Preserve button gradients but add slight opacity in dark mode */
+[data-theme="dark"] .btn-primary {
+  opacity: 0.9;
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  opacity: 1;
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Prevent transition on buttons and links to keep them snappy */
+button, a, .btn {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+/* Override inline styles with hardcoded white/light backgrounds in dark mode */
+[data-theme="dark"] *[style*="background: white"],
+[data-theme="dark"] *[style*="background-color: white"],
+[data-theme="dark"] *[style*="background: #fff"],
+[data-theme="dark"] *[style*="background-color: #fff"],
+[data-theme="dark"] *[style*="background: #f8f9fa"],
+[data-theme="dark"] *[style*="background-color: #f8f9fa"],
+[data-theme="dark"] *[style*="background: #fafafa"],
+[data-theme="dark"] *[style*="background-color: #fafafa"],
+[data-theme="dark"] *[style*="background: #e9ecef"],
+[data-theme="dark"] *[style*="background-color: #e9ecef"] {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Override table rows with inline background styles */
+[data-theme="dark"] tr[style*="background: #f8f9fa"],
+[data-theme="dark"] tr[style*="background-color: #f8f9fa"],
+[data-theme="dark"] tr[style*="background: #fee"],
+[data-theme="dark"] tr[style*="background-color: #fee"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Override td/th cells with inline background styles */
+[data-theme="dark"] td[style*="background: #f8f9fa"],
+[data-theme="dark"] td[style*="background-color: #f8f9fa"],
+[data-theme="dark"] td[style*="background: #fee"],
+[data-theme="dark"] td[style*="background-color: #fee"],
+[data-theme="dark"] th[style*="background: #f8f9fa"],
+[data-theme="dark"] th[style*="background-color: #f8f9fa"],
+[data-theme="dark"] th[style*="background: #fee"],
+[data-theme="dark"] th[style*="background-color: #fee"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Override divs with hardcoded light background rgba values */
+[data-theme="dark"] div[style*="background: rgba(240"],
+[data-theme="dark"] div[style*="background-color: rgba(240"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Preserve colored highlights and status indicators */
+[data-theme="dark"] *[style*="background: #38ef7d"],
+[data-theme="dark"] *[style*="background: #f09819"],
+[data-theme="dark"] *[style*="background: #eb3349"],
+[data-theme="dark"] *[style*="background: #15B79E"],
+[data-theme="dark"] *[style*="background: #F0B429"],
+[data-theme="dark"] *[style*="background: #E5484D"],
+[data-theme="dark"] *[style*="background: linear-gradient"],
+[data-theme="dark"] .metric-highlight {
+  /* Keep colored backgrounds as they are for visual indicators */
+  color: white !important;
+}
+
+/* Chart interpretation boxes */
+[data-theme="dark"] .chart-description,
+[data-theme="dark"] #rChartInterpretation,
+[data-theme="dark"] #xbarChartInterpretation,
+[data-theme="dark"] #interactionInterpretation,
+[data-theme="dark"] #measurementsByPartInterpretation,
+[data-theme="dark"] #matrixPlotInterpretation {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Matrix plot container and empty cells */
+[data-theme="dark"] .matrix-plot,
+[data-theme="dark"] .matrix-plot-container,
+[data-theme="dark"] #matrixPlotContainer,
+[data-theme="dark"] canvas[style*="background"] {
+  background-color: var(--card-bg) !important;
+}
+
+/* Test results boxes - specifically target by border color */
+[data-theme="dark"] div[style*="border-left: 4px solid #eb5545"],
+[data-theme="dark"] div[style*="border-left: 4px solid #667eea"],
+[data-theme="dark"] div[style*="border-left: 4px solid #f09819"],
+[data-theme="dark"] div[style*="border-left: 4px solid #007bff"],
+[data-theme="dark"] div[style*="border-left: 4px solid #28a745"],
+[data-theme="dark"] div[style*="border-left: 4px solid #17a2b8"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Ensure all h4 headings in dark mode are visible */
+[data-theme="dark"] h4[style*="color"] {
+  /* Keep the color but ensure contrast */
+  filter: brightness(1.2);
+}
+
+/* Status Badge - Dark Mode Support */
+[data-theme="dark"] .status-acceptable {
+  background: #1b5e20 !important;
+  color: #a5d6a7 !important;
+  border-color: #4caf50 !important;
+}
+
+[data-theme="dark"] .status-marginal {
+  background: #e65100 !important;
+  color: #ffcc80 !important;
+  border-color: #ff9800 !important;
+}
+
+[data-theme="dark"] .status-unacceptable {
+  background: #b71c1c !important;
+  color: #ef9a9a !important;
+  border-color: #f44336 !important;
+}
+
+[data-theme="dark"] .status-draft {
+  background: #424242 !important;
+  color: #bdbdbd !important;
+  border-color: #757575 !important;
+}
+
+[data-theme="dark"] .status-calculated {
+  background: #1565c0 !important;
+  color: #90caf9 !important;
+  border-color: #2196f3 !important;
+}

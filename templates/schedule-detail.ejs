@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planlama Detayı - <%= branding.company_name %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+  <style>
+    :root {
+      --primary-color: <%= branding.primary_color %>;
+      --secondary-color: <%= branding.secondary_color %>;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      min-height: 100vh;
+      padding: 30px 0;
+    }
+
+    .card {
+      border: none;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border-radius: 15px 15px 0 0 !important;
+      padding: 20px 30px;
+    }
+
+    .info-row {
+      padding: 15px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 5px;
+    }
+
+    .info-value {
+      color: #333;
+      font-size: 16px;
+    }
+
+    .status-badge {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-block;
+    }
+
+    .status-planned {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-completed {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-cancelled {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .btn {
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="card">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h4 class="mb-0">
+              <i class="bi bi-calendar-check"></i>
+              MSA Planlama Detayı
+            </h4>
+          </div>
+          <a href="schedule-master.html" class="btn btn-light btn-sm">
+            <i class="bi bi-arrow-left"></i> Geri
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Status -->
+        <div class="info-row">
+          <div class="info-label">Durum</div>
+          <div class="info-value">
+            <%
+              let statusClass = 'status-planned';
+              let statusText = 'Planlandı';
+              if (schedule.status === 'completed') {
+                statusClass = 'status-completed';
+                statusText = 'Tamamlandı';
+              } else if (schedule.status === 'cancelled') {
+                statusClass = 'status-cancelled';
+                statusText = 'İptal Edildi';
+              }
+            %>
+            <span class="status-badge <%= statusClass %>"><%= statusText %></span>
+          </div>
+        </div>
+
+        <!-- Study Info -->
+        <div class="info-row">
+          <div class="info-label">
+            <i class="bi bi-clipboard-data"></i> MSA Çalışması
+          </div>
+          <div class="info-value">
+            <%= schedule.study_name || 'N/A' %>
+          </div>
+        </div>
+
+        <!-- Dates -->
+        <div class="row">
+          <div class="col-md-6">
+            <div class="info-row">
+              <div class="info-label">
+                <i class="bi bi-calendar-event"></i> Planlanan Tarih
+              </div>
+              <div class="info-value">
+                <%= schedule.planned_date ? new Date(schedule.planned_date).toLocaleDateString('tr-TR') : 'N/A' %>
+                <% if (schedule.planned_date && schedule.status !== 'completed') { %>
+                  <%
+                    // Parse date properly - ensure we're comparing dates at midnight
+                    const plannedDateStr = schedule.planned_date.split('T')[0]; // Get YYYY-MM-DD part only
+                    const plannedDate = new Date(plannedDateStr + 'T00:00:00');
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0); // Set to midnight for accurate day comparison
+                    const diffDays = Math.ceil((plannedDate - now) / (1000 * 60 * 60 * 24));
+                  %>
+                  <% if (diffDays < 0) { %>
+                    <br><small class="text-danger"><strong><%= Math.abs(diffDays) %> gün geçti</strong></small>
+                  <% } else if (diffDays === 0) { %>
+                    <br><small class="text-warning"><strong>BUGÜN!</strong></small>
+                  <% } else { %>
+                    <br><small class="<%= diffDays <= 7 ? 'text-warning' : 'text-info' %>"><strong><%= diffDays %> gün kaldı</strong></small>
+                  <% } %>
+                <% } %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-row">
+              <div class="info-label">
+                <i class="bi bi-bell"></i> Hatırlatma Tarihi
+              </div>
+              <div class="info-value">
+                <%= schedule.reminder_date ? new Date(schedule.reminder_date).toLocaleDateString('tr-TR') : 'Yok' %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Equipment Info -->
+        <div class="row">
+          <div class="col-md-6">
+            <div class="info-row">
+              <div class="info-label">
+                <i class="bi bi-tools"></i> Ölçüm Cihazı
+              </div>
+              <div class="info-value">
+                <%= schedule.gauge_name || 'Belirtilmemiş' %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="info-row">
+              <div class="info-label">
+                <i class="bi bi-hash"></i> Cihaz Seri No
+              </div>
+              <div class="info-value">
+                <%= schedule.gauge_number || 'Belirtilmemiş' %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Responsible User -->
+        <div class="info-row">
+          <div class="info-label">
+            <i class="bi bi-person-check"></i> Sorumlu Kişi
+          </div>
+          <div class="info-value">
+            <%
+              // users JOIN düştü: responsible_email doğrudan gösterilir
+              const responsibleName = schedule.responsible_email || 'Atanmadı';
+            %>
+            <%= responsibleName %>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <% if (schedule.notes) { %>
+        <div class="info-row">
+          <div class="info-label">
+            <i class="bi bi-sticky"></i> Notlar
+          </div>
+          <div class="info-value">
+            <%= schedule.notes %>
+          </div>
+        </div>
+        <% } %>
+
+        <!-- Created Info -->
+        <div class="info-row">
+          <div class="info-label">
+            <i class="bi bi-clock-history"></i> Oluşturma Bilgisi
+          </div>
+          <div class="info-value">
+            <%= new Date(schedule.created_at).toLocaleString('tr-TR') %>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-4 d-flex gap-2">
+          <a href="index.html?view=studies" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Çalışmalara Dön
+          </a>
+          <% if (schedule.status === 'planned') { %>
+          <button class="btn btn-success" onclick="completeSchedule()">
+            <i class="bi bi-check-circle"></i> Tamamlandı Olarak İşaretle
+          </button>
+          <button class="btn btn-danger" onclick="cancelSchedule()">
+            <i class="bi bi-x-circle"></i> İptal Et
+          </button>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    async function completeSchedule() {
+      if (!confirm('Bu planlamayı tamamlandı olarak işaretlemek istediğinizden emin misiniz?')) {
+        return;
+      }
+
+      try {
+        const result = await MSA_SCHEDULE_API.update(<%= schedule.id %>, { status: 'completed' });
+
+        if (result.success) {
+          alert('✅ Planlama tamamlandı olarak işaretlendi');
+          location.reload();
+        } else {
+          alert('❌ Hata: ' + result.message);
+        }
+      } catch (error) {
+        alert('❌ Bağlantı hatası: ' + error.message);
+      }
+    }
+
+    async function cancelSchedule() {
+      if (!confirm('Bu planlamayı iptal etmek istediğinizden emin misiniz?')) {
+        return;
+      }
+
+      try {
+        const result = await MSA_SCHEDULE_API.update(<%= schedule.id %>, { status: 'cancelled' });
+
+        if (result.success) {
+          alert('✅ Planlama iptal edildi');
+          location.reload();
+        } else {
+          alert('❌ Hata: ' + result.message);
+        }
+      } catch (error) {
+        alert('❌ Bağlantı hatası: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Çalışma Ayarları - GageAI</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// ============================================================================
+// POST /msa/:id/edit portu — msaRoutes.js:1392-1545 birebir (knex → supabase-js).
+// Şablondaki form onsubmit bu fonksiyonu çağırır.
+// Farklar: checkStudyAccess düştü (herkes düzenleyebilir); analysis_options json
+// kolonuna OBJE yazılır (JSON.stringify yok); redirect → location.href.
+// Önceden hesaplanmışsa (status='calculated') durum 'draft'a döner ve kayıtlı
+// sonuçlar (anova_results, variance_components, gauge_evaluation, is_acceptable)
+// temizlenir — yeniden hesaplama zorunlu olur.
+// ============================================================================
+window.msaSubmitEditStudy = async function (form) {
+  try {
+    const studyId = MSA.requireQ('id');
+    console.log('📝 Çalışma güncelleme isteği, Study ID:', studyId);
+
+    // req.body eşleniği: FormData → düz obje (checkbox işaretli değilse alan yok,
+    // işaretliyse 'on' — Express body-parser ile aynı semantik). operator_names[] dizidir.
+    const fd = new FormData(form);
+    const body = {};
+    fd.forEach(function (v, k) { if (k !== 'operator_names[]') body[k] = v; });
+    body.operator_names = fd.getAll('operator_names[]');
+
+    const {
+      study_name,
+      description,
+      process_variation,
+      historical_std,
+      tolerance_width,
+      anova_table,
+      f_statistic_type,
+      alpha_removal,
+      interaction_pooling,
+      show_tooltips,
+      show_recommendations,
+      show_capa_banner,
+      study_var_multiplier,
+      multiplier_value,
+      plot_components,
+      plot_range_charts,
+      plot_average_chart,
+      plot_scatter,
+      plot_fit_line,
+      plot_origin_line,
+      plot_measurements_part,
+      plot_display_all,
+      plot_measurements_op,
+      plot_interaction,
+      plot_traffic_light,
+      histogram_bin_boundary
+    } = body;
+
+    // Analysis options nesnesini oluştur
+    const analysisOptions = {
+      process_variation: process_variation || 'study_variation',
+      historical_std: historical_std ? parseFloat(historical_std) : 3,
+      tolerance: {
+        width: tolerance_width ? parseFloat(tolerance_width) : null
+      },
+      anova_table: !!anova_table,
+      f_statistic_type: f_statistic_type || 'fixed_effects',
+      alpha_removal: alpha_removal ? parseFloat(alpha_removal) : 0.05,
+      interaction_pooling: interaction_pooling || 'auto',
+      show_tooltips: show_tooltips === 'on' || show_tooltips === true,
+      show_recommendations: show_recommendations === 'on' || show_recommendations === true,
+      show_capa_banner: show_capa_banner === 'on' || show_capa_banner === true,
+      study_var_multiplier: {
+        type: study_var_multiplier || 'std_deviation',
+        value: multiplier_value ? parseFloat(multiplier_value) : 6
+      },
+      plots: {
+        components: plot_components !== 'off' && plot_components !== false,  // Default: true
+        range_charts: plot_range_charts !== 'off' && plot_range_charts !== false,  // Default: true
+        average_chart: plot_average_chart !== 'off' && plot_average_chart !== false,  // Default: true
+        scatter: plot_scatter !== 'off' && plot_scatter !== false,  // Default: true (Matrix Plot)
+        fit_line: !!plot_fit_line,  // Default: false (sub-option)
+        origin_line: !!plot_origin_line,  // Default: false (sub-option)
+        measurements_part: plot_measurements_part !== 'off' && plot_measurements_part !== false,  // Default: true
+        display_all: !!plot_display_all,  // Default: false (sub-option)
+        measurements_op: plot_measurements_op !== 'off' && plot_measurements_op !== false,  // Default: true
+        interaction: plot_interaction !== 'off' && plot_interaction !== false,  // Default: true
+        traffic_light: plot_traffic_light !== 'off' && plot_traffic_light !== false  // Default: true
+      },
+      histogram_bin_boundary: histogram_bin_boundary || 'right_open'  // Default: right-open [a, b)
+    };
+
+    // Check if study was previously calculated
+    const stSel = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    if (stSel.error) throw new Error(stSel.error.message);
+    const study = stSel.data;
+    const wasCalculated = study && study.status === 'calculated';
+
+    // Prepare update data
+    const updateData = {
+      study_name,
+      description: description || null,
+      // json kolonuna OBJE yazılır (rehber kuralı — JSON.stringify edilmez)
+      analysis_options: analysisOptions,
+      // Clear previous results if settings changed (force recalculation)
+      status: wasCalculated ? 'draft' : study.status,
+      anova_results: wasCalculated ? null : study.anova_results,
+      variance_components: wasCalculated ? null : study.variance_components,
+      gauge_evaluation: wasCalculated ? null : study.gauge_evaluation,
+      is_acceptable: wasCalculated ? null : study.is_acceptable,
+      // Yeni metadata alanları
+      gauge_name: body.gauge_name || null,
+      gauge_number: body.gauge_number || null,
+      location: body.location || null,
+      part_name: body.part_name || null,
+      characteristic: body.characteristic || null,
+      tolerance_spec: body.tolerance_spec || null,
+      performed_by: body.performed_by || null,
+      updated_at: MSA.nowIso()
+    };
+
+    // If study_date is provided, update created_at
+    if (body.study_date) {
+      const dateValue = body.study_date;
+      // Check if date is valid (should be YYYY-MM-DD format)
+      if (dateValue && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        updateData.created_at = new Date(dateValue).toISOString();
+        console.log('[TYPE 3 EDIT] Date changed: ' + dateValue + ' -> created_at updated to ' + updateData.created_at);
+      } else {
+        console.log('[TYPE 3 EDIT] Invalid date format: ' + dateValue + ', skipping created_at update');
+      }
+    }
+
+    const upd = await MSA.db.from(MSA.T.studies).update(updateData).eq('id', studyId);
+    if (upd.error) throw new Error(upd.error.message);
+
+    // Update operator names if provided
+    const operatorNames = body.operator_names || [];
+    if (operatorNames.length > 0) {
+      for (let i = 0; i < operatorNames.length; i++) {
+        if (operatorNames[i]) {
+          const opUpd = await MSA.db.from(MSA.T.operators)
+            .update({ operator_name: operatorNames[i] })
+            .eq('study_id', studyId)
+            .eq('operator_number', i + 1);
+          if (opUpd.error) throw new Error(opUpd.error.message);
+        }
+      }
+      console.log('✅ Operatör isimleri güncellendi');
+    }
+
+    if (wasCalculated) {
+      console.log('⚠️ Ayarlar değiştirildi - eski sonuçlar temizlendi, yeniden hesaplama gerekli');
+    }
+
+    console.log('✅ Çalışma güncellendi');
+    // res.redirect(`/msa/${studyId}/data-entry?message=...`) karşılığı
+    location.href = 'data-entry.html?id=' + studyId + '&message=' +
+      encodeURIComponent(wasCalculated ? '⚠️ Ayarlar değiştirildi! Lütfen "Hesapla ve Sonuçları Gör" butonuna basın.' : 'Çalışma başarıyla güncellendi');
+  } catch (error) {
+    console.error('Update study error:', error);
+    alert('Bir hata oluştu');
+  }
+};
+
+// ============================================================================
+// GET /msa/:id/edit portu — msaRoutes.js:1338-1389.
+// checkStudyAccess düştü (modülde herkes her şeyi görebilir/düzenleyebilir).
+// ============================================================================
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const studyId = MSA.requireQ('id');
+
+    const { data: study, error } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!study) {
+      MSA.renderError('Hata', 'Çalışma bulunamadı');
+      return;
+    }
+    // json kolonu savunmacı parse (şablon opts.tolerance?.width vb. okur)
+    study.analysis_options = MSA.parseJson(study.analysis_options, {});
+
+    // Get operators for this study
+    const opSel = await MSA.db.from(MSA.T.operators)
+      .select('*')
+      .eq('study_id', studyId)
+      .order('operator_number', { ascending: true });
+    if (opSel.error) throw new Error(opSel.error.message);
+    const operators = opSel.data || [];
+
+    await MSA.renderPage('edit-study.ejs', { user, study, operators });
+  } catch (e) {
+    console.error('Edit study error:', e);
+    MSA.renderError('Hata', 'Bir hata oluştu');
+  }
+})();
+</script>
+</body>
+</html>

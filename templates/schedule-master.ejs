@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSA Planlamaları - <%= branding.company_name %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+  <style>
+    :root {
+      --primary-color: <%= branding.primary_color %>;
+      --secondary-color: <%= branding.secondary_color %>;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      min-height: 100vh;
+      padding: 30px 0;
+    }
+
+    .card {
+      border: none;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border-radius: 15px 15px 0 0 !important;
+      padding: 20px 30px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      border: 2px solid #e0e0e0;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .stat-card:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .stat-card.active {
+      border-color: var(--primary-color);
+      background: #f8f9ff;
+    }
+
+    .stat-number {
+      font-size: 28px;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .schedule-table {
+      width: 100%;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .schedule-table thead {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .schedule-table th {
+      padding: 15px;
+      font-weight: 600;
+      border: none;
+    }
+
+    .schedule-table td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: middle;
+    }
+
+    .schedule-table tr:hover {
+      background: #f8f9fa;
+    }
+
+    .status-badge {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .status-planned { background: #e3f2fd; color: #1976d2; }
+    .status-in_progress { background: #fff9c4; color: #f57f17; }
+    .status-completed { background: #e8f5e9; color: #388e3c; }
+    .status-cancelled { background: #f3f3f3; color: #666; }
+
+    .date-badge {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .date-overdue { background: #ffebee; color: #c62828; }
+    .date-upcoming { background: #fff3e0; color: #e65100; }
+    .date-future { background: #e3f2fd; color: #1565c0; }
+
+    .filter-section {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      border: none;
+    }
+
+    .btn-primary:hover {
+      background: var(--secondary-color);
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid" style="max-width: 1400px;">
+    <!-- Header -->
+    <div class="card">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 style="margin: 0;">
+              <i class="bi bi-calendar-check"></i>
+              MSA Planlamaları
+            </h2>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">
+              Gelecek MSA çalışmalarını planlayın ve takip edin
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <a href="schedule-new.html" class="btn btn-light">
+              <i class="bi bi-plus-circle"></i> Yeni MSA Planla
+            </a>
+            <a href="index.html?view=studies" class="btn btn-light">
+              <i class="bi bi-arrow-left"></i> Çalışmalara Dön
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card <%= !filters.status ? 'active' : '' %>"
+           onclick="filterByStatus('')">
+        <div class="stat-number"><%= counts.all || 0 %></div>
+        <div class="stat-label">Toplam Planlama</div>
+      </div>
+      <div class="stat-card <%= filters.status === 'planned' ? 'active' : '' %>"
+           onclick="filterByStatus('planned')">
+        <div class="stat-number"><%= counts.planned || 0 %></div>
+        <div class="stat-label">📅 Planlandı</div>
+      </div>
+      <div class="stat-card <%= filters.status === 'in_progress' ? 'active' : '' %>"
+           onclick="filterByStatus('in_progress')">
+        <div class="stat-number"><%= counts.in_progress || 0 %></div>
+        <div class="stat-label">⏳ Devam Ediyor</div>
+      </div>
+      <div class="stat-card <%= filters.status === 'completed' ? 'active' : '' %>"
+           onclick="filterByStatus('completed')">
+        <div class="stat-number"><%= counts.completed || 0 %></div>
+        <div class="stat-label">✅ Tamamlandı</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+      <form method="GET" action="schedule-master.html" class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Arama</label>
+          <input type="text" class="form-control" name="search"
+                 value="<%= filters.search || '' %>"
+                 placeholder="Başlık, parça adı...">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Sorumlu</label>
+          <select class="form-select" name="responsible">
+            <option value="">Tümü</option>
+            <% users.forEach(u => { %>
+              <option value="<%= u.id %>" <%= filters.responsible == u.id ? 'selected' : '' %>>
+                <%= u.name || u.email %>
+              </option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Sıralama</label>
+          <select class="form-select" name="sort">
+            <option value="planned_date_asc" <%= filters.sort === 'planned_date_asc' ? 'selected' : '' %>>
+              Tarih (Yakın → Uzak)
+            </option>
+            <option value="planned_date_desc" <%= filters.sort === 'planned_date_desc' ? 'selected' : '' %>>
+              Tarih (Uzak → Yakın)
+            </option>
+            <option value="created_desc" <%= filters.sort === 'created_desc' ? 'selected' : '' %>>
+              Oluşturma (Yeni → Eski)
+            </option>
+            <option value="title_asc" <%= filters.sort === 'title_asc' ? 'selected' : '' %>>
+              Başlık (A → Z)
+            </option>
+          </select>
+        </div>
+        <input type="hidden" name="status" value="<%= filters.status || '' %>">
+        <div class="col-md-3 d-flex align-items-end gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search"></i> Filtrele
+          </button>
+          <a href="schedule-master.html" class="btn btn-outline-secondary">
+            <i class="bi bi-x-circle"></i> Temizle
+          </a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Schedule List -->
+    <div class="card">
+      <div class="card-body p-0">
+        <% if (schedules.length === 0) { %>
+          <div style="padding: 60px; text-align: center; color: #999;">
+            <i class="bi bi-calendar-x" style="font-size: 48px;"></i>
+            <p style="margin-top: 20px; font-size: 18px;">
+              Henüz MSA planlaması yok
+            </p>
+            <a href="schedule-new.html" class="btn btn-primary mt-3">
+              <i class="bi bi-plus-circle"></i> İlk Planlamayı Oluştur
+            </a>
+          </div>
+        <% } else { %>
+          <table class="schedule-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th>Başlık</th>
+                <th>Parça / Özellik</th>
+                <th>Planlanan Tarih</th>
+                <th>Sorumlu</th>
+                <th>Durum</th>
+                <th>CAPA/Study</th>
+                <th style="width: 100px;">İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% schedules.forEach((s, index) => { %>
+                <tr>
+                  <td><%= index + 1 %></td>
+                  <td>
+                    <strong><%= s.title %></strong>
+                    <% if (s.description) { %>
+                      <br><small class="text-muted"><%= s.description.substring(0, 60) %><%= s.description.length > 60 ? '...' : '' %></small>
+                    <% } %>
+                  </td>
+                  <td>
+                    <% if (s.part_name) { %>
+                      <i class="bi bi-box-seam"></i> <%= s.part_name %><br>
+                    <% } %>
+                    <% if (s.characteristic) { %>
+                      <small class="text-muted"><i class="bi bi-rulers"></i> <%= s.characteristic %></small>
+                    <% } %>
+                  </td>
+                  <td>
+                    <%
+                      // Parse date properly - ensure we're comparing dates at midnight
+                      let plannedDate, now, daysRemaining, statusBadge, statusIcon;
+
+                      if (s.planned_date) {
+                        // Handle both string and Date object
+                        const dateStr = typeof s.planned_date === 'string'
+                          ? s.planned_date
+                          : s.planned_date.toISOString();
+                        const plannedDateStr = dateStr.split('T')[0]; // Get YYYY-MM-DD part only
+                        plannedDate = new Date(plannedDateStr + 'T00:00:00');
+                        now = new Date();
+                        now.setHours(0, 0, 0, 0); // Set to midnight for accurate day comparison
+
+                        // Calculate days remaining
+                        daysRemaining = Math.ceil((plannedDate - now) / (1000 * 60 * 60 * 24));
+
+                        // Determine status badge
+                        if (daysRemaining < 0) {
+                          statusBadge = 'danger';
+                          statusIcon = '⚠️';
+                        } else if (daysRemaining === 0) {
+                          statusBadge = 'warning';
+                          statusIcon = '⏰';
+                        } else if (daysRemaining <= 3) {
+                          statusBadge = 'warning';
+                          statusIcon = '📅';
+                        } else {
+                          statusBadge = 'success';
+                          statusIcon = '✅';
+                        }
+                      } else {
+                        statusBadge = 'secondary';
+                        statusIcon = '📋';
+                      }
+                    %>
+
+                    <% if (s.planned_date) { %>
+                    <div class="d-flex align-items-center gap-2">
+                      <span><%= plannedDate.toLocaleDateString('tr-TR') %></span>
+                      <span class="badge bg-<%= statusBadge %>">
+                        <%= statusIcon %>
+                        <% if (daysRemaining < 0) { %>
+                          <%= Math.abs(daysRemaining) %> gün geçti
+                        <% } else if (daysRemaining === 0) { %>
+                          Bugün
+                        <% } else { %>
+                          <%= daysRemaining %> gün kaldı
+                        <% } %>
+                      </span>
+                    </div>
+                    <% } else { %>
+                    <span class="badge bg-secondary">
+                      <%= statusIcon %> Tarih belirlenmemiş
+                    </span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <% if (s.responsible_name || s.responsible_email) { %>
+                      <i class="bi bi-person"></i> <%= s.responsible_name || s.responsible_email %>
+                    <% } else { %>
+                      <span class="text-muted">-</span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <%
+                      let statusText = '';
+                      let statusClass = 'status-planned';
+
+                      if (s.status === 'planned') {
+                        statusText = '📅 Planlandı';
+                        statusClass = 'status-planned';
+                      } else if (s.status === 'in_progress') {
+                        statusText = '⏳ Devam Ediyor';
+                        statusClass = 'status-in_progress';
+                      } else if (s.status === 'completed') {
+                        statusText = '✅ Tamamlandı';
+                        statusClass = 'status-completed';
+                      } else if (s.status === 'cancelled') {
+                        statusText = '❌ İptal';
+                        statusClass = 'status-cancelled';
+                      }
+                    %>
+                    <span class="status-badge <%= statusClass %>"><%= statusText %></span>
+                  </td>
+                  <td>
+                    <% if (s.capa_number) { %>
+                      <a href="capa-detail.html?study=<%= s.capa_study_id %>&id=<%= s.capa_id %>"
+                         class="badge bg-danger text-decoration-none">
+                        DÖF: <%= s.capa_number %>
+                      </a>
+                    <% } %>
+                    <% if (s.completed_study_name) { %>
+                      <br><small class="text-success">
+                        <i class="bi bi-check-circle"></i> <%= s.completed_study_name.substring(0, 20) %>...
+                      </small>
+                    <% } %>
+                  </td>
+                  <td>
+                    <div class="btn-group" role="group">
+                      <a href="schedule-detail.html?id=<%= s.id %>" class="btn btn-sm btn-primary" title="Detay">
+                        <i class="bi bi-eye"></i>
+                      </a>
+                      <button class="btn btn-sm btn-warning" onclick="editSchedule(<%= s.id %>)" title="Düzenle">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button class="btn btn-sm btn-danger" onclick="deleteSchedule(<%= s.id %>, '<%= s.title.replace(/'/g, "\\'") %>')" title="Sil">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function filterByStatus(status) {
+      const url = new URL(window.location.href);
+      if (status) {
+        url.searchParams.set('status', status);
+      } else {
+        url.searchParams.delete('status');
+      }
+      window.location.href = url.toString();
+    }
+
+    function editSchedule(scheduleId) {
+      window.location.href = `schedule-edit.html?id=${scheduleId}`;
+    }
+
+    async function deleteSchedule(scheduleId, title) {
+      if (!confirm(`"${title}" planlamasını silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz!`)) {
+        return;
+      }
+
+      try {
+        const result = await MSA_SCHEDULE_API.remove(scheduleId);
+
+        if (result.success) {
+          alert('✅ Planlama başarıyla silindi');
+          location.reload();
+        } else {
+          alert('❌ Hata: ' + result.message);
+        }
+      } catch (error) {
+        alert('❌ Bağlantı hatası: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

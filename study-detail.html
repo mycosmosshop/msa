@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Çalışma Detayı - MSA</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// GET /msa/:id portu — msaRoutes.js:5320 (study-detail)
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const studyId = MSA.requireQ('id');
+
+    // msa_studies LEFT JOIN msa_schedule LEFT JOIN users → iki sorgu + JS birleştirme.
+    const { data: studyRow, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('id', studyId)
+      .maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+
+    if (!studyRow) {
+      MSA.renderError('Hata', 'Çalışma bulunamadı');
+      return;
+    }
+
+    // LEFT JOIN msa_schedule: orijinal knex select'inde "msa_schedule.id as schedule_id"
+    // msa_studies.schedule_id'yi eziyordu — plan kaydı yoksa schedule_id null kalır (birebir).
+    let scheduleJoin = { schedule_title: null, planned_date: null, schedule_id: null };
+    if (studyRow.schedule_id) {
+      const { data: sched, error: schErr } = await MSA.db.from(MSA.T.schedule)
+        .select('id, title, planned_date')
+        .eq('id', studyRow.schedule_id)
+        .maybeSingle();
+      MSA.throwIf(schErr, 'schedule select');
+      if (sched) {
+        scheduleJoin = { schedule_title: sched.title, planned_date: sched.planned_date, schedule_id: sched.id };
+      }
+    }
+
+    // users JOIN düştü: kimlik e-posta — owner_name/owner_email doğrudan owner_email'den.
+    const study = Object.assign({}, studyRow, scheduleJoin, {
+      owner_name: studyRow.owner_email || null,
+      owner_email: studyRow.owner_email || null
+    });
+
+    // Orijinaldeki erişim kontrolü (admin/sahip) düşen özellik — herkes görüntüleyebilir.
+
+    const [opRes, pRes, mRes] = await Promise.all([
+      MSA.db.from(MSA.T.operators).select('*').eq('study_id', studyId).order('operator_number'),
+      MSA.db.from(MSA.T.parts).select('*').eq('study_id', studyId).order('part_number'),
+      MSA.db.from(MSA.T.measurements).select('*', { count: 'exact', head: true }).eq('study_id', studyId)
+    ]);
+    MSA.throwIf(opRes.error, 'operators select');
+    MSA.throwIf(pRes.error, 'parts select');
+    MSA.throwIf(mRes.error, 'measurements count');
+
+    await MSA.renderPage('study-detail.ejs', {
+      user, // orijinalde {id,email,name,role}; role admin paneliyle birlikte düştü
+      study,
+      operators: opRes.data || [],
+      parts: pRes.data || [],
+      measurementsCount: mRes.count || 0,
+      branding: MSA.BRANDING
+    });
+  } catch (e) {
+    console.error('Study detail error:', e);
+    MSA.renderError('Hata', 'Bir hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

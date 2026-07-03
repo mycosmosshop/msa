@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Tüm Döfler - MSA</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// GET /msa/all-defects portu — msaRoutes.js:5001 (all-defects)
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+
+    const parseNumber = (value) => {
+      if (value === null || value === undefined) return null;
+      const parsed = typeof value === 'number' ? value : parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const parseGaugeEvaluation = (rawValue) => {
+      if (!rawValue) return null;
+      if (typeof rawValue === 'object') return rawValue;
+      try {
+        return JSON.parse(rawValue);
+      } catch (err) {
+        console.warn('⚠️  Failed to parse gauge_evaluation JSON:', err.message);
+        return null;
+      }
+    };
+
+    const deriveNdcFromGauge = (gaugeEval) => {
+      if (!gaugeEval) return null;
+      const ndcFromJson = gaugeEval.numberOfDistinctCategories ?? gaugeEval.ndc;
+      const parsedDirect = parseNumber(ndcFromJson);
+      if (parsedDirect !== null) return Math.floor(parsedDirect);
+      const partStdDev = parseNumber(gaugeEval?.partToPart?.stdDev);
+      const gaugeStdDev = parseNumber(gaugeEval?.totalGaugeRR?.stdDev);
+      if (partStdDev !== null && gaugeStdDev !== null && gaugeStdDev > 0) {
+        return Math.max(1, Math.floor(1.41 * (partStdDev / gaugeStdDev)));
+      }
+      return null;
+    };
+
+    // branding tablosu düştü → sabit (rehber: app_settings/branding = MSA.BRANDING)
+    const branding = MSA.BRANDING;
+
+    // Kabul edilemeyen (döflü) tüm çalışmalar.
+    // users JOIN düştü (owner_name = owner_email doğrudan); admin filtresi düştü — herkes görür.
+    const { data: baseStudies, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('is_acceptable', 'unacceptable')
+      .order('created_at', { ascending: false });
+    MSA.throwIf(stErr, 'studies select');
+
+    // LEFT JOIN msa_type1_results (cg, cgk, bias, percent_bias) → JS birleştirme
+    const baseIds = (baseStudies || []).map(s => s.id);
+    const type1ByStudy = {};
+    if (baseIds.length > 0) {
+      const { data: t1Rows, error: t1Err } = await MSA.db.from(MSA.T.type1Results)
+        .select('study_id, cg, cgk, bias, percent_bias')
+        .in('study_id', baseIds);
+      MSA.throwIf(t1Err, 'type1 results select');
+      (t1Rows || []).forEach(r => {
+        (type1ByStudy[r.study_id] = type1ByStudy[r.study_id] || []).push(r);
+      });
+    }
+
+    const studiesRaw = (baseStudies || []).flatMap(study => {
+      const joined = Object.assign({}, study, { owner_name: study.owner_email || null });
+      const t1ForStudy = type1ByStudy[study.id];
+      if (t1ForStudy && t1ForStudy.length > 0) {
+        // LEFT JOIN semantiği: birden çok type1 sonucu varsa satır çoğalır (birebir)
+        return t1ForStudy.map(t => Object.assign({}, joined, {
+          cg: t.cg, cgk: t.cgk, bias: t.bias, percent_bias: t.percent_bias
+        }));
+      }
+      return [Object.assign({}, joined, { cg: null, cgk: null, bias: null, percent_bias: null })];
+    });
+
+    const studies = studiesRaw.map(study => {
+      const normalizedType = MSA.normalizeStudyType(study.study_type);
+      const gaugeEval = parseGaugeEvaluation(study.gauge_evaluation);
+      const grrPercent = gaugeEval ? parseNumber(gaugeEval?.totalGaugeRR?.pctStudyVar) : null;
+      const ndcValue = gaugeEval ? deriveNdcFromGauge(gaugeEval) : null;
+
+      return Object.assign({}, study, {
+        normalized_type: normalizedType,
+        grr_percent: grrPercent,
+        ndc: ndcValue
+      });
+    });
+
+    // Her çalışma için CAPA verisi
+    const studyIds = studies.map(s => s.id);
+    const capaMap = {};
+    if (studyIds.length > 0) {
+      const capaRecords = [];
+      const { data: capaActions, error: capaErr } = await MSA.db.from(MSA.T.capa)
+        .select('id, study_id, capa_number, status, due_date')
+        .in('study_id', studyIds);
+      if (capaErr) {
+        // orijinaldeki try/catch: tablo yoksa blok atlanır
+        console.log('⚠️  capa_actions table not found:', capaErr.message);
+      } else {
+        (capaActions || []).forEach(capa => {
+          capaRecords.push(Object.assign({}, capa, {
+            display_label: capa.capa_number || `CAPA-${capa.id}`,
+            source: 'capa_actions'
+          }));
+        });
+      }
+
+      // Legacy msa_capa tablosu ortak Supabase projesinde yok; orijinal kod tablo
+      // bulunamayınca bu bloğu try/catch ile zaten atlıyordu — aynı davranış (sorgu yok).
+
+      capaRecords.forEach(capa => {
+        if (!capaMap[capa.study_id]) {
+          capaMap[capa.study_id] = [];
+        }
+        capaMap[capa.study_id].push(capa);
+      });
+    }
+
+    await MSA.renderPage('all-defects.ejs', {
+      user,
+      branding,
+      studies,
+      capaMap
+    });
+  } catch (e) {
+    console.error('All defects page error:', e);
+    MSA.renderError('Hata', 'Sayfa yüklenirken hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Şablon Yükle - <%= branding?.company_name || 'MSA System' %></title>
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+  <!-- Dark Mode CSS -->
+  <link rel="stylesheet" href="css/dark-mode.css">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg-secondary);
+      min-height: 100vh;
+    }
+
+    .navbar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+    }
+
+    .navbar h1 {
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    .section {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.2);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .upload-zone:hover {
+      border-color: #667eea;
+      background: var(--bg-hover);
+    }
+
+    .upload-zone i {
+      font-size: 48px;
+      color: #667eea;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <h1>
+      <% if (branding?.logo_url) { %>
+        <img src="<%= branding.logo_url %>" alt="Logo" style="height: 40px;">
+      <% } %>
+      <i class="bi bi-upload"></i>
+      Şablon Yükle
+    </h1>
+    <div>
+      <a href="index.html" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i>
+        Dashboard'a Dön
+      </a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="section">
+      <h2 style="margin-bottom: 20px; color: var(--text-primary);">
+        <i class="bi bi-upload"></i>
+        Excel Şablonu Yükle
+      </h2>
+
+      <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <i class="bi bi-cloud-upload"></i>
+        <h3 style="color: var(--text-primary); margin-bottom: 10px;">Excel Dosyanızı Sürükleyin</h3>
+        <p style="color: var(--text-secondary);">veya tıklayarak dosya seçin</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+      </div>
+
+      <p style="color: var(--text-secondary); margin-top: 20px;">
+        Excel şablonu yükleyerek MSA çalışması oluşturabilirsiniz.
+      </p>
+    </div>
+
+    <div class="section" style="margin-top: 20px;">
+      <h2 style="margin-bottom: 20px; color: var(--text-primary);">
+        <i class="bi bi-download"></i>
+        Excel Şablonu İndir
+      </h2>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Operatör Sayısı (2-10)</label>
+          <input type="number" id="tplOperators" min="2" max="10" value="3" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Parça Sayısı (2-50)</label>
+          <input type="number" id="tplParts" min="2" max="50" value="10" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Tekrar Sayısı (2-10)</label>
+          <input type="number" id="tplTrials" min="2" max="10" value="3" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+      </div>
+
+      <button type="button" class="btn" onclick="downloadStandardTemplate()" style="margin-top: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <i class="bi bi-file-earmark-excel"></i>
+        Standart Şablonu İndir
+      </button>
+
+      <h3 style="margin: 30px 0 15px 0; color: var(--text-primary);">
+        <i class="bi bi-stars"></i>
+        Akıllı Şablon (Hedef %GRR / NDC)
+      </h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Hedef %GRR (5-50)</label>
+          <input type="number" id="smartTargetGRR" min="5" max="50" step="any" value="15" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Hedef NDC</label>
+          <input type="number" id="smartTargetNDC" min="1" step="1" value="6" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Nominal Değer</label>
+          <input type="number" id="smartNominal" step="any" value="100" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Proses Toleransı (±)</label>
+          <input type="number" id="smartTolerance" step="any" value="1" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 6px; color: var(--text-primary); font-weight: 500;">Çözünürlük</label>
+          <input type="number" id="smartResolution" step="any" value="0.01" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+        </div>
+      </div>
+
+      <button type="button" class="btn" onclick="downloadSmartTemplate()" style="margin-top: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <i class="bi bi-magic"></i>
+        Akıllı Şablonu İndir
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // POST /msa/import-excel portu — dosya seçilince içe aktar (js/excel-tools.js)
+    document.getElementById('fileInput').addEventListener('change', async function () {
+      const file = this.files && this.files[0];
+      if (!file) return;
+      try {
+        const result = await MSAExcel.importExcel(file);
+        if (result.success) {
+          alert(result.message);
+          window.location.href = 'data-entry.html?id=' + result.study_id;
+        } else {
+          alert(result.error);
+          this.value = '';
+        }
+      } catch (e) {
+        alert('Excel dosyası işlenirken bir hata oluştu: ' + e.message);
+        this.value = '';
+      }
+    });
+
+    // GET /msa/download-template portu
+    function downloadStandardTemplate() {
+      try {
+        MSAExcel.downloadTemplate({
+          operators: document.getElementById('tplOperators').value,
+          parts: document.getElementById('tplParts').value,
+          trials: document.getElementById('tplTrials').value
+        });
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    // GET /msa/generate-smart-template portu
+    function downloadSmartTemplate() {
+      try {
+        MSAExcel.generateSmartTemplate({
+          operators: document.getElementById('tplOperators').value,
+          parts: document.getElementById('tplParts').value,
+          trials: document.getElementById('tplTrials').value,
+          targetGRR: document.getElementById('smartTargetGRR').value,
+          nominal: document.getElementById('smartNominal').value,
+          tolerance: document.getElementById('smartTolerance').value,
+          resolution: document.getElementById('smartResolution').value,
+          targetNDC: document.getElementById('smartTargetNDC').value
+        });
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+  </script>
+
+  <!-- Theme Switcher -->
+  <script src="js/theme-switcher.js"></script>
+</body>
+</html>

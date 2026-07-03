@@ -1,0 +1,511 @@
+/**
+ * Responsive Design System
+ * Mobile-first approach with breakpoints
+ */
+
+/* ===========================================
+   BREAKPOINTS
+   =========================================== */
+/*
+  Mobile: < 768px (default, mobile-first)
+  Tablet: 768px - 1024px
+  Desktop: > 1024px
+*/
+
+/* ===========================================
+   MOBILE OPTIMIZATIONS (< 768px)
+   =========================================== */
+
+@media (max-width: 767px) {
+  /* Typography */
+  body {
+    font-size: 14px !important;
+  }
+
+  h1 {
+    font-size: 24px !important;
+  }
+
+  h2 {
+    font-size: 20px !important;
+  }
+
+  h3 {
+    font-size: 18px !important;
+  }
+
+  /* Navbar */
+  .navbar {
+    padding: 12px 15px !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .navbar h1 {
+    font-size: 20px !important;
+    text-align: center;
+  }
+
+  .navbar h1 img {
+    height: 35px !important;
+  }
+
+  .navbar-actions {
+    width: 100%;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .navbar .user-info {
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100%;
+    align-items: center !important;
+  }
+
+  .navbar a {
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+  }
+
+  /* Container */
+  .container {
+    padding: 0 15px !important;
+    margin: 20px auto !important;
+  }
+
+  /* Header */
+  .header {
+    flex-direction: column !important;
+    gap: 15px !important;
+    align-items: flex-start !important;
+  }
+
+  .header h2 {
+    font-size: 22px !important;
+  }
+
+  .header > div {
+    width: 100% !important;
+    flex-direction: column !important;
+  }
+
+  /* Buttons */
+  .btn-primary,
+  .btn-secondary,
+  .btn {
+    width: 100% !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+  }
+
+  .btn-group {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .button-group {
+    flex-direction: column !important;
+  }
+
+  /* Study Cards Grid */
+  .studies-grid {
+    grid-template-columns: 1fr !important;
+    gap: 15px !important;
+  }
+
+  .study-card {
+    padding: 15px !important;
+  }
+
+  .study-card h3 {
+    font-size: 18px !important;
+  }
+
+  .card-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .btn-small {
+    width: 100% !important;
+    padding: 10px !important;
+  }
+
+  /* Forms */
+  .form-card {
+    padding: 20px !important;
+    border-radius: 10px !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 15px !important;
+  }
+
+  .form-group {
+    margin-bottom: 15px !important;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 12px !important;
+  }
+
+  /* Analysis Options */
+  .analysis-options {
+    grid-template-columns: 1fr !important;
+    gap: 15px !important;
+  }
+
+  .checkbox-group {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tables */
+  .table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  table {
+    font-size: 12px !important;
+    min-width: 600px !important;
+  }
+
+  thead th {
+    padding: 10px 5px !important;
+    font-size: 11px !important;
+  }
+
+  tbody td {
+    padding: 6px 4px !important;
+  }
+
+  /* Data Entry Table */
+  .data-entry-table {
+    display: block !important;
+    overflow-x: auto !important;
+  }
+
+  /* Modal */
+  #templateModal > div {
+    width: 90% !important;
+    margin: 20% auto !important;
+    padding: 20px !important;
+  }
+
+  /* Welcome Message */
+  .empty-state {
+    padding: 30px 20px !important;
+  }
+
+  .empty-state h3 {
+    font-size: 20px !important;
+  }
+
+  /* Info Box */
+  .info-box,
+  .study-info {
+    padding: 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* Status Badges */
+  .status-badge {
+    font-size: 11px !important;
+    padding: 3px 10px !important;
+  }
+
+  /* Charts */
+  .chart-container {
+    height: 300px !important;
+    margin-bottom: 20px !important;
+  }
+
+  canvas {
+    max-height: 300px !important;
+  }
+
+  /* Results Page */
+  .results-section {
+    padding: 15px !important;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .metric-card {
+    padding: 12px !important;
+  }
+
+  /* Admin Sidebar */
+  .admin-layout {
+    flex-direction: column !important;
+  }
+
+  .sidebar {
+    width: 100% !important;
+    position: static !important;
+    height: auto !important;
+  }
+
+  .sidebar nav a {
+    padding: 12px 15px !important;
+  }
+
+  .admin-content {
+    margin-left: 0 !important;
+    padding: 15px !important;
+  }
+
+  /* Theme Toggle */
+  .theme-toggle {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    top: auto !important;
+    z-index: 1000 !important;
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  /* Hide on mobile if needed */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  /* Show only on mobile */
+  .show-mobile {
+    display: block !important;
+  }
+}
+
+/* ===========================================
+   TABLET OPTIMIZATIONS (768px - 1024px)
+   =========================================== */
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Container */
+  .container {
+    max-width: 720px !important;
+    padding: 0 20px !important;
+  }
+
+  /* Study Cards */
+  .studies-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
+  }
+
+  /* Forms */
+  .form-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Analysis Options */
+  .analysis-options {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Charts */
+  .chart-container {
+    height: 350px !important;
+  }
+
+  /* Results Grid */
+  .results-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Navbar */
+  .navbar h1 {
+    font-size: 22px !important;
+  }
+}
+
+/* ===========================================
+   DESKTOP OPTIMIZATIONS (> 1024px)
+   =========================================== */
+
+@media (min-width: 1025px) {
+  /* Study Cards */
+  .studies-grid {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)) !important;
+  }
+
+  /* Forms */
+  .form-row {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Results Grid */
+  .results-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* ===========================================
+   LARGE DESKTOP (> 1400px)
+   =========================================== */
+
+@media (min-width: 1400px) {
+  .container {
+    max-width: 1320px !important;
+  }
+
+  .studies-grid {
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)) !important;
+  }
+}
+
+/* ===========================================
+   TOUCH DEVICE OPTIMIZATIONS
+   =========================================== */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  button,
+  a,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* Better tap feedback */
+  button:active,
+  a:active {
+    opacity: 0.7 !important;
+  }
+
+  /* Prevent double-tap zoom */
+  a,
+  button {
+    touch-action: manipulation !important;
+  }
+}
+
+/* ===========================================
+   LANDSCAPE MOBILE (< 768px height)
+   =========================================== */
+
+@media (max-height: 600px) and (orientation: landscape) {
+  .navbar {
+    padding: 8px 15px !important;
+  }
+
+  .navbar h1 {
+    font-size: 18px !important;
+  }
+
+  .container {
+    margin: 10px auto !important;
+  }
+
+  .form-card {
+    padding: 15px !important;
+  }
+}
+
+/* ===========================================
+   PRINT STYLES
+   =========================================== */
+
+@media print {
+  /* Hide navigation and buttons */
+  .navbar,
+  .theme-toggle,
+  .btn-group,
+  .button-group,
+  .card-actions {
+    display: none !important;
+  }
+
+  /* Optimize for printing */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .study-card,
+  .form-card {
+    page-break-inside: avoid !important;
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+
+  /* Show all charts */
+  .chart-container {
+    page-break-inside: avoid !important;
+  }
+}
+
+/* ===========================================
+   UTILITY CLASSES
+   =========================================== */
+
+/* Responsive visibility */
+.visible-mobile {
+  display: none !important;
+}
+
+@media (max-width: 767px) {
+  .visible-mobile {
+    display: block !important;
+  }
+  .hidden-mobile {
+    display: none !important;
+  }
+}
+
+.visible-tablet {
+  display: none !important;
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .visible-tablet {
+    display: block !important;
+  }
+  .hidden-tablet {
+    display: none !important;
+  }
+}
+
+.visible-desktop {
+  display: none !important;
+}
+
+@media (min-width: 1025px) {
+  .visible-desktop {
+    display: block !important;
+  }
+  .hidden-desktop {
+    display: none !important;
+  }
+  
+  /* Ensure navbar actions are visible on desktop */
+  .navbar-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 15px !important;
+  }
+  
+  .navbar-actions .dropdown,
+  .navbar-actions .btn {
+    display: inline-flex !important;
+    width: auto !important;
+  }
+}

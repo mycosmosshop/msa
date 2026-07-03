@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>DOF Sonrasi MSA Planla</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yukleniyor...</div>
+<script>
+// GET /msa/:studyId/capa/:capaId/schedule-next portu -- msaRoutes.js:3892
+// Form gonderimi (scheduleForm) MSA_SCHEDULE_API.create ile POST /msa/schedule/create'i cagirir.
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+
+    window.MSA_SCHEDULE_API = {
+      async create(body) {
+        try {
+          const {
+            capa_id,
+            previous_study_id,
+            title,
+            description,
+            planned_date,
+            reminder_date,
+            reminder_time,
+            reminder_days_before,
+            responsible_user_id,
+            study_type,
+            gauge_name,
+            gauge_number,
+            part_name,
+            characteristic,
+            tolerance,
+            location,
+            notes
+          } = body;
+
+          // Validation
+          if (!title || !planned_date) {
+            return { success: false, error: 'Başlık ve planlanan tarih zorunludur' };
+          }
+
+          const responsibleEmail = responsible_user_id || null;
+
+          // Auto-add equipment if gauge_name and gauge_number provided and not in equipment table
+          if (gauge_name && gauge_number) {
+            try {
+              const esc = String(gauge_number).replace(/,/g, '\\,');
+              const { data: existingList, error: exErr } = await MSA.db.from(MSA.T.equipment)
+                .select('id')
+                .or(`serial_number.eq.${esc},device_number.eq.${esc}`)
+                .limit(1);
+              MSA.throwIf(exErr, 'equipment duplicate select');
+
+              if (!existingList || existingList.length === 0) {
+                const insEq = await MSA.db.from(MSA.T.equipment).insert({
+                  name: gauge_name,
+                  serial_number: gauge_number,
+                  device_number: gauge_number,
+                  description: 'MSA planlamasından otomatik eklendi',
+                  is_active: true
+                });
+                MSA.throwIf(insEq.error, 'equipment insert');
+                console.log(`Auto-added equipment: ${gauge_name} (${gauge_number})`);
+              }
+            } catch (equipError) {
+              // Don't fail the schedule creation if equipment insert fails
+              console.error('Auto-add equipment error:', equipError);
+            }
+          }
+
+          // Create schedule
+          console.log('📝 Creating MSA schedule with data:', { title, planned_date, userEmail: user.email });
+
+          const scheduleInsertPayload = {
+            capa_id: capa_id || null,
+            previous_study_id: previous_study_id || null,
+            planned_by_email: user.email !== 'no-session' ? user.email : null,
+            responsible_email: responsibleEmail,
+            title,
+            description: description || null,
+            planned_date,
+            reminder_date: reminder_date || null,
+            reminder_time: reminder_time || '09:00',
+            reminder_days_before: reminder_days_before || 7,
+            gauge_name: gauge_name || null,
+            gauge_number: gauge_number || null,
+            part_name: part_name || null,
+            characteristic: characteristic || null,
+            tolerance: tolerance || null,
+            location: location || null,
+            notes: notes || null,
+            status: 'planned',
+            study_type: study_type || null
+          };
+
+          const ins = await MSA.db.from(MSA.T.schedule).insert(scheduleInsertPayload).select('id').single();
+          MSA.throwIf(ins.error, 'schedule insert');
+
+          const scheduleId = ins.data.id;
+          console.log(`✅ Schedule created with ID: ${scheduleId}`);
+
+          // Create draft MSA study automatically when schedule is created
+          let draftStudyId = null;
+          try {
+            console.log('📝 Creating draft MSA study for schedule:', scheduleId);
+            const targetStudyType = (study_type || 'type2').toLowerCase();
+
+            if (targetStudyType === 'type1') {
+              console.log('ℹ️ Draft study skipped for Type 1 schedules');
+            } else {
+              const draftStudy = {
+                study_name: title,
+                part_name: part_name || 'Parça Adı',
+                characteristic: characteristic || 'Ölçülen Özellik',
+                tolerance_spec: tolerance || null,
+                gauge_name: gauge_name || 'Ölçüm Cihazı',
+                gauge_number: gauge_number || null,
+                location: location || null,
+                num_operators: 3,  // Varsayılan 3 operatör
+                num_parts: 10,     // Varsayılan 10 parça
+                num_trials: 2,     // Varsayılan 2 tekrar
+                owner_email: responsibleEmail || (user.email !== 'no-session' ? user.email : null),
+                status: 'draft',
+                is_from_schedule: true,
+                schedule_id: scheduleId,
+                study_type: targetStudyType
+              };
+
+              const dIns = await MSA.db.from(MSA.T.studies).insert(draftStudy).select('id').single();
+              MSA.throwIf(dIns.error, 'draft study insert');
+              draftStudyId = dIns.data.id;
+              console.log(`✅ Draft study created with ID: ${draftStudyId}`);
+
+              // Create default operators for draft study
+              const defaultOperators = [];
+              for (let i = 1; i <= 3; i++) {
+                defaultOperators.push({
+                  study_id: draftStudyId,
+                  operator_name: `Operatör ${i}`,
+                  operator_number: i
+                });
+              }
+              const opIns = await MSA.db.from(MSA.T.operators).insert(defaultOperators);
+              MSA.throwIf(opIns.error, 'operators insert');
+              console.log(`✅ Created ${defaultOperators.length} default operators`);
+
+              // Create default parts for draft study
+              const defaultParts = [];
+              for (let i = 1; i <= 10; i++) {
+                defaultParts.push({
+                  study_id: draftStudyId,
+                  part_number: i,
+                  part_name: `Parça ${i}`
+                });
+              }
+              const pIns = await MSA.db.from(MSA.T.parts).insert(defaultParts);
+              MSA.throwIf(pIns.error, 'parts insert');
+              console.log(`✅ Created ${defaultParts.length} default parts`);
+
+              // Link draft study to schedule
+              const linkUpd = await MSA.db.from(MSA.T.schedule)
+                .update({ completed_study_id: draftStudyId })
+                .eq('id', scheduleId);
+              MSA.throwIf(linkUpd.error, 'schedule draft link');
+
+              console.log(`✅ Linked draft study ${draftStudyId} to schedule ${scheduleId}`);
+            }
+          } catch (draftError) {
+            console.error('⚠️ Failed to create draft study on schedule creation:', draftError.message);
+            console.error('   Full error:', draftError);
+            // Don't fail the schedule creation if draft fails
+          }
+
+          return {
+            success: true,
+            message: 'MSA başarıyla planlandı' + (draftStudyId ? ' ve taslak çalışma oluşturuldu' : ''),
+            schedule_id: scheduleId,
+            draft_study_id: draftStudyId
+          };
+        } catch (error) {
+          console.error('❌ MSA schedule create error:', error.message);
+          console.error('   Error details:', error);
+          return {
+            success: false,
+            error: 'MSA planlanırken hata oluştu: ' + error.message
+          };
+        }
+      }
+    };
+
+    // ---- GET verisi: capa + study + users + equipment ----
+    const studyId = MSA.requireQ('study');
+    const capaId = MSA.requireQ('capa');
+
+    const [capaRes, studyRes] = await Promise.all([
+      MSA.db.from(MSA.T.capa).select('*').eq('id', capaId).maybeSingle(),
+      MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle()
+    ]);
+    MSA.throwIf(capaRes.error, 'capa select');
+    MSA.throwIf(studyRes.error, 'study select');
+    const capa = capaRes.data;
+    const study = studyRes.data;
+    if (!capa || !study) {
+      MSA.renderError('Bulunamadi', 'CAPA veya MSA calismasi bulunamadi');
+      return;
+    }
+
+    // Kullanici listesi (users tablosu yok -> kayitli e-postalardan derlenir)
+    const emails = new Set();
+    const [uSch, uSt] = await Promise.all([
+      MSA.db.from(MSA.T.schedule).select('planned_by_email, responsible_email'),
+      MSA.db.from(MSA.T.studies).select('owner_email')
+    ]);
+    (uSch.data || []).forEach(r => {
+      if (r.planned_by_email) emails.add(r.planned_by_email);
+      if (r.responsible_email) emails.add(r.responsible_email);
+    });
+    (uSt.data || []).forEach(r => { if (r.owner_email) emails.add(r.owner_email); });
+    if (user.email && user.email !== 'no-session') emails.add(user.email);
+    const users = [...emails].sort((a, b) => a.localeCompare(b)).map(e => ({ id: e, name: null, email: e }));
+
+    // Ekipman listesi
+    let equipment = [];
+    try {
+      const { data, error } = await MSA.db.from(MSA.T.equipment)
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      MSA.throwIf(error, 'equipment select');
+      equipment = data || [];
+    } catch (e) {
+      console.log('Equipment table not found, skipping');
+    }
+
+    await MSA.renderPage('schedule-next.ejs', {
+      user,
+      branding: MSA.BRANDING,
+      capa,
+      study,
+      users,
+      equipment
+    });
+  } catch (e) {
+    console.error('Schedule next MSA error:', e);
+    MSA.renderError('Hata', 'Sayfa yuklenirken hata olustu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

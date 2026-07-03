@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSA Eğitim Rehberi - Measurement System Analysis</title>
+    <style>
+        :root {
+            --primary: <%= branding?.primary_color || '#667eea' %>;
+            --secondary: <%= branding?.secondary_color || '#764ba2' %>;
+            --text: #1f2937;
+            --bg: #f9fafb;
+            --card: #ffffff;
+            --border: #e5e7eb;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .navbar h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            margin-left: 25px;
+            font-size: 14px;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+        
+        .navbar a:hover {
+            opacity: 1;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .hero h1 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 18px;
+            color: #6b7280;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .study-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        .study-card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .study-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .study-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .study-icon {
+            font-size: 36px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .study-title h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .study-subtitle {
+            font-size: 13px;
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .section-icon {
+            font-size: 18px;
+        }
+        
+        .section p, .section ul {
+            font-size: 14px;
+            color: #4b5563;
+            line-height: 1.7;
+        }
+        
+        .section ul {
+            padding-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .section li {
+            margin-bottom: 8px;
+        }
+        
+        .formula-box {
+            background: #f3f4f6;
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .formula-box strong {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--primary);
+            font-size: 14px;
+        }
+        
+        .criteria-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+        
+        .criteria-table th,
+        .criteria-table td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+        
+        .criteria-table th {
+            background: #f3f4f6;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .badge-acceptable {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .badge-marginal {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-unacceptable {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .quick-ref {
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            border-radius: 16px;
+            padding: 30px;
+            margin-top: 60px;
+        }
+        
+        .quick-ref h2 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .comparison-table {
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .comparison-table th {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .comparison-table td {
+            font-size: 13px;
+        }
+        
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-content">
+            <h1>📚 MSA Eğitim Rehberi</h1>
+            <div>
+                <% if (user) { %>
+                    <a href="index.html">🏠 Dashboard</a>
+                    <a href="index.html">🚪 Çıkış</a>
+                <% } else { %>
+                    <a href="index.html">🔐 Giriş Yap</a>
+                <% } %>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="hero">
+            <h1>MSA - Measurement System Analysis</h1>
+            <p>Ölçüm Sistemi Analizi, ölçüm aletlerinin güvenilirliğini değerlendiren istatistiksel bir yöntemdir. 
+            Bu rehber, MSA Fourth Edition standartlarına göre tüm study tiplerini detaylı açıklar.</p>
+        </div>
+        
+        <div class="study-grid">
+            <!-- TYPE 1: Bias and Instrument Capability -->
+            <div class="study-card">
+                <div class="study-header">
+                    <div class="study-icon">🎯</div>
+                    <div class="study-title">
+                        <h2>Type 1 Study</h2>
+                        <div class="study-subtitle">Bias and Instrument Capability</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">📋</span>Kullanım Alanı</h3>
+                    <p>Ölçüm aletinin <strong>bias (sapma)</strong> ve <strong>capability (yeterlilik)</strong> analizi için kullanılır.</p>
+                    <ul>
+                        <li><strong>Kalibrasyon doğrulama:</strong> Aletin doğru ölçüp ölçmediği</li>
+                        <li><strong>Yeni alet değerlendirme:</strong> Satın almadan önce test</li>
+                        <li><strong>Periyodik kontrol:</strong> Aletin zaman içinde sapması</li>
+                        <li><strong>Hassasiyet kontrolü:</strong> Toleransa göre yeterlilik</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🔬</span>Nasıl Yapılır?</h3>
+                    <p><strong>Gereksinimler:</strong></p>
+                    <ul>
+                        <li>1 operatör</li>
+                        <li>1 referans parça (bilinen değerde, master part)</li>
+                        <li>Minimum 25-30 ölçüm (önerilen: 50)</li>
+                        <li>Ölçümler rastgele sırayla alınmalı</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🧮</span>Formüller ve Hesaplamalar</h3>
+                    
+                    <div class="formula-box">
+                        <strong>1. Bias (Sapma):</strong>
+                        Bias = x̄ - Reference Value<br>
+                        % Bias = (Bias / Tolerance) × 100
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>2. Instrument Variation:</strong>
+                        IV = 6σ (where σ = std. deviation)
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>3. Cg (Capability of Gage):</strong>
+                        Cg = (Tolerance / 6σ) × (% Tolerance / 100)<br>
+                        <em>Toleransa göre aletin hassasiyeti</em>
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>4. Cgk (Capability with Bias):</strong>
+                        Cgk = ((Tolerance / 2) - |Bias|) / 3σ<br>
+                        <em>Bias dahil yeterlilik</em>
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>5. t-Test (Bias Anlamlılığı):</strong>
+                        t = (x̄ - Ref) / (s / √n)<br>
+                        p-value < 0.05 → Bias istatistiksel olarak anlamlı
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">✅</span>Kabul Kriterleri</h3>
+                    
+                    <table class="criteria-table">
+                        <thead>
+                            <tr>
+                                <th>Metrik</th>
+                                <th>Kabul Edilebilir</th>
+                                <th>Kabul Edilemez</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Cg</strong></td>
+                                <td>≥ 1.33</td>
+                                <td>< 1.33</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cgk</strong></td>
+                                <td>≥ 1.33</td>
+                                <td>< 1.33</td>
+                            </tr>
+                            <tr>
+                                <td><strong>% Bias</strong></td>
+                                <td>≤ 10%</td>
+                                <td>> 10%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>p-value</strong></td>
+                                <td>> 0.05 (bias yok)</td>
+                                <td>< 0.05 (bias var)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🎬</span>Karar Verme</h3>
+                    <p><span class="badge badge-acceptable">✅ KABUL EDİLEBİLİR</span></p>
+                    <ul>
+                        <li>Cg ≥ 1.33 VE Cgk ≥ 1.33 VE |Bias| ≤ 10%</li>
+                        <li><strong>Aksiyon:</strong> Ölçüm aleti kullanıma uygun</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-marginal">⚠️ SINIRDA</span></p>
+                    <ul>
+                        <li>1.0 ≤ Cgk < 1.33</li>
+                        <li><strong>Aksiyon:</strong> Dikkatli kullanım, sık kalibrasyon</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-unacceptable">❌ KABUL EDİLEMEZ</span></p>
+                    <ul>
+                        <li>Cg < 1.33: Alet hassasiyeti yetersiz → Daha hassas alet gerekli</li>
+                        <li>|Bias| > 10%: Sistematik hata → Kalibrasyon gerekli</li>
+                        <li><strong>Aksiyon:</strong> CAPA açılır, iyileştirme zorunlu</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- TYPE 2: Gage R&R (ANOVA Method) -->
+            <div class="study-card">
+                <div class="study-header">
+                    <div class="study-icon">📈</div>
+                    <div class="study-title">
+                        <h2>Type 2 Study</h2>
+                        <div class="study-subtitle">Gage R&R (ANOVA Method)</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">📋</span>Kullanım Alanı</h3>
+                    <p>En yaygın MSA çalışması. <strong>Çoklu operatör</strong> ile ölçüm sisteminin <strong>tekrarlanabilirlik</strong> ve <strong>yeniden üretilebilirlik</strong> analizi.</p>
+                    <ul>
+                        <li><strong>Üretim ortamı:</strong> Çoklu operatör, çoklu parça</li>
+                        <li><strong>Manuel ölçüm sistemleri:</strong> Kumpas, mikrometre, ölçü aletleri</li>
+                        <li><strong>Operatör etkisi:</strong> Operatörler arası fark analizi</li>
+                        <li><strong>Ölçüm sistemi validasyonu:</strong> GR&R kabul çalışması</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🔬</span>Nasıl Yapılır?</h3>
+                    <p><strong>Gereksinimler:</strong></p>
+                    <ul>
+                        <li>2-3 operatör (minimum)</li>
+                        <li>5-10 parça (ölçüm aralığını temsil eden)</li>
+                        <li>Her operatör her parçayı 2-3 kez ölçer</li>
+                        <li>Ölçümler rastgele sırayla, kör (blind) yapılmalı</li>
+                        <li>ANOVA (Analysis of Variance) metodu kullanılır</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🧮</span>Formüller ve Hesaplamalar</h3>
+                    
+                    <div class="formula-box">
+                        <strong>1. Repeatability (Tekrarlanabilirlik - EV):</strong>
+                        EV = Equipment Variation<br>
+                        Aynı operatörün aynı parçada tutarlılığı
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>2. Reproducibility (Yeniden Üretilebilirlik - AV):</strong>
+                        AV = Appraiser Variation<br>
+                        Operatörler arası farklılık
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>3. Gage R&R:</strong>
+                        GRR = √(EV² + AV²)<br>
+                        % GRR = (GRR / TV) × 100<br>
+                        TV = Total Variation
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>4. NDC (Number of Distinct Categories):</strong>
+                        NDC = 1.41 × (PV / GRR)<br>
+                        Ölçüm sisteminin ayırt edebileceği kategori sayısı
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">✅</span>Kabul Kriterleri</h3>
+                    
+                    <table class="criteria-table">
+                        <thead>
+                            <tr>
+                                <th>Metrik</th>
+                                <th>Kabul Edilebilir</th>
+                                <th>Marginal</th>
+                                <th>Kabul Edilemez</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>% GRR</strong></td>
+                                <td>< 10%</td>
+                                <td>10-30%</td>
+                                <td>> 30%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>NDC</strong></td>
+                                <td>≥ 5</td>
+                                <td>3-4</td>
+                                <td>< 3</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🎬</span>Karar Verme</h3>
+                    <p><span class="badge badge-acceptable">✅ KABUL EDİLEBİLİR</span></p>
+                    <ul>
+                        <li>% GRR < 10% VE NDC ≥ 5</li>
+                        <li><strong>Aksiyon:</strong> Ölçüm sistemi kullanıma uygun</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-marginal">⚠️ SINIRDA</span></p>
+                    <ul>
+                        <li>10% ≤ % GRR < 30% VE NDC ≥ 3</li>
+                        <li><strong>Aksiyon:</strong> Dikkatli kullanım, iyileştirme önerilir</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-unacceptable">❌ KABUL EDİLEMEZ</span></p>
+                    <ul>
+                        <li>% GRR ≥ 30% VEYA NDC < 3</li>
+                        <li><strong>Aksiyon:</strong> CAPA açılır, sistem iyileştirme zorunlu</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- TYPE 3: Gage R&R (Automatic Equipment) -->
+            <div class="study-card">
+                <div class="study-header">
+                    <div class="study-icon">🔄</div>
+                    <div class="study-title">
+                        <h2>Type 3 Study</h2>
+                        <div class="study-subtitle">Gage R&R (Automatic Equipment)</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">📋</span>Kullanım Alanı</h3>
+                    <p><strong>Otomatik ölçüm ekipmanları</strong> için özel GR&R analizi. Operatör etkisi olmadan sadece <strong>tekrarlanabilirlik</strong> değerlendirilir.</p>
+                    <ul>
+                        <li><strong>Otomatik ölçüm sistemleri:</strong> CMM, Vision systems, Laser scanner</li>
+                        <li><strong>Operatörsüz ölçüm:</strong> Robotik ölçüm, automatic testing</li>
+                        <li><strong>Repeatability analizi:</strong> Sadece ekipman varyansı</li>
+                        <li><strong>Sistemin hassasiyeti:</strong> Parça-parça ayrım kabiliyeti</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🔬</span>Nasıl Yapılır?</h3>
+                    <p><strong>Gereksinimler:</strong></p>
+                    <ul>
+                        <li>Otomatik ölçüm ekipmanı (operatör yok veya minimal)</li>
+                        <li>10 parça (ölçüm aralığına yayılmış)</li>
+                        <li>Her parça 2-3 kez otomatik ölçülür</li>
+                        <li>ANOVA metodu ama <strong>Operator Variance = 0</strong></li>
+                        <li><strong>Toplam ölçüm:</strong> 10 parça × 3 tekrar = 30 ölçüm</li>
+                    </ul>
+                    <p><strong>Önemli:</strong> Type 3'te sadece EV (Equipment Variation) hesaplanır, AV (Appraiser Variation) yoktur!</p>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🧮</span>Formüller ve Hesaplamalar</h3>
+                    
+                    <div class="formula-box">
+                        <strong>1. Repeatability (EV - Equipment Variation):</strong>
+                        σ²ₑᵥ = MSₑᵣᵣₒᵣ (from ANOVA)<br>
+                        %EV = (σₑᵥ / σₜₒₜₐₗ) × 100<br>
+                        <em>Type 3'te sadece bu hesaplanır</em>
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>2. Reproducibility (AV):</strong>
+                        <strong>Type 3'te AV = 0</strong> (operatör yok)<br>
+                        σ²ₐᵥ = 0
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>3. GR&R (Total Gage Variation):</strong>
+                        σ²ɢʀʀ = σ²ₑᵥ + 0 = σ²ₑᵥ<br>
+                        %GRR = %EV (çünkü AV = 0)
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>4. Part-to-Part Variation (PV):</strong>
+                        σ²ₚᵥ = (MSₚₐᵣₜ - MSₑᵣᵣₒᵣ) / trials<br>
+                        %PV = (σₚᵥ / σₜₒₜₐₗ) × 100
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>5. NDC (Number of Distinct Categories):</strong>
+                        NDC = √2 × (σₚᵥ / σₑᵥ)<br>
+                        <em>Otomatik sistemin parça ayrım kabiliyeti</em>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">✅</span>Kabul Kriterleri (MSA 4th Edition)</h3>
+                    
+                    <table class="criteria-table">
+                        <thead>
+                            <tr>
+                                <th>%GRR (=% EV)</th>
+                                <th>NDC</th>
+                                <th>Karar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>< 10%</td>
+                                <td>≥ 5</td>
+                                <td><span class="badge badge-acceptable">KABUL EDİLEBİLİR</span></td>
+                            </tr>
+                            <tr>
+                                <td>10-30%</td>
+                                <td>3-5</td>
+                                <td><span class="badge badge-marginal">SINIRDA</span></td>
+                            </tr>
+                            <tr>
+                                <td>> 30%</td>
+                                <td>< 3</td>
+                                <td><span class="badge badge-unacceptable">KABUL EDİLEMEZ</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <p style="margin-top: 15px; font-size: 13px;"><strong>Not:</strong> Type 3'te AV = 0 olduğu için %GRR = %EV'dir.</p>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🎬</span>Karar Verme</h3>
+                    <p><span class="badge badge-acceptable">✅ KABUL EDİLEBİLİR</span></p>
+                    <ul>
+                        <li>%EV < 10% VE NDC ≥ 5</li>
+                        <li><strong>Aksiyon:</strong> Otomatik sistem kullanıma uygun</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-marginal">⚠️ SINIRDA</span></p>
+                    <ul>
+                        <li>10% ≤ %EV < 30%</li>
+                        <li><strong>Aksiyon:</strong> Sistem kalibrasyonu, hassasiyet iyileştirme</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-unacceptable">❌ KABUL EDİLEMEZ</span></p>
+                    <ul>
+                        <li>%EV ≥ 30% VEYA NDC < 3</li>
+                        <li><strong>Aksiyon:</strong> Ekipman değişimi veya major iyileştirme gerekli</li>
+                    </ul>
+                </div>
+            </div>
+                        <li>%GRR (Tolerance) > 30%: KABUL EDİLEMEZ</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🎬</span>Karar Verme</h3>
+                    <p><span class="badge badge-acceptable">✅ KABUL EDİLEBİLİR</span></p>
+                    <ul>
+                        <li>%GRR < 10% VE NDC ≥ 5</li>
+                        <li><strong>Aksiyon:</strong> Ölçüm sistemi güvenilir, kullanılabilir</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-marginal">⚠️ SINIRDA</span></p>
+                    <ul>
+                        <li>10% ≤ %GRR ≤ 30% VE 3 ≤ NDC < 5</li>
+                        <li><strong>Değerlendirme:</strong>
+                            <ul>
+                                <li>%EV yüksekse → Alet bakımı, kalibrasyon</li>
+                                <li>%AV yüksekse → Operatör eğitimi gerekli</li>
+                                <li>NDC düşükse → Parça varyansı dar, kabul edilebilir</li>
+                            </ul>
+                        </li>
+                        <li><strong>Aksiyon:</strong> Dikkatli kullanım, sık tekrar MSA</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-unacceptable">❌ KABUL EDİLEMEZ</span></p>
+                    <ul>
+                        <li>%GRR > 30% VEYA NDC < 2</li>
+                        <li><strong>Aksiyon:</strong> CAPA açılır, iyileştirme ZORUNLU
+                            <ul>
+                                <li>Alet değişimi/upgrade</li>
+                                <li>Fixture geliştirme</li>
+                                <li>Operatör sertifikasyonu</li>
+                                <li>Ölçüm prosedürü revizyonu</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- TYPE 4: Attribute Gage Study -->
+            <div class="study-card">
+                <div class="study-header">
+                    <div class="study-icon">✔️</div>
+                    <div class="study-title">
+                        <h2>Type 4 Study</h2>
+                        <div class="study-subtitle">Attribute Gage (Go/No-Go)</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">📋</span>Kullanım Alanı</h3>
+                    <p><strong>Niteliksel (kategorik) ölçümler</strong> için kullanılır - sayısal değer değil, karar verilir.</p>
+                    <ul>
+                        <li><strong>Go/No-Go gageler:</strong> Geçer/Geçmez kontrolü</li>
+                        <li><strong>Görsel muayene:</strong> OK/NOK/Scrap</li>
+                        <li><strong>Renk kontrolü:</strong> Kabul/Red</li>
+                        <li><strong>Yüzey kalitesi:</strong> A/B/C sınıfı</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🔬</span>Nasıl Yapılır?</h3>
+                    <p><strong>Gereksinimler:</strong></p>
+                    <ul>
+                        <li>2-3 operatör (tercihen 3)</li>
+                        <li>30-50 parça (bilinen standart ile sınıflandırılmış)</li>
+                        <li>2-3 trial (her operatör tüm parçaları 2-3 kez değerlendirir)</li>
+                        <li>Kör değerlendirme (operatör önceki kararı görmemeli)</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🧮</span>Metrikler</h3>
+                    
+                    <div class="formula-box">
+                        <strong>1. Effectiveness (Etkinlik):</strong>
+                        % Effectiveness = (Doğru kararlar / Toplam kararlar) × 100<br>
+                        <em>Operatörün standart ile uyumu</em>
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>2. Repeatability (Tekrarlanabilirlik):</strong>
+                        % Repeatability = (Operatörün kendi içinde tutarlılığı)<br>
+                        <em>Aynı parçayı her seferinde aynı şekilde değerlendiriyor mu?</em>
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>3. Reproducibility (Yeniden Üretilebilirlik):</strong>
+                        % Reproducibility = (Operatörler arası uyum)<br>
+                        <em>Tüm operatörler aynı karara varıyor mu?</em>
+                    </div>
+                    
+                    <div class="formula-box">
+                        <strong>4. Kappa İstatistiği (Cohen's Kappa):</strong>
+                        κ = (Pₒ - Pₑ) / (1 - Pₑ)<br>
+                        Pₒ = Gözlenen uyum<br>
+                        Pₑ = Şans eseri beklenen uyum
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">✅</span>Kabul Kriterleri</h3>
+                    
+                    <table class="criteria-table">
+                        <thead>
+                            <tr>
+                                <th>Metrik</th>
+                                <th>Kabul Edilebilir</th>
+                                <th>Kabul Edilemez</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Effectiveness</strong></td>
+                                <td>≥ 90%</td>
+                                <td>< 90%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Repeatability</strong></td>
+                                <td>≥ 90%</td>
+                                <td>< 90%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Reproducibility</strong></td>
+                                <td>≥ 90%</td>
+                                <td>< 90%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kappa (κ)</strong></td>
+                                <td>≥ 0.75 (Excellent)</td>
+                                <td>< 0.40 (Poor)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <p style="margin-top: 10px;"><strong>Kappa değerlendirme:</strong></p>
+                    <ul style="font-size: 13px;">
+                        <li>κ > 0.75: Mükemmel uyum</li>
+                        <li>0.60-0.75: İyi uyum</li>
+                        <li>0.40-0.60: Orta uyum</li>
+                        <li>κ < 0.40: Zayıf uyum</li>
+                    </ul>
+                </div>
+                
+                <div class="section">
+                    <h3><span class="section-icon">🎬</span>Karar Verme</h3>
+                    <p><span class="badge badge-acceptable">✅ KABUL EDİLEBİLİR</span></p>
+                    <ul>
+                        <li>Effectiveness ≥ 90% VE Repeatability ≥ 90% VE κ ≥ 0.75</li>
+                        <li><strong>Aksiyon:</strong> Sistem güvenilir</li>
+                    </ul>
+                    
+                    <p><span class="badge badge-unacceptable">❌ KABUL EDİLEMEZ</span></p>
+                    <ul>
+                        <li>Effectiveness < 90%: Operatör eğitimi, prosedür netleştirme</li>
+                        <li>Repeatability düşük: Operatör tutarsız → Eğitim ve sertifikasyon</li>
+                        <li>Reproducibility düşük: Standart belirsiz → Daha net kriterler</li>
+                        <li><strong>Aksiyon:</strong> Eğitim programı, prosedür revizyonu, görsel standartlar</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Reference Comparison -->
+        <div class="quick-ref">
+            <h2>📊 Hızlı Karşılaştırma Tablosu</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Study Tipi</th>
+                        <th>Ne Zaman Kullanılır?</th>
+                        <th>Ana Metrik</th>
+                        <th>Kabul Kriteri</th>
+                        <th>Tipik Süre</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Type 1<br>Bias & Capability</strong></td>
+                        <td>Yeni alet, kalibrasyon doğrulama, periyodik kontrol</td>
+                        <td>Cg, Cgk, % Bias</td>
+                        <td>Cg ≥ 1.33, |Bias| ≤ 10%</td>
+                        <td>30 dk - 1 saat</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Type 2<br>Linearity</strong></td>
+                        <td>Geniş ölçüm aralığı, çok noktalı kalibrasyon</td>
+                        <td>% Linearity, R²</td>
+                        <td>Linearity ≤ 10%</td>
+                        <td>1-2 saat</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Type 3<br>Gage R&R</strong></td>
+                        <td>Üretim ortamı, MSA validasyonu, operatör değerlendirme</td>
+                        <td>%GRR, NDC</td>
+                        <td>%GRR < 10%, NDC ≥ 5</td>
+                        <td>2-4 saat</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Type 4<br>Attribute</strong></td>
+                        <td>Go/No-Go, görsel muayene, kategorik değerlendirme</td>
+                        <td>Effectiveness, Kappa</td>
+                        <td>Eff. ≥ 90%, κ ≥ 0.75</td>
+                        <td>1-2 saat</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 60px; padding: 30px; background: white; border-radius: 12px; border-left: 5px solid var(--primary);">
+            <h2 style="font-size: 22px; margin-bottom: 15px;">💡 Önemli Hatırlatmalar</h2>
+            <ul style="line-height: 2; font-size: 14px;">
+                <li><strong>MSA bir kerelik değil, periyodik bir süreçtir</strong> - Yıllık tekrar gereklidir</li>
+                <li><strong>CAPA (Corrective Action)</strong> - Kabul edilemeyen sonuçlarda zorunludur</li>
+                <li><strong>Operatör eğitimi</strong> - MSA öncesi tüm operatörler prosedür eğitimi almalı</li>
+                <li><strong>Çevresel koşullar</strong> - Sıcaklık, nem, titreşim kontrol altında olmalı</li>
+                <li><strong>Dokümantasyon</strong> - Tüm MSA çalışmaları kayıt altında tutulmalı (ISO 9001, IATF 16949)</li>
+                <li><strong>Master part</strong> - Type 1 ve Type 2 için sertifikalı referans gereklidir</li>
+            </ul>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; padding: 20px; color: #6b7280;">
+            <p style="font-size: 14px;">
+                Bu rehber <strong>MSA Fourth Edition (AIAG)</strong> standartlarına göre hazırlanmıştır.<br>
+                Daha detaylı bilgi için MSA el kitabını inceleyiniz.
+            </p>
+            <% if (user) { %>
+                <a href="index.html" style="display: inline-block; margin-top: 20px; padding: 12px 30px; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                    🏠 Dashboard'a Dön ve MSA Başlat
+                </a>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

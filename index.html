@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>MSA Panosu - GageAI</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// GET /msa portu — msaRoutes.js:395-941 (dashboard + KPI).
+// Düşenler (rehber): kullanıcı/rol sistemi, study_permissions (sharedStudies),
+// admin bölümü (adminType*), activity_logs. Herkes tüm çalışmaları görür.
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const branding = MSA.BRANDING;
+
+    const view = (MSA.q('view', '') || '').toString().toLowerCase();
+    const activeView = view === 'kpi' ? 'kpi' : 'dashboard';
+
+    const fYear = MSA.q('year');
+    const fLocation = MSA.q('location');
+    const fEquipment = MSA.q('equipment');
+    const fStudyType = MSA.q('study_type');
+
+    // Filtreli çalışma kümesi (kopyalar KPI'dan hariç: copied_from_id IS NULL) — birebir
+    // Tüm non-copied çalışmaları çek, filtreleri JS'te uygula (veri hacmi küçük).
+    const { data: allNonCopied, error: baseErr } = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .is('copied_from_id', null)
+      .order('created_at', { ascending: false });
+    MSA.throwIf(baseErr, 'studies base select');
+
+    const yearOf = (row) => row.created_at ? new Date(row.created_at).getFullYear() : null;
+    const matchesFilters = (s) => {
+      if (fYear && String(yearOf(s)) !== String(fYear)) return false;
+      if (fLocation && !(s.location || '').toLowerCase().includes(fLocation.toLowerCase())) return false;
+      if (fEquipment) {
+        const eq = fEquipment.toLowerCase();
+        const hit = (s.gauge_name || '').toLowerCase().includes(eq) || (s.gauge_number || '').toLowerCase().includes(eq);
+        if (!hit) return false;
+      }
+      if (fStudyType) {
+        const nt = MSA.normalizeStudyType(s.study_type);
+        if (nt !== fStudyType) return false;
+      }
+      return true;
+    };
+    const filtered = (allNonCopied || []).filter(matchesFilters);
+
+    // ---- KPI verisi (msaRoutes.js:453-633) ----
+    const calc = filtered.filter(s => s.status === 'calculated');
+    const grrVals = calc
+      .map(s => {
+        const ge = MSA.parseJson(s.gauge_evaluation, null);
+        const v = ge && ge.totalGaugeRR && ge.totalGaugeRR.pctStudyVar;
+        return (v === null || v === undefined) ? null : parseFloat(v);
+      })
+      .filter(v => v !== null && Number.isFinite(v));
+    const avgGRR = grrVals.length ? grrVals.reduce((a, b) => a + b, 0) / grrVals.length : 0;
+
+    const acceptableCount = calc.filter(s => s.is_acceptable === 'acceptable' || s.is_acceptable === true).length;
+    const totalStudies = filtered.length;
+    const acceptableRate = totalStudies > 0 ? (acceptableCount / totalStudies) * 100 : 0;
+
+    const equipmentSet = new Set(filtered.filter(s => s.gauge_name).map(s => s.gauge_name));
+    const countType = (t) => filtered.filter(s => MSA.normalizeStudyType(s.study_type) === t).length;
+
+    const recentStudies = filtered.slice(0, 10);
+
+    const kpiData = {
+      totalStudies: totalStudies,
+      acceptableRate: acceptableRate,
+      avgGRR: avgGRR,
+      activeGauges: equipmentSet.size,
+      type1Count: countType('type1'),
+      type2Count: countType('type2'),
+      type3Count: countType('type3'),
+      recentStudies: recentStudies,
+      filters: { year: fYear, location: fLocation, equipment: fEquipment, study_type: fStudyType }
+    };
+
+    // ---- Çalışma listeleri (msaRoutes.js:635-708) ----
+    // myStudies: taslak-plan olmayanlar (herkesin çalışması görünür). Kopyalar zaten hariç.
+    const myStudies = (allNonCopied || []).filter(s =>
+      (s.is_from_schedule === false || s.is_from_schedule === null || s.status !== 'draft')
+    );
+
+    const type1Studies = myStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type1');
+    const type2Studies = myStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type2');
+    const type3Studies = myStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type3');
+
+    // Tip 1 kabul edilebilirliği type1_results'tan (cgk + bias_significant) — birebir
+    if (type1Studies.length > 0) {
+      const ids = type1Studies.map(s => s.id);
+      const { data: t1Rows, error: t1Err } = await MSA.db.from(MSA.T.type1Results)
+        .select('study_id, cgk, bias_significant')
+        .in('study_id', ids);
+      MSA.throwIf(t1Err, 'type1 results select');
+      const map = new Map();
+      (t1Rows || []).forEach(r => map.set(r.study_id, r));
+      type1Studies.forEach(study => {
+        const r = map.get(study.id);
+        if (r) {
+          if (r.cgk < 1.0) study.is_acceptable = false;
+          else if (r.cgk < 1.33 || r.bias_significant) study.is_acceptable = 'marginal';
+          else study.is_acceptable = true;
+        }
+      });
+    }
+
+    // Taslak çalışmalar (plandan otomatik) — schedule join'i planned_date + title için
+    const { data: draftRows, error: draftErr } = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('status', 'draft')
+      .eq('is_from_schedule', true)
+      .order('created_at', { ascending: false });
+    MSA.throwIf(draftErr, 'draft studies select');
+    let draftStudies = draftRows || [];
+    if (draftStudies.length > 0) {
+      const schIds = [...new Set(draftStudies.map(s => s.schedule_id).filter(Boolean))];
+      const schById = {};
+      if (schIds.length > 0) {
+        const { data: schRows } = await MSA.db.from(MSA.T.schedule)
+          .select('id, planned_date, title')
+          .in('id', schIds);
+        (schRows || []).forEach(s => { schById[s.id] = s; });
+      }
+      draftStudies = draftStudies.map(d => {
+        const sch = schById[d.schedule_id];
+        return Object.assign({}, d, {
+          planned_date: sch ? sch.planned_date : null,
+          schedule_title: sch ? sch.title : null
+        });
+      });
+    }
+
+    // Paylaşılan + admin bölümleri düştü (izin/rol sistemi yok)
+    const sharedStudies = [];
+    const adminType1Studies = [];
+    const adminType2Studies = [];
+    const adminType3Studies = [];
+
+    // ---- Açık CAPA haritası (msaRoutes.js:799-812) ----
+    const allStudyIds = myStudies.map(s => s.id);
+    const capaMap = new Map();
+    if (allStudyIds.length > 0) {
+      const { data: capas, error: capaErr } = await MSA.db.from(MSA.T.capa)
+        .select('id, study_id, capa_number, status')
+        .in('study_id', allStudyIds)
+        .in('status', ['open', 'in_progress', 'overdue']);
+      if (!capaErr) {
+        (capas || []).forEach(c => { capaMap.set(c.study_id, c); });
+      }
+    }
+
+    // ---- Yaklaşan MSA planları (msaRoutes.js:867-909) ----
+    let msaSchedules = [];
+    const { data: schRows, error: schErr } = await MSA.db.from(MSA.T.schedule)
+      .select('*')
+      .not('status', 'in', '("completed","cancelled")')
+      .order('planned_date', { ascending: true });
+    if (!schErr) {
+      msaSchedules = (schRows || []).map(s => Object.assign({}, s, {
+        equipment_name: s.gauge_name,
+        planner_name: s.planned_by_email,
+        assigned_to_name: s.responsible_email,
+        assigned_to_email: s.responsible_email
+      }));
+    }
+
+    await MSA.renderPage('dashboard.ejs', {
+      user: { id: user.id, email: user.email, name: user.name, role: 'user' },
+      studies: myStudies,
+      myStudies: myStudies,
+      type1Studies, type2Studies, type3Studies,
+      draftStudies,
+      sharedStudies,
+      allStudies: [],
+      adminType1Studies, adminType2Studies, adminType3Studies,
+      msaSchedules,
+      branding,
+      capaMap,
+      permissionsMap: new Map(),
+      users: [],
+      kpiData,
+      view: activeView
+    });
+  } catch (e) {
+    console.error('MSA dashboard error:', e);
+    MSA.renderError('Hata', 'Pano yüklenirken hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

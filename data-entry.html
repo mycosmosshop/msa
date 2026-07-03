@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Veri Girişi</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// GET /msa/:id/data-entry portu — msaRoutes.js:1548-1630
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const studyId = MSA.requireQ('id');
+    console.log('📊 Data entry sayfası istendi, Study ID:', studyId);
+
+    // checkStudyAccess portu — study_permissions düştü (herkes düzenleyebilir),
+    // geriye yalnızca "çalışma bulunamadı" durumu kaldı
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+
+    if (!study) {
+      MSA.renderError('Erişim Reddedildi', 'Çalışma bulunamadı');
+      return;
+    }
+
+    console.log('✅ Study bulundu:', study.study_name);
+
+    const [opRes, pRes, mRes] = await Promise.all([
+      MSA.db.from(MSA.T.operators).select('*').eq('study_id', studyId).order('operator_number'),
+      MSA.db.from(MSA.T.parts).select('*').eq('study_id', studyId).order('part_number'),
+      MSA.db.from(MSA.T.measurements).select('*').eq('study_id', studyId)
+    ]);
+    MSA.throwIf(opRes.error, 'operators select');
+    MSA.throwIf(pRes.error, 'parts select');
+    MSA.throwIf(mRes.error, 'measurements select');
+
+    const operators = opRes.data || [];
+    console.log('👥 Operators count:', operators.length, operators);
+
+    const parts = pRes.data || [];
+    console.log('📦 Parts count:', parts.length, parts);
+
+    const existingMeasurements = mRes.data || [];
+    console.log('📏 Measurements count:', existingMeasurements.length);
+    console.log('📏 İlk 3 measurement:', existingMeasurements.slice(0, 3));
+
+    // Eğer measurements'ta operator/part string olarak saklanmışsa,
+    // bunları operator_number/part_number'a map et
+    const measurementsWithNumbers = existingMeasurements.map(m => {
+      // Operator adından operator_number bul
+      const operatorMatch = operators.find(op => op.operator_name === m.operator);
+      const partMatch = parts.find(p => p.part_name === m.part);
+
+      return {
+        ...m,
+        operator_number: operatorMatch ? operatorMatch.operator_number : null,
+        part_number: partMatch ? partMatch.part_number : null,
+        operator_name: m.operator,
+        part_name: m.part
+      };
+    });
+
+    console.log('📏 İlk 3 measurement (mapped):', measurementsWithNumbers.slice(0, 3));
+
+    // Check if this is a draft from schedule (editable settings)
+    const isDraftFromSchedule = study.is_from_schedule && study.status === 'draft';
+
+    await MSA.renderPage('data-entry.ejs', {
+      user,
+      study,
+      operators,
+      parts,
+      existingMeasurements: measurementsWithNumbers, // ← Mapped measurements kullan
+      canEdit: true, // study_permissions düştü — herkes düzenleyebilir
+      isDraftFromSchedule: isDraftFromSchedule,
+      error: MSA.q('error') || null,
+      warning: MSA.q('warning') || null,
+      success: MSA.q('success') || null,
+      message: MSA.q('message') || null
+    });
+  } catch (e) {
+    console.error('Data entry page error:', e);
+    MSA.renderError('Hata', e.message);
+  }
+})();
+</script>
+</body>
+</html>

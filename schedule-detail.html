@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>Planlama Detayı</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const scheduleId = MSA.requireQ('id');
+
+    // ------------------------------------------------------------------
+    // POST /msa/schedule/:scheduleId/update portu — msaRoutes.js:4333
+    // (detay sayfası yalnızca status günceller: tamamla / iptal)
+    // Düşen özellikler: requireAuth (erp-guard), logActivity, erişim kontrolü.
+    // ------------------------------------------------------------------
+    window.MSA_SCHEDULE_API = {
+      async update(schedId, body) {
+        try {
+          const { data: schedule, error } = await MSA.db.from(MSA.T.schedule)
+            .select('*').eq('id', schedId).maybeSingle();
+          MSA.throwIf(error, 'schedule select');
+
+          if (!schedule) {
+            return { success: false, error: 'Planlama bulunamadı', message: 'Planlama bulunamadı' };
+          }
+
+          // Build update object
+          const updateData = {
+            updated_at: MSA.nowIso()
+          };
+
+          const fields = [
+            'title', 'description', 'planned_date', 'reminder_date',
+            'reminder_time', 'reminder_days_before',
+            'gauge_name', 'gauge_number',
+            'part_name', 'characteristic', 'tolerance', 'location',
+            'status', 'notes'
+          ];
+
+          fields.forEach(field => {
+            if (body[field] !== undefined) {
+              updateData[field] = body[field] || null;
+            }
+          });
+
+          // responsible_user_id → responsible_email (e-posta kolonları)
+          if (body.responsible_user_id !== undefined) {
+            updateData.responsible_email = body.responsible_user_id || null;
+          }
+
+          const r = await MSA.db.from(MSA.T.schedule).update(updateData).eq('id', schedId);
+          MSA.throwIf(r.error, 'schedule update');
+
+          return { success: true, message: 'Planlama güncellendi' };
+        } catch (error) {
+          console.error('Schedule update error:', error);
+          return {
+            success: false,
+            error: 'Güncelleme hatası: ' + error.message,
+            message: 'Güncelleme hatası: ' + error.message
+          };
+        }
+      }
+    };
+
+    // ------------------------------------------------------------------
+    // GET /msa/schedule/:scheduleId portu — msaRoutes.js:4461
+    // users JOIN'leri düştü: planned_by_email / responsible_email doğrudan
+    // kolonlardır; capa/study adları JS tarafında birleştirilir.
+    // ------------------------------------------------------------------
+    const { data: rawSchedule, error: schErr } = await MSA.db.from(MSA.T.schedule)
+      .select('*').eq('id', scheduleId).maybeSingle();
+    MSA.throwIf(schErr, 'schedule select');
+
+    if (!rawSchedule) {
+      MSA.renderError('Hata', 'Planlama bulunamadı');
+      return;
+    }
+
+    let capaRow = null;
+    if (rawSchedule.capa_id) {
+      const { data, error } = await MSA.db.from(MSA.T.capa)
+        .select('id, capa_number, study_id').eq('id', rawSchedule.capa_id).maybeSingle();
+      MSA.throwIf(error, 'capa select');
+      capaRow = data;
+    }
+
+    let previousStudyName = null;
+    if (rawSchedule.previous_study_id) {
+      const { data, error } = await MSA.db.from(MSA.T.studies)
+        .select('id, study_name').eq('id', rawSchedule.previous_study_id).maybeSingle();
+      MSA.throwIf(error, 'previous study select');
+      previousStudyName = (data && data.study_name) || null;
+    }
+
+    let completedStudyName = null;
+    if (rawSchedule.completed_study_id) {
+      const { data, error } = await MSA.db.from(MSA.T.studies)
+        .select('id, study_name').eq('id', rawSchedule.completed_study_id).maybeSingle();
+      MSA.throwIf(error, 'completed study select');
+      completedStudyName = (data && data.study_name) || null;
+    }
+
+    const schedule = {
+      ...rawSchedule,
+      planner_name: null,
+      planner_email: rawSchedule.planned_by_email || null,
+      responsible_name: null,
+      responsible_email: rawSchedule.responsible_email || null,
+      capa_number: (capaRow && capaRow.capa_number) || null,
+      capa_study_id: (capaRow && capaRow.study_id) || null,
+      previous_study_name: previousStudyName,
+      completed_study_name: completedStudyName
+    };
+
+    // users listesi şablonda artık kullanılmıyor (users JOIN düştü,
+    // sorumlu e-postası doğrudan gösterilir) — boş geçilir.
+    const users = [];
+
+    await MSA.renderPage('schedule-detail.ejs', {
+      user,
+      branding: MSA.BRANDING,
+      schedule,
+      users
+    });
+  } catch (e) {
+    console.error(e);
+    MSA.renderError('Hata', 'Sayfa yüklenirken hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

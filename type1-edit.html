@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/type1-calculations.js"></script>
+<title>Edit Type 1 Study - GageAI</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// ============================================================================
+// createType1CapaIfNeeded portu — type1Routes.js:41-188 birebir.
+// Farklar: created_by (int FK) → created_by_email, responsible_user_id →
+// responsible_email; logActivity (activity_logs) düştü; knex → supabase-js.
+// Hem iç içe (hesaplamadan) hem düz (veritabanından) sonuç yapısını destekler.
+// ============================================================================
+async function createType1CapaIfNeeded(studyId, results, userEmail, tolerance) {
+  try {
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*').eq('id', studyId).maybeSingle();
+    if (stErr) throw stErr;
+    if (!study) return null;
+
+    // Check if study is acceptable from interpretation
+    const overall = (results.interpretation && results.interpretation.overall) || 'acceptable';
+
+    if (overall !== 'unacceptable') {
+      console.log(`✅ Type 1: Study is ${overall}, no CAPA needed`);
+      return null;
+    }
+
+    // Handle both nested (from calculation) and flat (from database) result structures
+    const cg = parseFloat((results.capability && results.capability.cg) || results.cg) || 0;
+    const cgk = parseFloat((results.capability && results.capability.cgk) || results.cgk) || 0;
+    const percentBias = parseFloat((results.basicStatistics && results.basicStatistics.percentBias) || results.percent_bias) || 0;
+    const percentVar = parseFloat((results.capability && results.capability.percentVarRepeatability) || results.percent_var_repeatability) || 0;
+
+    console.log('❌ Type 1: Study is UNACCEPTABLE, creating CAPA...');
+    console.log(`📊 Cg: ${cg.toFixed(3)}, Cgk: ${cgk.toFixed(3)}, Bias: ${percentBias.toFixed(2)}%, %Var: ${percentVar.toFixed(2)}%`);
+
+    // Collect all issues
+    const issues = [];
+
+    if (cg < 1.0) {
+      issues.push({
+        type: 'cg_unacceptable',
+        severity: 'critical',
+        description: `Cg = ${cg.toFixed(3)} (<1.0) - Kabul Edilemez! Ölçüm aleti varyasyonu toleransa göre çok büyük.`,
+        value: cg
+      });
+    } else if (cg < 1.33) {
+      issues.push({
+        type: 'cg_marginal',
+        severity: 'high',
+        description: `Cg = ${cg.toFixed(3)} (1.0-1.33) - Marjinal. Ölçüm hassasiyeti iyileştirilebilir.`,
+        value: cg
+      });
+    }
+
+    if (cgk < 1.0) {
+      issues.push({
+        type: 'cgk_unacceptable',
+        severity: 'critical',
+        description: `Cgk = ${cgk.toFixed(3)} (<1.0) - Kabul Edilemez! Bias ile düzeltilmiş kapasite çok düşük.`,
+        value: cgk
+      });
+    } else if (cgk < 1.33) {
+      issues.push({
+        type: 'cgk_marginal',
+        severity: 'high',
+        description: `Cgk = ${cgk.toFixed(3)} (1.0-1.33) - Marjinal. Bias etkisi yüksek.`,
+        value: cgk
+      });
+    }
+
+    if (Math.abs(percentBias) > 10) {
+      issues.push({
+        type: 'bias_high',
+        severity: 'critical',
+        description: `Bias = ${percentBias.toFixed(2)}% (>10%) - Sistematik hata yüksek, kalibrasyon gerekli.`,
+        value: Math.abs(percentBias)
+      });
+    } else if (Math.abs(percentBias) > 5) {
+      issues.push({
+        type: 'bias_moderate',
+        severity: 'medium',
+        description: `Bias = ${percentBias.toFixed(2)}% (5-10%) - Kalibrasyon önerilir.`,
+        value: Math.abs(percentBias)
+      });
+    }
+
+    if (percentVar > 30) {
+      issues.push({
+        type: 'variance_high',
+        severity: 'critical',
+        description: `%Var = ${percentVar.toFixed(2)}% (>30%) - Tekrarlanabilirlik kabul edilemez.`,
+        value: percentVar
+      });
+    } else if (percentVar > 10) {
+      issues.push({
+        type: 'variance_moderate',
+        severity: 'medium',
+        description: `%Var = ${percentVar.toFixed(2)}% (10-30%) - Tekrarlanabilirlik marjinal.`,
+        value: percentVar
+      });
+    }
+
+    if (issues.length === 0) {
+      console.log('⚠️ Study marked unacceptable but no specific issues found');
+      return null;
+    }
+
+    // Check for existing OPEN CAPAs only
+    // Don't create duplicate if already open, but DO create new one if previous was closed
+    const { data: existingOpenCapa, error: exErr } = await MSA.db.from(MSA.T.capa)
+      .select('*')
+      .eq('study_id', studyId)
+      .in('status', ['open', 'in_progress'])
+      .maybeSingle();
+    if (exErr) throw exErr;
+
+    if (existingOpenCapa) {
+      console.log('⚠️ This Type 1 study already has an open CAPA:', existingOpenCapa.capa_number);
+      return existingOpenCapa;
+    }
+
+    console.log('✅ Creating new CAPA for unacceptable study...');
+
+    // Filter critical and high severity issues
+    const criticalIssues = issues.filter(i => i.severity === 'critical' || i.severity === 'high');
+    const mainIssue = criticalIssues.length > 0 ? criticalIssues[0] : issues[0];
+    const capaNumber = await MSA.generateCapaNumber();
+
+    const issueDescription = issues.map(i => i.description).join('\n\n');
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30); // 30 gün sonra
+
+    const ins = await MSA.db.from(MSA.T.capa).insert({
+      capa_number: capaNumber,
+      study_id: studyId,
+      created_by_email: userEmail || null,
+      issue_type: mainIssue.type,
+      issue_description: issueDescription,
+      root_cause: null,
+      corrective_action: null,
+      preventive_action: null,
+      responsible_email: null,
+      responsible_name: null,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'open'
+    }).select('*').single();
+    if (ins.error) throw ins.error;
+    const capa = ins.data;
+
+    console.log(`🚨 Type 1 CAPA Oluşturuldu: ${capaNumber} (${mainIssue.type})`);
+
+    return capa;
+
+  } catch (error) {
+    console.error('Type 1 CAPA oluşturma hatası:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// POST /msa/type1/:id/update portu — type1Routes.js:1034-1245 birebir.
+// Şablondaki submit handler'ı window.msaType1Update(formData) olarak çağırır;
+// dönüş orijinal res.json ile aynı şekildedir ({success, message}).
+// Farklar: user_id sahiplik filtresi düştü (modülde herkes düzenleyebilir);
+// analysis_options json kolonuna OBJE yazılır (JSON.stringify yok);
+// logActivity düştü; hesaplama tarayıcıda window.type1Calculations ile yapılır;
+// resultData'daki 'df' anahtarı şemadaki gerçek kolon adıyla (degrees_of_freedom)
+// yazılır.
+// ============================================================================
+window.msaType1Update = async function (reqBody) {
+  try {
+    const studyId = parseInt(MSA.requireQ('id'));
+    const {
+      study_name,
+      description,
+      gauge_name,
+      gauge_number,
+      location,
+      part_name,
+      characteristic,
+      tolerance_spec,
+      performed_by,
+      study_date,
+      reference_value,
+      tolerance,
+      measurements,
+      analysis_options
+    } = reqBody;
+
+    // Check ownership (sahiplik filtresi düştü — study_type kontrolü korunur)
+    const exSel = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('id', studyId)
+      .eq('study_type', 'type1')
+      .maybeSingle();
+    if (exSel.error) throw new Error(exSel.error.message);
+    const existingStudy = exSel.data;
+
+    if (!existingStudy) {
+      return { success: false, message: 'Study not found' };
+    }
+
+    // Validate
+    if (!study_name || !reference_value || !tolerance || !measurements || measurements.length < 5) {
+      return { success: false, message: 'Invalid data' };
+    }
+
+    // Calculate results with new data
+    // (orijinal rota 4. argüman olarak {percentToleranceCg} geçirir; hesaplama
+    //  çekirdeği bu argümanı orijinalde de kullanmaz — birebir korunur)
+    const results = window.type1Calculations.calculateType1Study(
+      measurements.map(m => parseFloat(m)),
+      parseFloat(reference_value),
+      parseFloat(tolerance),
+      {
+        percentToleranceCg: analysis_options.percent_tolerance_cg || 20
+      }
+    );
+
+    // Use interpretation overall result (considers Cg, Cgk, bias, and %Var)
+    const isAcceptable = results.interpretation.overall;
+
+    // Update study
+    const updateData = {
+      study_name,
+      description,
+      gauge_name,
+      gauge_number,
+      location,
+      part_name,
+      characteristic,
+      tolerance_spec,
+      performed_by,
+      reference_value: parseFloat(reference_value),
+      tolerance: parseFloat(tolerance),
+      is_acceptable: isAcceptable,
+      analysis_options: analysis_options,
+      updated_at: MSA.nowIso()
+    };
+
+    // If study_date is provided, update created_at
+    if (study_date) {
+      // Validate date format (should be YYYY-MM-DD)
+      if (study_date && study_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        updateData.created_at = new Date(study_date).toISOString();
+        console.log(`[TYPE 1 EDIT] Date changed: ${study_date} -> created_at updated to ${updateData.created_at}`);
+      } else {
+        console.log(`[TYPE 1 EDIT] Invalid date format: ${study_date}, skipping created_at update`);
+      }
+    }
+
+    console.log('[TYPE 1 EDIT] Update data:', {
+      study_name: updateData.study_name,
+      created_at: updateData.created_at,
+      updated_at: updateData.updated_at
+    });
+
+    const stUpd = await MSA.db.from(MSA.T.studies)
+      .update(updateData)
+      .eq('id', studyId);
+    if (stUpd.error) throw new Error(stUpd.error.message);
+
+    // Delete old measurements
+    const mDel = await MSA.db.from(MSA.T.type1Measurements).delete().eq('study_id', studyId);
+    if (mDel.error) throw new Error(mDel.error.message);
+
+    // Insert new measurements
+    const measurementRecords = measurements.map((value, index) => ({
+      study_id: studyId,
+      observation_number: index + 1,
+      measurement_value: parseFloat(value)
+    }));
+    const mIns = await MSA.db.from(MSA.T.type1Measurements).insert(measurementRecords);
+    if (mIns.error) throw new Error(mIns.error.message);
+
+    // Update or insert results
+    const exRes = await MSA.db.from(MSA.T.type1Results)
+      .select('*')
+      .eq('study_id', studyId)
+      .maybeSingle();
+    if (exRes.error) throw new Error(exRes.error.message);
+    const existingResult = exRes.data;
+
+    const resultData = {
+      mean: results.basicStatistics.mean,
+      std_dev: results.basicStatistics.stdDev,
+      bias: results.basicStatistics.bias,
+      percent_bias: results.basicStatistics.percentBias,
+      instrument_variation: results.basicStatistics.instrumentVariation,
+      t_statistic: results.biasTest.tStatistic,
+      p_value: results.biasTest.pValue,
+      degrees_of_freedom: results.biasTest.degreesOfFreedom,
+      ci_lower: results.biasTest.ciLower,
+      ci_upper: results.biasTest.ciUpper,
+      bias_significant: results.biasTest.biasSignificant,
+      cg: results.capability.cg,
+      cgk: results.capability.cgk,
+      percent_var_repeatability: results.capability.percentVarRepeatability,
+      percent_var_repeatability_bias: results.capability.percentVarRepeatabilityBias,
+      reference_value: parseFloat(reference_value),
+      tolerance: parseFloat(tolerance),
+      lower_bound: results.basicStatistics.lowerBound,
+      upper_bound: results.basicStatistics.upperBound
+    };
+
+    if (existingResult) {
+      const rUpd = await MSA.db.from(MSA.T.type1Results)
+        .update(resultData)
+        .eq('study_id', studyId);
+      if (rUpd.error) throw new Error(rUpd.error.message);
+    } else {
+      const rIns = await MSA.db.from(MSA.T.type1Results).insert({
+        study_id: studyId,
+        ...resultData
+      });
+      if (rIns.error) throw new Error(rIns.error.message);
+    }
+
+    // Handle CAPA based on new acceptability status
+    try {
+      console.log('🔄 CAPA Management (Full Update) - Checking acceptability...');
+      console.log('  isAcceptable:', isAcceptable);
+
+      if (isAcceptable === 'acceptable') {
+        // Auto-close open CAPAs if study is now acceptable
+        const { data: openCapas, error: ocErr } = await MSA.db.from(MSA.T.capa)
+          .select('*')
+          .eq('study_id', studyId)
+          .in('status', ['open', 'in_progress']);
+        if (ocErr) throw ocErr;
+
+        console.log(`  Found ${(openCapas || []).length} open CAPA(s)`);
+
+        if (openCapas && openCapas.length > 0) {
+          console.log(`✅ Study is now ACCEPTABLE - auto-closing ${openCapas.length} CAPA(s)`);
+          const clUpd = await MSA.db.from(MSA.T.capa)
+            .update({
+              status: 'completed',
+              completed_date: new Date().toISOString().split('T')[0],
+              status_notes: 'Study updated and now meets MSA acceptance criteria. CAPA automatically closed.',
+              updated_at: MSA.nowIso()
+            })
+            .in('id', openCapas.map(c => c.id));
+          if (clUpd.error) throw clUpd.error;
+
+          console.log('  ✅ CAPA(s) status updated to completed');
+        } else {
+          console.log('  ⚪ No open CAPAs to close');
+        }
+      } else if (isAcceptable === 'unacceptable') {
+        // Create new CAPA if study is now unacceptable and no open CAPA exists
+        const { data: existingOpenCapa, error: exCapaErr } = await MSA.db.from(MSA.T.capa)
+          .select('*')
+          .eq('study_id', studyId)
+          .in('status', ['open', 'in_progress'])
+          .maybeSingle();
+        if (exCapaErr) throw exCapaErr;
+
+        if (!existingOpenCapa) {
+          console.log('❌ Study is now UNACCEPTABLE - creating new CAPA');
+          const user = await MSA.currentUser();
+          const capa = await createType1CapaIfNeeded(studyId, results, user.email, parseFloat(tolerance));
+          if (capa) {
+            console.log('✅ New CAPA created:', capa.capa_number);
+          }
+        } else {
+          console.log('ℹ️ CAPA already exists:', existingOpenCapa.capa_number);
+        }
+      }
+    } catch (capaError) {
+      console.error('⚠️ Error handling CAPA:', capaError);
+    }
+
+    return { success: true, message: 'Study updated successfully' };
+
+  } catch (error) {
+    console.error('Error updating Type 1 study:', error);
+    return { success: false, message: 'Server error' };
+  }
+};
+
+// ============================================================================
+// GET /msa/type1/:id/edit portu — type1Routes.js:505-558.
+// users/branding tabloları düştü: user ERP oturumundan, branding = MSA.BRANDING;
+// user_id sahiplik filtresi düştü (modülde herkes düzenleyebilir).
+// ============================================================================
+(async () => {
+  try {
+    const studyId = parseInt(MSA.requireQ('id'));
+    const user = await MSA.currentUser();
+    const branding = MSA.BRANDING;
+
+    // Get study
+    const stSel = await MSA.db.from(MSA.T.studies)
+      .select('*')
+      .eq('id', studyId)
+      .eq('study_type', 'type1')
+      .maybeSingle();
+    if (stSel.error) throw new Error(stSel.error.message);
+    const study = stSel.data;
+
+    if (!study) {
+      MSA.renderError('Hata', 'Study not found');
+      return;
+    }
+
+    // Get measurements
+    const mSel = await MSA.db.from(MSA.T.type1Measurements)
+      .select('*')
+      .eq('study_id', studyId)
+      .order('observation_number', { ascending: true });
+    if (mSel.error) throw new Error(mSel.error.message);
+    const measurements = mSel.data || [];
+
+    // Parse analysis options (savunmacı parse — orijinal davranış korunur)
+    const analysisOptions = MSA.parseJson(study.analysis_options, {}) || {};
+
+    await MSA.renderPage('type1-edit.ejs', {
+      user,
+      branding,
+      study,
+      measurements,
+      analysisOptions
+    });
+
+  } catch (e) {
+    console.error('Error loading Type 1 edit form:', e);
+    MSA.renderError('Hata', e.message);
+  }
+})();
+</script>
+</body>
+</html>

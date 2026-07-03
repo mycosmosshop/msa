@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<title>MSA Planı Düzenle</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+(async () => {
+  try {
+    const user = await MSA.currentUser();
+    const scheduleId = MSA.requireQ('id');
+
+    // ------------------------------------------------------------------
+    // POST /msa/schedule/:scheduleId/update portu — msaRoutes.js:4333
+    // Düşen özellikler: requireAuth (erp-guard), logActivity,
+    // admin/planlayan/sorumlu erişim kontrolü (herkes düzenleyebilir).
+    // responsible_user_id form alanı e-posta değeri taşır → responsible_email.
+    // ------------------------------------------------------------------
+    window.MSA_SCHEDULE_API = {
+      async update(schedId, body) {
+        try {
+          const { data: schedule, error } = await MSA.db.from(MSA.T.schedule)
+            .select('*').eq('id', schedId).maybeSingle();
+          MSA.throwIf(error, 'schedule select');
+
+          if (!schedule) {
+            return { success: false, error: 'Planlama bulunamadı', message: 'Planlama bulunamadı' };
+          }
+
+          // Build update object
+          const updateData = {
+            updated_at: MSA.nowIso()
+          };
+
+          const fields = [
+            'title', 'description', 'planned_date', 'reminder_date',
+            'reminder_time', 'reminder_days_before',
+            'gauge_name', 'gauge_number',
+            'part_name', 'characteristic', 'tolerance', 'location',
+            'status', 'notes'
+          ];
+
+          fields.forEach(field => {
+            if (body[field] !== undefined) {
+              updateData[field] = body[field] || null;
+            }
+          });
+
+          // responsible_user_id → responsible_email (e-posta kolonları)
+          if (body.responsible_user_id !== undefined) {
+            updateData.responsible_email = body.responsible_user_id || null;
+          }
+
+          const r = await MSA.db.from(MSA.T.schedule).update(updateData).eq('id', schedId);
+          MSA.throwIf(r.error, 'schedule update');
+
+          return { success: true, message: 'Planlama güncellendi' };
+        } catch (error) {
+          console.error('Schedule update error:', error);
+          return {
+            success: false,
+            error: 'Güncelleme hatası: ' + error.message,
+            message: 'Güncelleme hatası: ' + error.message
+          };
+        }
+      }
+    };
+
+    // ------------------------------------------------------------------
+    // GET /msa/schedule/:scheduleId/edit portu — msaRoutes.js:4393
+    // ------------------------------------------------------------------
+    const { data: schedule, error: schErr } = await MSA.db.from(MSA.T.schedule)
+      .select('*').eq('id', scheduleId).maybeSingle();
+    MSA.throwIf(schErr, 'schedule select');
+
+    if (!schedule) {
+      MSA.renderError('Hata', 'Planlama bulunamadı');
+      return;
+    }
+
+    // Kullanıcı listesi (users tablosu yok → kayıtlı e-postalardan derlenir)
+    const emails = new Set();
+    const [uSch, uSt] = await Promise.all([
+      MSA.db.from(MSA.T.schedule).select('planned_by_email, responsible_email'),
+      MSA.db.from(MSA.T.studies).select('owner_email')
+    ]);
+    (uSch.data || []).forEach(r => {
+      if (r.planned_by_email) emails.add(r.planned_by_email);
+      if (r.responsible_email) emails.add(r.responsible_email);
+    });
+    (uSt.data || []).forEach(r => { if (r.owner_email) emails.add(r.owner_email); });
+    if (user.email && user.email !== 'no-session') emails.add(user.email);
+    const users = [...emails].sort((a, b) => a.localeCompare(b)).map(e => ({ id: e, name: null, email: e }));
+
+    // Get equipment list (safe - table might not exist yet)
+    let equipment = [];
+    try {
+      const { data, error } = await MSA.db.from(MSA.T.equipment)
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      MSA.throwIf(error, 'equipment select');
+      equipment = data || [];
+    } catch (e) {
+      console.log('Equipment table not found, skipping');
+    }
+
+    await MSA.renderPage('schedule-edit.ejs', {
+      user,
+      branding: MSA.BRANDING,
+      schedule,
+      users,
+      equipment
+    });
+  } catch (e) {
+    console.error(e);
+    MSA.renderError('Hata', 'Sayfa yüklenirken hata oluştu: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

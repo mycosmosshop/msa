@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veri Girişi - <%= study.study_name %></title>
+  
+  <!-- Prevent theme flashing - load theme before any rendering -->
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme_mode') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  
+  <!-- Bootstrap Icons for theme toggle -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  
+  <!-- Dark Mode CSS -->
+  <link rel="stylesheet" href="css/dark-mode.css">
+  
+  <!-- Responsive CSS -->
+  <link rel="stylesheet" href="css/responsive.css">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg-secondary);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .header h1 {
+      color: var(--text-primary);
+      font-size: 28px;
+    }
+
+    .study-info {
+      background: var(--bg-tertiary);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .study-info p {
+      margin: 5px 0;
+      color: var(--text-secondary);
+    }
+
+    .study-info strong {
+      color: var(--text-primary);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(17, 153, 142, 0.4);
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+      transform: translateY(-2px);
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      margin-bottom: 20px;
+      border: 1px solid #dee2e6;
+      border-radius: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card-bg);
+    }
+
+    thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    thead th {
+      color: white;
+      padding: 15px 10px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 14px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    tbody tr {
+      transition: background 0.2s;
+    }
+
+    tbody tr:hover {
+      background: var(--bg-hover);
+    }
+
+    tbody tr:nth-child(even) {
+      background: var(--bg-tertiary);
+    }
+
+    tbody tr:nth-child(even):hover {
+      background: var(--bg-hover);
+    }
+
+    tbody td {
+      padding: 8px;
+      text-align: center;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    tbody td:first-child {
+      font-weight: 600;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.3s;
+      background: var(--input-bg);
+      color: var(--text-primary);
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      background: var(--input-bg);
+    }
+
+    input[type="number"]::placeholder,
+    select::placeholder {
+      color: var(--text-tertiary);
+      opacity: 0.7;
+    }
+
+    select option {
+      background-color: var(--input-bg);
+      color: var(--text-primary);
+    }
+
+    input[type="number"].saved {
+      border-color: #38ef7d;
+      background: rgba(56, 239, 125, 0.1);
+    }
+
+    input[type="number"].error {
+      border-color: #ff6b6b;
+      background: rgba(255, 107, 107, 0.1);
+    }
+
+    .status-message {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 25px;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      z-index: 1000;
+      animation: slideIn 0.3s ease-out;
+      display: none;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .status-message.success {
+      background: #38ef7d;
+      color: white;
+    }
+
+    .status-message.error {
+      background: #ff6b6b;
+      color: white;
+    }
+
+    .progress-bar {
+      background: #e0e0e0;
+      height: 8px;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    .progress-text {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .action-buttons {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 2px solid #e0e0e0;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>📊 Veri Girişi</h1>
+        <p style="color: #666; margin-top: 5px;"><%= study.study_name %></p>
+      </div>
+      <div class="btn-group" style="display: flex; align-items: center; gap: 10px;">
+        <!-- Theme Toggle Button -->
+        <button id="theme-toggle" class="theme-toggle" title="Temayı Değiştir" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: 2px solid rgba(255,255,255,0.3);">
+          <i class="bi bi-sun-fill" id="theme-icon-light"></i>
+          <i class="bi bi-moon-fill" id="theme-icon-dark" style="display:none;"></i>
+        </button>
+        
+        <a href="index.html?view=studies" class="btn btn-secondary">← Çalışmalarıma Dön</a>
+      </div>
+    </div>
+
+    <div class="study-info">
+      <p><strong>Operatör Sayısı:</strong> <%= study.num_operators %>
+        <% if (isDraftFromSchedule) { %>
+          <button onclick="editStudySettings()" class="btn btn-sm btn-warning" style="margin-left: 10px; padding: 3px 10px; font-size: 12px;">
+            ✏️ Değiştir
+          </button>
+        <% } %>
+      </p>
+      <p><strong>Parça Sayısı:</strong> <%= study.num_parts %>
+        <% if (isDraftFromSchedule) { %>
+          <button onclick="editStudySettings()" class="btn btn-sm btn-warning" style="margin-left: 10px; padding: 3px 10px; font-size: 12px;">
+            ✏️ Değiştir
+          </button>
+        <% } %>
+      </p>
+      <p><strong>Tekrar Sayısı:</strong> <%= study.num_trials %>
+        <% if (isDraftFromSchedule) { %>
+          <button onclick="editStudySettings()" class="btn btn-sm btn-warning" style="margin-left: 10px; padding: 3px 10px; font-size: 12px;">
+            ✏️ Değiştir
+          </button>
+        <% } %>
+      </p>
+      <p><strong>Toplam Ölçüm:</strong> <%= study.num_operators * study.num_parts * study.num_trials %></p>
+      
+      <% if (isDraftFromSchedule) { %>
+        <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 4px solid #ffc107;">
+          <small style="color: #856404;">
+            <i class="bi bi-info-circle"></i> 
+            <strong>Taslak Çalışma:</strong> Operatör, parça ve tekrar sayılarını değiştirebilirsiniz.
+          </small>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Error/Warning Messages -->
+    <% if (typeof error !== 'undefined' || typeof warning !== 'undefined' || typeof success !== 'undefined' || typeof message !== 'undefined') { %>
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div style="background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(235, 51, 73, 0.3);">
+          <strong>❌ Hata:</strong> <%= error %>
+        </div>
+      <% } %>
+      <% if (typeof warning !== 'undefined' && warning) { %>
+        <div style="background: linear-gradient(135deg, #f09819 0%, #edde5d 100%); color: #333; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(240, 152, 25, 0.3);">
+          <strong>⚠️ Uyarı:</strong> <%= warning %>
+        </div>
+      <% } %>
+      <% if (typeof success !== 'undefined' && success) { %>
+        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(17, 153, 142, 0.3);">
+          <strong>✅ Başarılı:</strong> <%= success %>
+        </div>
+      <% } %>
+      <% if (typeof message !== 'undefined' && message) { %>
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);">
+          <strong>ℹ️ Bilgi:</strong> <%= message %>
+        </div>
+      <% } %>
+    <% } %>
+
+    <div class="progress-text">
+      <strong>İlerleme:</strong> <span id="progress-count">0</span> / <%= study.num_operators * study.num_parts * study.num_trials %> ölçüm girildi
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="data-table">
+        <thead>
+          <tr>
+            <th style="width: 80px;">#</th>
+            <th style="width: 150px;">Operatör</th>
+            <th style="width: 150px;">Parça No</th>
+            <th style="width: 100px;">Tekrar</th>
+            <th style="width: 200px;">Ölçüm (mm)</th>
+          </tr>
+        </thead>
+        <tbody id="data-body">
+          <!-- JavaScript ile doldurulacak -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-success" id="save-all-btn">
+        💾 Tüm Verileri Kaydet
+        <span class="loading" id="save-loading" style="display: none;"></span>
+      </button>
+      
+      <!-- EMERGENCY: Direct HTML link - no JavaScript! -->
+      <a href="calculate.html?id=<%= study.id %>" class="btn btn-primary" style="display: inline-block; text-decoration: none;">
+        🧮 Hesapla ve Sonuçları Gör
+      </a>
+      
+      <!-- Backup: Keep old button hidden for debugging -->
+      <button class="btn btn-secondary" id="calculate-btn" onclick="handleCalculate(event)" style="display: none;">
+        🧮 DEBUG: Old Button
+      </button>
+    </div>
+  </div>
+
+  <div class="status-message" id="status-message"></div>
+
+  <script>
+    const study = {
+      id: <%= study.id %>,
+      num_operators: <%= study.num_operators %>,
+      num_parts: <%= study.num_parts %>,
+      num_trials: <%= study.num_trials %>
+    };
+
+    const operators = <%- JSON.stringify(operators) %>;
+    const parts = <%- JSON.stringify(parts) %>;
+    const existingMeasurements = <%- JSON.stringify(existingMeasurements) %>;
+
+    console.log('📊 Study:', study);
+    console.log('👥 Operators:', operators);
+    console.log('📦 Parts:', parts);
+    console.log('📏 Existing Measurements:', existingMeasurements);
+
+    if (!operators || operators.length === 0) {
+      alert('HATA: Operatör listesi boş! Database sorunu olabilir.');
+    }
+    if (!parts || parts.length === 0) {
+      alert('HATA: Parça listesi boş! Database sorunu olabilir.');
+    }
+
+    // Ölçüm verilerini organize et
+    const measurements = {};
+    existingMeasurements.forEach(m => {
+      // Backend'den operator_number ve part_number geliyorsa kullan, yoksa string'i kullan
+      const opKey = m.operator_number || m.operator;
+      const partKey = m.part_number || m.part;
+      const key = `${opKey}-${partKey}-${m.trial}`;
+      measurements[key] = m.measurement;
+      
+      // Debug: İlk 3 ölçümü logla
+      if (Object.keys(measurements).length <= 3) {
+        console.log(`📏 Measurement key: "${key}" = ${m.measurement}`, m);
+      }
+    });
+    
+    console.log('📊 Total measurements in dictionary:', Object.keys(measurements).length);
+    console.log('📊 Sample keys:', Object.keys(measurements).slice(0, 5));
+
+    // Tabloyu doldur
+    function populateTable() {
+      const tbody = document.getElementById('data-body');
+      tbody.innerHTML = '';
+      
+      let rowNum = 1;
+      for (let op of operators) {
+        for (let part of parts) {
+          for (let trial = 1; trial <= study.num_trials; trial++) {
+            const key = `${op.operator_number}-${part.part_number}-${trial}`;
+            const value = measurements[key] || '';
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${rowNum}</td>
+              <td>
+                <select class="operator-select" data-row="${rowNum}" disabled>
+                  <option value="${op.operator_number}" selected>${op.operator_name}</option>
+                </select>
+              </td>
+              <td>
+                <select class="part-select" data-row="${rowNum}" disabled>
+                  <option value="${part.part_number}" selected>${part.part_name}</option>
+                </select>
+              </td>
+              <td>${trial}</td>
+              <td>
+                <input 
+                  type="number" 
+                  step="0.001" 
+                  class="measurement-input" 
+                  data-operator="${op.operator_number}"
+                  data-part="${part.part_number}"
+                  data-trial="${trial}"
+                  value="${value}"
+                  placeholder="0.000"
+                />
+              </td>
+            `;
+            tbody.appendChild(row);
+            rowNum++;
+          }
+        }
+      }
+      
+      updateProgress();
+    }
+
+    // İlerleme çubuğunu güncelle
+    function updateProgress() {
+      const inputs = document.querySelectorAll('.measurement-input');
+      const filled = Array.from(inputs).filter(input => input.value !== '').length;
+      const total = inputs.length;
+      const percentage = (filled / total) * 100;
+      
+      document.getElementById('progress-count').textContent = filled;
+      document.getElementById('progress-fill').style.width = percentage + '%';
+    }
+
+    // Auto-save fonksiyonu
+    async function saveMeasurement(input) {
+      const operator = input.dataset.operator;
+      const part = input.dataset.part;
+      const trial = input.dataset.trial;
+      const value = input.value;
+      
+      if (value === '') {
+        return;
+      }
+      
+      try {
+        const result = await MSA.saveMeasurement(study.id, {
+          operator: parseInt(operator),
+          part: parseInt(part),
+          trial: parseInt(trial),
+          measurement: parseFloat(value)
+        });
+        
+        if (result && result.success) {
+          input.classList.add('saved');
+          input.classList.remove('error');
+          setTimeout(() => input.classList.remove('saved'), 1000);
+          updateProgress();
+        } else {
+          input.classList.add('error');
+          showMessage('Kayıt hatası!', 'error');
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        input.classList.add('error');
+        showMessage('Bağlantı hatası!', 'error');
+      }
+    }
+
+    // Tüm verileri kaydet
+    document.getElementById('save-all-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('save-all-btn');
+      const loading = document.getElementById('save-loading');
+      
+      btn.disabled = true;
+      loading.style.display = 'inline-block';
+      
+      const inputs = document.querySelectorAll('.measurement-input');
+      const data = [];
+      
+      for (let input of inputs) {
+        if (input.value !== '') {
+          data.push({
+            operator: parseInt(input.dataset.operator),
+            part: parseInt(input.dataset.part),
+            trial: parseInt(input.dataset.trial),
+            measurement: parseFloat(input.value)
+          });
+        }
+      }
+      
+      try {
+        const result = await MSA.saveMeasurements(study.id, data);
+        
+        if (result && result.success) {
+          showMessage('Tüm veriler kaydedildi!', 'success');
+        } else {
+          showMessage('Kayıt hatası!', 'error');
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        showMessage('Bağlantı hatası!', 'error');
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    });
+
+    // Hesapla butonu onclick handler - SIMPLE AND RELIABLE
+    function handleCalculate(event) {
+      console.log('🔵 handleCalculate CALLED');
+      console.log('🔵 Study ID:', study.id);
+      console.log('🔵 Event:', event);
+      
+      const inputs = document.querySelectorAll('.measurement-input');
+      const filled = Array.from(inputs).filter(input => input.value !== '').length;
+      const total = inputs.length;
+      
+      console.log('🔵 Filled:', filled, 'Total:', total);
+      
+      // Check if data is complete
+      if (filled < total) {
+        const proceed = confirm(`${total - filled} ölçüm eksik! Yine de hesaplama yapmak ister misiniz?`);
+        console.log('🔵 User confirmed:', proceed);
+        if (!proceed) {
+          console.log('🔵 User cancelled, returning');
+          return; // Don't proceed
+        }
+      }
+      
+      // Show loading indicator
+      const btn = event.target;
+      console.log('🔵 Button:', btn);
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Hesaplanıyor...';
+      
+      // Navigate directly - most reliable method
+      const url = `calculate.html?id=${study.id}`;
+      console.log('🔵 Navigating to:', url);
+      console.log('🔵 window.location.href =', url);
+      
+      window.location.href = url;
+      
+      console.log('🔵 Navigation command sent (this may not show if redirect is immediate)');
+    }
+
+    // Input değişikliklerini dinle (auto-save)
+    document.addEventListener('input', (e) => {
+      if (e.target.classList.contains('measurement-input')) {
+        const input = e.target;
+        clearTimeout(input.saveTimeout);
+        input.saveTimeout = setTimeout(() => saveMeasurement(input), 1000);
+      }
+    });
+
+    // Status mesajı göster
+    function showMessage(text, type) {
+      const msg = document.getElementById('status-message');
+      msg.textContent = text;
+      msg.className = `status-message ${type}`;
+      msg.style.display = 'block';
+      
+      setTimeout(() => {
+        msg.style.display = 'none';
+      }, 3000);
+    }
+
+    // Sayfa yüklendiğinde tabloyu doldur
+    populateTable();
+    
+    // Edit study settings (for draft studies from schedule)
+    async function editStudySettings() {
+      const currentOperators = <%= study.num_operators %>;
+      const currentParts = <%= study.num_parts %>;
+      const currentTrials = <%= study.num_trials %>;
+      
+      const newOperators = prompt(`Operatör Sayısı (mevcut: ${currentOperators}):`, currentOperators);
+      if (newOperators === null) return;
+      
+      const newParts = prompt(`Parça Sayısı (mevcut: ${currentParts}):`, currentParts);
+      if (newParts === null) return;
+      
+      const newTrials = prompt(`Tekrar Sayısı (mevcut: ${currentTrials}):`, currentTrials);
+      if (newTrials === null) return;
+      
+      // Validation with smart recommendations
+      const numOp = parseInt(newOperators);
+      const numPa = parseInt(newParts);
+      const numTr = parseInt(newTrials);
+      
+      // Basic range validation
+      if (isNaN(numOp) || numOp < 2 || numOp > 10) {
+        alert('❌ Operatör sayısı 2-10 arasında olmalıdır\n\n' +
+              '💡 MSA Önerisi:\n' +
+              '• Minimum 2 operatör (reproducibility için)\n' +
+              '• Önerilen: 3 operatör\n' +
+              '• Maksimum: 10 operatör (analiz karmaşıklığı)');
+        return;
+      }
+      if (isNaN(numPa) || numPa < 2 || numPa > 50) {
+        alert('❌ Parça sayısı 2-50 arasında olmalıdır\n\n' +
+              '💡 MSA Önerisi:\n' +
+              '• Minimum 5 parça (part variation için)\n' +
+              '• Önerilen: 10 parça\n' +
+              '• Daha fazla parça = daha iyi NDC');
+        return;
+      }
+      if (isNaN(numTr) || numTr < 2 || numTr > 10) {
+        alert('❌ Tekrar sayısı 2-10 arasında olmalıdır\n\n' +
+              '💡 MSA Önerisi:\n' +
+              '• Minimum 2 tekrar (repeatability için)\n' +
+              '• Önerilen: 2-3 tekrar\n' +
+              '• Daha fazla tekrar = daha hassas analiz ama daha uzun süre');
+        return;
+      }
+      
+      // Smart validation: MSA 4th Edition recommendations
+      const warnings = [];
+      const tips = [];
+      
+      // Check operator count
+      if (numOp < 3) {
+        warnings.push('⚠️ 2 operatör kullanıyorsunuz');
+        tips.push('Önerilen: En az 3 operatör (MSA 4th Edition)');
+      }
+      
+      // Check part count for good discrimination
+      if (numPa < 5) {
+        warnings.push('⚠️ ' + numPa + ' parça az olabilir');
+        tips.push('Önerilen: En az 10 parça (NDC ≥ 5 için)');
+      }
+      
+      // Calculate total measurements
+      const totalMeasurements = numOp * numPa * numTr;
+      if (totalMeasurements < 20) {
+        warnings.push('⚠️ Toplam ' + totalMeasurements + ' ölçüm çok az');
+        tips.push('Minimum 20 ölçüm önerilir (güvenilir istatistik)');
+      }
+      
+      // Estimate NDC potential
+      // NDC ≈ √(num_parts) for typical balanced designs
+      const estimatedNDC = Math.floor(Math.sqrt(numPa) * 1.41);
+      if (estimatedNDC < 5) {
+        warnings.push('⚠️ Tahmini NDC: ' + estimatedNDC + ' (< 5)');
+        tips.push('Daha yüksek NDC için parça sayısını artırın');
+        tips.push('NDC ≥ 5 için en az 10 parça önerilir');
+      }
+      
+      // Show warnings if any
+      if (warnings.length > 0) {
+        const warningMsg = '📊 MSA Kalite Uyarıları:\n\n' +
+          warnings.join('\n') + '\n\n' +
+          '💡 Öneriler:\n' +
+          tips.join('\n') + '\n\n' +
+          'Yine de devam etmek istiyor musunuz?';
+        
+        if (!confirm(warningMsg)) {
+          return;
+        }
+      }
+      
+      if (!confirm(`⚠️ Mevcut ölçüm verileri silinecek!\n\nYeni ayarlar:\n• Operatör: ${numOp}\n• Parça: ${numPa}\n• Tekrar: ${numTr}\n• Toplam ölçüm: ${totalMeasurements}\n\nDevam etmek istiyor musunuz?`)) {
+        return;
+      }
+      
+      try {
+        const result = await MSA.updateDraftSettings(<%= study.id %>, {
+          num_operators: numOp,
+          num_parts: numPa,
+          num_trials: numTr
+        });
+        
+        if (result.success) {
+          alert('✅ Ayarlar güncellendi! Sayfa yenileniyor...');
+          window.location.reload();
+        } else {
+          alert('❌ Hata: ' + result.error);
+        }
+      } catch (error) {
+        alert('❌ Bağlantı hatası: ' + error.message);
+      }
+    }
+  </script>
+  
+  <!-- Theme Switcher Script -->
+  <script src="js/theme-switcher.js"></script>
+</body>
+</html>

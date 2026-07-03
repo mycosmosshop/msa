@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MSA Dashboard - <%= branding?.company_name || 'GageAI' %></title>
+
+  <!-- Prevent theme flashing -->
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme_mode') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+  <!-- Dark Mode CSS -->
+  <link rel="stylesheet" href="css/dark-mode.css">
+
+  <!-- Responsive CSS -->
+  <link rel="stylesheet" href="css/responsive.css">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg-secondary);
+      min-height: 100vh;
+    }
+
+    /* Navbar */
+    .navbar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+    }
+
+    .navbar h1 {
+      font-size: 24px;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin: 0;
+    }
+
+    .navbar h1 img {
+      height: 40px;
+      width: auto;
+    }
+
+    .navbar-actions {
+      display: flex !important;
+      gap: 15px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-flex !important;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+      visibility: visible !important;
+    }
+
+    .btn-primary {
+      background: white;
+      color: #667eea;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.2);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1400px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    /* View Tabs */
+    .view-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .view-tab {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-radius: 8px 8px 0 0;
+      transition: all 0.3s ease;
+    }
+
+    .view-tab:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .view-tab.active {
+      background: var(--card-bg);
+      color: #667eea;
+      border-bottom: 3px solid #667eea;
+    }
+
+    /* Section */
+    .section {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* Studies Grid */
+    .studies-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .study-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .study-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+      border-color: #667eea;
+    }
+
+    .study-card h3 {
+      color: var(--text-primary);
+      font-size: 18px;
+      margin-bottom: 15px;
+    }
+
+    .study-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .study-info-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .study-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .study-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .study-btn-view {
+      background: #667eea;
+      color: white;
+    }
+
+    .study-btn-view:hover {
+      background: #5568d3;
+    }
+
+    .study-btn-edit {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .study-btn-edit:hover {
+      background: #d97706;
+    }
+
+    .study-btn-delete {
+      background: #ef4444;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .study-btn-delete:hover {
+      background: #dc2626;
+    }
+
+    /* Status Badge */
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .status-acceptable {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-marginal {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-unacceptable {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-draft {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state i {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.3;
+    }
+
+    /* Dropdown */
+    .dropdown {
+      position: relative;
+      display: inline-block !important;
+    }
+
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      background: var(--card-bg);
+      min-width: 250px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      border-radius: 8px;
+      z-index: 1000;
+      right: 0;
+      top: 100%;
+      margin-top: 8px;
+    }
+
+    .dropdown.active .dropdown-content {
+      display: block;
+    }
+
+    .dropdown-item {
+      color: var(--text-primary);
+      padding: 12px 16px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.2s ease;
+    }
+
+    .dropdown-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .dropdown-item:first-child {
+      border-radius: 8px 8px 0 0;
+    }
+
+    .dropdown-item:last-child {
+      border-radius: 0 0 8px 8px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <h1>
+      <% if (branding?.logo_url) { %>
+        <img src="<%= branding.logo_url %>" alt="<%= branding.company_name %>">
+      <% } %>
+      <%= branding?.company_name || 'GageAI' %>
+    </h1>
+
+    <div class="navbar-actions" style="display: flex !important; gap: 15px; align-items: center;">
+      <!-- Theme Toggle -->
+      <button id="theme-toggle" class="btn btn-secondary" title="Tema Değiştir" style="display: inline-flex !important;">
+        <i class="bi bi-sun-fill" id="theme-icon-light"></i>
+        <i class="bi bi-moon-fill" id="theme-icon-dark" style="display:none;"></i>
+      </button>
+
+      <!-- New Study Dropdown -->
+      <div class="dropdown" id="newStudyDropdown" style="display: inline-block !important; position: relative;">
+        <button class="btn btn-primary" onclick="toggleDropdown()" style="display: inline-flex !important; background: white !important; color: #667eea !important; padding: 10px 20px !important; border-radius: 8px !important; border: none !important;">
+          <i class="bi bi-plus-circle"></i>
+          Yeni Çalışma
+        </button>
+        <div class="dropdown-content">
+          <a href="type1-new.html" class="dropdown-item">
+            <i class="bi bi-speedometer2"></i>
+            Type 1 - Instrument Capability
+          </a>
+          <a href="new-study.html" class="dropdown-item">
+            <i class="bi bi-bar-chart"></i>
+            Type 2 - Gage R&R Studies
+          </a>
+          <a href="new-study.html?type=type3" class="dropdown-item">
+            <i class="bi bi-diagram-3"></i>
+            Type 3 - Gage R&R Studies (automatic equipment)
+          </a>
+        </div>
+      </div>
+
+      <!-- Additional Tools Dropdown -->
+      <div class="dropdown" id="toolsDropdown">
+        <button class="btn btn-secondary" onclick="toggleToolsDropdown()">
+          <i class="bi bi-tools"></i>
+          Araçlar
+        </button>
+        <div class="dropdown-content">
+          <a href="all-defects.html" class="dropdown-item">
+            <i class="bi bi-exclamation-triangle"></i>
+            Tüm Döfler
+          </a>
+          <a href="equipment.html" class="dropdown-item">
+            <i class="bi bi-wrench"></i>
+            Ekipman Listesi
+          </a>
+          <a href="msa-plan.html" class="dropdown-item">
+            <i class="bi bi-calendar-check"></i>
+            MSA Planı
+          </a>
+          <a href="upload-template.html" class="dropdown-item">
+            <i class="bi bi-upload"></i>
+            Şablon Yükle
+          </a>
+          <a href="smart-upload.html" class="dropdown-item">
+            <i class="bi bi-brain"></i>
+            Akıllı Şablon Yükle
+          </a>
+        </div>
+      </div>
+
+      <a href="index.html" class="btn btn-secondary">
+        <i class="bi bi-box-arrow-right"></i>
+        Çıkış
+      </a>
+    </div>
+  </nav>
+
+  <!-- Container -->
+  <div class="container">
+    <!-- View Tabs -->
+    <div class="view-tabs">
+      <button class="view-tab <%= view === 'dashboard' ? 'active' : '' %>" onclick="switchView('dashboard')">
+        <i class="bi bi-grid"></i> Çalışmalarım
+      </button>
+      <button class="view-tab <%= view === 'kpi' ? 'active' : '' %>" onclick="switchView('kpi')">
+        <i class="bi bi-graph-up"></i> KPI Dashboard
+      </button>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboard-view" style="display: <%= view === 'dashboard' ? 'block' : 'none' %>">
+<!-- MSA Planned Studies (Schedule) -->
+<% if (msaSchedules && msaSchedules.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-calendar-check"></i>
+      Planlanmış MSA Çalışmaları
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= msaSchedules.length %> plan
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% msaSchedules.forEach(schedule => {
+      const plannedDate = schedule.planned_date ? new Date(schedule.planned_date) : null;
+      const today = new Date();
+      const isOverdue = plannedDate ? plannedDate < today : false;
+      const daysUntil = plannedDate ? Math.ceil((plannedDate - today) / (1000 * 60 * 60 * 24)) : null;
+    %>
+      <div class="study-card" style="border-left: 4px solid <%= isOverdue ? '#dc3545' : '#ffc107' %>;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= schedule.title || schedule.equipment_name %></h3>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (isOverdue) { %>
+              <span class="status-badge" style="background: #dc3545; color: white;">⏰ Gecikmiş</span>
+            <% } else if (daysUntil !== null && daysUntil <= 7) { %>
+              <span class="status-badge" style="background: #ffc107; color: black;">⚠️ <%= daysUntil %> gün kaldı</span>
+            <% } else { %>
+              <span class="status-badge" style="background: #17a2b8; color: white;">📅 Planlandı</span>
+            <% } %>
+          </div>
+
+          <% if (schedule.equipment_name) { %>
+          <div class="study-info-item">
+            <span>Ekipman:</span>
+            <strong>
+              <%= schedule.equipment_name %>
+              <% if (schedule.gauge_number || schedule.device_number || schedule.serial_number) { %>
+                (<%= schedule.gauge_number || schedule.device_number || schedule.serial_number %>)
+              <% } %>
+            </strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tip:</span>
+            <% const scheduleTypeKey = (schedule.study_type || 'type2').toLowerCase(); %>
+            <strong>
+              <% if (scheduleTypeKey === 'type1') { %>
+                Type 1 - Instrument Capability
+              <% } else if (scheduleTypeKey === 'type3') { %>
+                Type 3 - Gage R&R Studies (automatic equipment)
+              <% } else { %>
+                Type 2 - Gage R&R Studies
+              <% } %>
+            </strong>
+          </div>
+
+          <div class="study-info-item">
+            <span>Planlanan Tarih:</span>
+            <strong>
+              <% if (plannedDate) { %>
+                <%= plannedDate.toLocaleDateString('tr-TR') %>
+              <% } else { %>
+                <span style="color: var(--text-secondary); font-style: italic;">Belirtilmemiş</span>
+              <% } %>
+            </strong>
+          </div>
+
+          <% if (schedule.assigned_to_name) { %>
+          <div class="study-info-item">
+            <span>Sorumlu:</span>
+            <strong><%= schedule.assigned_to_name %></strong>
+          </div>
+          <% } %>
+          <% if (schedule.location) { %>
+          <div class="study-info-item">
+            <span>Lokasyon:</span>
+            <strong><%= schedule.location %></strong>
+          </div>
+          <% } %>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <button onclick="createStudyFromSchedule(<%= schedule.id %>, '<%= (schedule.study_type || 'type2') %>')" class="study-btn study-btn-view">
+            <i class="bi bi-plus-circle"></i> Çalışma Başlat
+          </button>
+          <a href="msa-plan.html" class="study-btn study-btn-edit">
+            <i class="bi bi-calendar"></i> Plan Yönet
+          </a>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Type 1 Studies -->
+<%
+  console.log('[TEMPLATE] type1Studies:', type1Studies ? type1Studies.length : 'undefined');
+  console.log('[TEMPLATE] type1Studies IDs:', type1Studies ? type1Studies.map(s => s.id) : 'N/A');
+
+  const normalizeAcceptanceStatus = (value) => {
+    if (value === true) return 'acceptable';
+    if (value === false) return 'unacceptable';
+    if (typeof value === 'string') {
+      const normalized = value.toLowerCase().trim();
+      if (normalized.includes('unaccept') || normalized.includes('kabul edil') || normalized.includes('redded')) {
+        return 'unacceptable';
+      }
+      if (normalized.includes('accept')) {
+        return 'acceptable';
+      }
+      if (normalized.includes('marg')) {
+        return 'marginal';
+      }
+    }
+    return null;
+  };
+%>
+<% if (type1Studies && type1Studies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-speedometer2"></i>
+      Type 1 - Instrument Capability Studies
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= type1Studies.length %> çalışma
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% type1Studies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='type1-results.html?id=<%= study.id %>'">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= study.study_name %></h3>
+          <div style="display: flex; gap: 6px; flex-shrink: 0;">
+          </div>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (study.status === 'calculated') {
+                 const acceptanceStatus = normalizeAcceptanceStatus(study.is_acceptable) || 'marginal';
+              %>
+              <% if (acceptanceStatus === 'acceptable') { %>
+                <span class="status-badge status-acceptable">✓ Acceptable</span>
+              <% } else if (acceptanceStatus === 'unacceptable') { %>
+                <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+              <% } else { %>
+                <span class="status-badge status-marginal">⚠ Marginal</span>
+              <% } %>
+            <% } else { %>
+              <span class="status-badge status-draft">Taslak</span>
+            <% } %>
+          </div>
+
+          <% if (study.gauge_name) { %>
+          <div class="study-info-item">
+            <span>Gauge:</span>
+            <strong><%= study.gauge_name %></strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tarih:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="type1-results.html?id=<%= study.id %>" class="study-btn study-btn-view">
+            <i class="bi bi-eye"></i> Sonuçlar
+          </a>
+          <a href="type1-edit.html?id=<%= study.id %>" class="study-btn study-btn-edit">
+            <i class="bi bi-gear"></i> Ayarlar
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'type1', '<%= study.study_name %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Type 2 Studies -->
+<% if (type2Studies && type2Studies.length > 0) { %>
+  <div class="section">
+    <div class="section-header">
+      <h2 class="section-title">
+        <i class="bi bi-bar-chart"></i>
+        Type 2 - Gage R&R Studies
+      </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= type2Studies.length %> çalışma
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% type2Studies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='results.html?id=<%= study.id %>'">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= study.study_name %></h3>
+          <div style="display: flex; gap: 6px; flex-shrink: 0;">
+          </div>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (study.status === 'calculated') {
+                 const acceptanceStatus = normalizeAcceptanceStatus(study.is_acceptable) || 'marginal';
+              %>
+              <% if (acceptanceStatus === 'acceptable') { %>
+                <span class="status-badge status-acceptable">✓ Acceptable</span>
+              <% } else if (acceptanceStatus === 'unacceptable') { %>
+                <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+              <% } else { %>
+                <span class="status-badge status-marginal">⚠ Marginal</span>
+              <% } %>
+            <% } else { %>
+              <span class="status-badge status-draft">Taslak</span>
+            <% } %>
+          </div>
+
+          <% if (study.gauge_name) { %>
+          <div class="study-info-item">
+            <span>Gauge:</span>
+            <strong><%= study.gauge_name %></strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tarih:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="results.html?id=<%= study.id %>" class="study-btn study-btn-view">
+            <i class="bi bi-eye"></i> Sonuçlar
+          </a>
+          <a href="edit-study.html?id=<%= study.id %>" class="study-btn study-btn-edit">
+            <i class="bi bi-gear"></i> Ayarlar
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'msa', '<%= study.study_name %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Type 3 Studies -->
+<% if (type3Studies && type3Studies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-cpu"></i>
+      Type 3 - Gage R&R Studies (Automatic Equipment)
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= type3Studies.length %> çalışma
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% type3Studies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='results.html?id=<%= study.id %>'">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= study.study_name %></h3>
+          <div style="display: flex; gap: 6px; flex-shrink: 0;">
+            <%
+            const studyCapa = capaMap ? capaMap.get(study.id) : null;
+            %>
+
+            <% if (studyCapa) { %>
+            <a href="capa-detail.html?study=<%= study.id %>&id=<%= studyCapa.id %>"
+               onclick="event.stopPropagation()"
+               title="DÖF: <%= studyCapa.capa_number %>"
+               style="background: #ff6b6b; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-decoration: none; white-space: nowrap;">
+              📋 DÖF
+            </a>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (study.status === 'calculated') {
+                 const acceptanceStatus = normalizeAcceptanceStatus(study.is_acceptable) || 'marginal';
+              %>
+              <% if (acceptanceStatus === 'acceptable') { %>
+                <span class="status-badge status-acceptable">✓ Acceptable</span>
+              <% } else if (acceptanceStatus === 'marginal') { %>
+                <span class="status-badge status-marginal">⚠ Marginal</span>
+              <% } else { %>
+                <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+              <% } %>
+            <% } else { %>
+              <span class="status-badge status-draft">Taslak</span>
+            <% } %>
+          </div>
+
+          <% if (study.gauge_name) { %>
+          <div class="study-info-item">
+            <span>Gauge:</span>
+            <strong><%= study.gauge_name %></strong>
+          </div>
+          <% } %>
+
+          <% if (study.num_operators) { %>
+          <div class="study-info-item">
+            <span>Operatör/Parça/Tekrar:</span>
+            <strong><%= study.num_operators %>/<%= study.num_parts %>/<%= study.num_trials %></strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tarih:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="results.html?id=<%= study.id %>" class="study-btn study-btn-view">
+            <i class="bi bi-eye"></i> Sonuçlar
+          </a>
+          <a href="edit-study.html?id=<%= study.id %>" class="study-btn study-btn-edit">
+            <i class="bi bi-gear"></i> Ayarlar
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'type3', '<%= study.study_name %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Draft Studies -->
+<% if (draftStudies && draftStudies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-file-earmark"></i>
+      Taslak Çalışmalar
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= draftStudies.length %> taslak
+    </span>
+  </div>
+  <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">
+    Bu çalışmalar MSA planlamalarınızdan otomatik olarak oluşturuldu. Ölçüm verilerini girerek tamamlayın.
+  </p>
+
+  <div class="studies-grid">
+    <% draftStudies.forEach(study => { %>
+      <div class="study-card" style="border-color: #ffc107;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0; color: #856404;">
+            <i class="bi bi-file-earmark"></i>
+            <%= study.study_name %>
+          </h3>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Planlanan:</span>
+            <strong><%= study.planned_date ? new Date(study.planned_date).toLocaleDateString('tr-TR') : 'Belirtilmemiş' %></strong>
+          </div>
+
+          <div class="study-info-item">
+            <span>Oluşturulma:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions">
+          <a href="data-entry.html?id=<%= study.id %>" class="study-btn" style="background: #ffc107; color: #856404; flex: 1;">
+            <i class="bi bi-pencil-square"></i> Veri Gir
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'draft', '<%= study.study_name %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Other Users' Type 1 Studies -->
+<% if (adminType1Studies && adminType1Studies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-shield-check"></i>
+      Type 1 Studies (Diğer Kullanıcılar)
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= adminType1Studies.length %> çalışma
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% adminType1Studies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='type1-results.html?id=<%= study.id %>'" style="border: 2px solid #8b5cf6;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= study.study_name %></h3>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Sahibi:</span>
+            <strong><%= study.owner_name || study.owner_email %></strong>
+          </div>
+
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (study.status === 'calculated') {
+                 const acceptanceStatus = normalizeAcceptanceStatus(study.is_acceptable) || 'marginal';
+              %>
+              <% if (acceptanceStatus === 'acceptable') { %>
+                <span class="status-badge status-acceptable">✓ Acceptable</span>
+              <% } else if (acceptanceStatus === 'unacceptable') { %>
+                <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+              <% } else { %>
+                <span class="status-badge status-marginal">⚠ Marginal</span>
+              <% } %>
+            <% } else { %>
+              <span class="status-badge status-draft">Taslak</span>
+            <% } %>
+          </div>
+
+          <% if (study.gauge_name) { %>
+          <div class="study-info-item">
+            <span>Gauge:</span>
+            <strong><%= study.gauge_name %></strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tarih:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="type1-results.html?id=<%= study.id %>" class="study-btn study-btn-view">
+            <i class="bi bi-eye"></i> Sonuçlar
+          </a>
+          <a href="type1-edit.html?id=<%= study.id %>" class="study-btn study-btn-edit">
+            <i class="bi bi-gear"></i> Ayarlar
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'type1', '<%= study.study_name.replace(/'/g, "\\'") %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Other Users' Type 2 Studies -->
+<% if (adminType2Studies && adminType2Studies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-shield-check"></i>
+      Type 2 Studies (Diğer Kullanıcılar)
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= adminType2Studies.length %> çalışma
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% adminType2Studies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='results.html?id=<%= study.id %>'" style="border: 2px solid #8b5cf6;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= study.study_name %></h3>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Sahibi:</span>
+            <strong><%= study.owner_name || study.owner_email %></strong>
+          </div>
+
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (study.status === 'calculated') {
+                 const acceptanceStatus = normalizeAcceptanceStatus(study.is_acceptable) || 'marginal';
+              %>
+              <% if (acceptanceStatus === 'acceptable') { %>
+                <span class="status-badge status-acceptable">✓ Acceptable</span>
+              <% } else if (acceptanceStatus === 'unacceptable') { %>
+                <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+              <% } else { %>
+                <span class="status-badge status-marginal">⚠ Marginal</span>
+              <% } %>
+            <% } else { %>
+              <span class="status-badge status-draft">Taslak</span>
+            <% } %>
+          </div>
+
+          <% if (study.gauge_name) { %>
+          <div class="study-info-item">
+            <span>Gauge:</span>
+            <strong><%= study.gauge_name %></strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tarih:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="results.html?id=<%= study.id %>" class="study-btn study-btn-view">
+            <i class="bi bi-eye"></i> Sonuçlar
+          </a>
+          <a href="edit-study.html?id=<%= study.id %>" class="study-btn study-btn-edit">
+            <i class="bi bi-gear"></i> Ayarlar
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'msa', '<%= study.study_name.replace(/'/g, "\\'") %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Other Users' Type 3 Studies -->
+<% if (adminType3Studies && adminType3Studies.length > 0) { %>
+<div class="section">
+  <div class="section-header">
+    <h2 class="section-title">
+      <i class="bi bi-shield-check"></i>
+      Type 3 Studies (Automatic Equipment - Diğer Kullanıcılar)
+    </h2>
+    <span style="color: var(--text-secondary); font-size: 14px;">
+      <%= adminType3Studies.length %> çalışma
+    </span>
+  </div>
+
+  <div class="studies-grid">
+    <% adminType3Studies.forEach(study => { %>
+      <div class="study-card" onclick="window.location='results.html?id=<%= study.id %>'" style="border: 2px solid #8b5cf6;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <h3 style="flex: 1; margin: 0;"><%= study.study_name %></h3>
+        </div>
+
+        <div class="study-info">
+          <div class="study-info-item">
+            <span>Sahibi:</span>
+            <strong><%= study.owner_name || study.owner_email %></strong>
+          </div>
+
+          <div class="study-info-item">
+            <span>Durum:</span>
+            <% if (study.status === 'calculated') {
+                 const acceptanceStatus = normalizeAcceptanceStatus(study.is_acceptable) || 'marginal';
+              %>
+              <% if (acceptanceStatus === 'acceptable') { %>
+                <span class="status-badge status-acceptable">✓ Acceptable</span>
+              <% } else if (acceptanceStatus === 'marginal') { %>
+                <span class="status-badge status-marginal">⚠ Marginal</span>
+              <% } else { %>
+                <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+              <% } %>
+            <% } else { %>
+              <span class="status-badge status-draft">Taslak</span>
+            <% } %>
+          </div>
+
+          <% if (study.gauge_name) { %>
+          <div class="study-info-item">
+            <span>Gauge:</span>
+            <strong><%= study.gauge_name %></strong>
+          </div>
+          <% } %>
+
+          <% if (study.num_operators) { %>
+          <div class="study-info-item">
+            <span>Operatör/Parça/Tekrar:</span>
+            <strong><%= study.num_operators %>/<%= study.num_parts %>/<%= study.num_trials %></strong>
+          </div>
+          <% } %>
+
+          <div class="study-info-item">
+            <span>Tarih:</span>
+            <strong><% if (study.created_at) { %><%= new Date(study.created_at).toLocaleDateString('tr-TR') %><% } else { %><span style="color: var(--text-secondary); font-style: italic;">-</span><% } %></strong>
+          </div>
+        </div>
+
+        <div class="study-actions" onclick="event.stopPropagation()">
+          <a href="results.html?id=<%= study.id %>" class="study-btn study-btn-view">
+            <i class="bi bi-eye"></i> Sonuçlar
+          </a>
+          <a href="edit-study.html?id=<%= study.id %>" class="study-btn study-btn-edit">
+            <i class="bi bi-gear"></i> Ayarlar
+          </a>
+          <button onclick="deleteStudy(<%= study.id %>, 'type3', '<%= study.study_name.replace(/'/g, "\\'") %>')" class="study-btn study-btn-delete">
+            <i class="bi bi-trash"></i> Sil
+          </button>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- Empty State -->
+<% if ((!type1Studies || type1Studies.length === 0) &&
+       (!type2Studies || type2Studies.length === 0) &&
+       (!type3Studies || type3Studies.length === 0) &&
+       (!draftStudies || draftStudies.length === 0) &&
+       (!sharedStudies || sharedStudies.length === 0)) { %>
+<div class="empty-state">
+  <i class="bi bi-folder-x"></i>
+  <h2 style="color: var(--text-primary); margin-bottom: 10px;">Henüz çalışma yok</h2>
+  <p>Yeni bir MSA çalışması oluşturmak için yukarıdaki "Yeni Çalışma" butonuna tıklayın.</p>
+</div>
+<% } %>
+    </div>
+
+    <!-- KPI View -->
+    <div id="kpi-view" style="display: <%= view === 'kpi' ? 'block' : 'none' %>">
+<!-- KPI Dashboard -->
+<% if (kpiData) { %>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+  <!-- Total Studies -->
+  <div class="section" style="text-align: center;">
+    <i class="bi bi-clipboard-data" style="font-size: 48px; color: #667eea; margin-bottom: 10px;"></i>
+    <div style="font-size: 36px; font-weight: bold; color: var(--text-primary); margin-bottom: 5px;">
+      <%= kpiData.totalStudies %>
+    </div>
+    <div style="color: var(--text-secondary); font-size: 14px;">Toplam Çalışma</div>
+  </div>
+
+  <!-- Acceptable Rate -->
+  <div class="section" style="text-align: center;">
+    <i class="bi bi-check-circle" style="font-size: 48px; color: #10b981; margin-bottom: 10px;"></i>
+    <div style="font-size: 36px; font-weight: bold; color: #10b981; margin-bottom: 5px;">
+      <%= kpiData.acceptableRate.toFixed(1) %>%
+    </div>
+    <div style="color: var(--text-secondary); font-size: 14px;">Kabul Oranı</div>
+  </div>
+
+  <!-- Average GRR -->
+  <div class="section" style="text-align: center;">
+    <i class="bi bi-graph-up" style="font-size: 48px; color: #f59e0b; margin-bottom: 10px;"></i>
+    <div style="font-size: 36px; font-weight: bold; color: var(--text-primary); margin-bottom: 5px;">
+      <%= kpiData.avgGRR && typeof kpiData.avgGRR === 'number' ? kpiData.avgGRR.toFixed(1) + '%' : 'N/A' %>
+    </div>
+    <div style="color: var(--text-secondary); font-size: 14px;">Ortalama %GRR</div>
+  </div>
+
+  <!-- Active Gauges -->
+  <div class="section" style="text-align: center;">
+    <i class="bi bi-tools" style="font-size: 48px; color: #8b5cf6; margin-bottom: 10px;"></i>
+    <div style="font-size: 36px; font-weight: bold; color: var(--text-primary); margin-bottom: 5px;">
+      <%= kpiData.activeGauges || 0 %>
+    </div>
+    <div style="color: var(--text-secondary); font-size: 14px;">Aktif Gauge</div>
+  </div>
+</div>
+
+<!-- Study Type Distribution -->
+<div class="section">
+  <h2 class="section-title">
+    <i class="bi bi-pie-chart"></i>
+    Çalışma Tipi Dağılımı
+  </h2>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px;">
+    <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; text-align: center;">
+      <div style="font-size: 24px; font-weight: bold; color: #667eea;">
+        <%= kpiData.type1Count || 0 %>
+      </div>
+      <div style="color: var(--text-secondary); font-size: 13px; margin-top: 5px;">Type 1</div>
+    </div>
+    <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; text-align: center;">
+      <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">
+        <%= kpiData.type2Count || 0 %>
+      </div>
+      <div style="color: var(--text-secondary); font-size: 13px; margin-top: 5px;">Type 2</div>
+    </div>
+    <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; text-align: center;">
+      <div style="font-size: 24px; font-weight: bold; color: #10b981;">
+        <%= kpiData.type3Count || 0 %>
+      </div>
+      <div style="color: var(--text-secondary); font-size: 13px; margin-top: 5px;">Type 3</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Activity -->
+<% if (kpiData.recentStudies && kpiData.recentStudies.length > 0) { %>
+<div class="section">
+  <h2 class="section-title">
+    <i class="bi bi-clock-history"></i>
+    Son Çalışmalar
+  </h2>
+  <div style="margin-top: 20px;">
+    <% kpiData.recentStudies.forEach(study => { %>
+    <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="flex: 1;">
+        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 5px;">
+          <%= study.study_name %>
+        </div>
+        <div style="font-size: 13px; color: var(--text-secondary);">
+          <%= new Date(study.created_at).toLocaleDateString('tr-TR') %>
+        </div>
+      </div>
+      <div>
+        <% if (study.status === 'calculated') { %>
+          <% if (study.is_acceptable === 'acceptable' || study.is_acceptable === true) { %>
+            <span class="status-badge status-acceptable">✓ Acceptable</span>
+          <% } else if (study.is_acceptable === 'marginal') { %>
+            <span class="status-badge status-marginal">⚠ Marginal</span>
+          <% } else { %>
+            <span class="status-badge status-unacceptable">✗ Unacceptable</span>
+          <% } %>
+        <% } else { %>
+          <span class="status-badge status-draft">Taslak</span>
+        <% } %>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<% } else { %>
+<!-- No KPI Data -->
+<div class="empty-state">
+  <i class="bi bi-graph-up"></i>
+  <h2 style="color: var(--text-primary); margin-bottom: 10px;">KPI Verisi Yok</h2>
+  <p>KPI dashboard'u görmek için en az bir çalışma oluşturun.</p>
+</div>
+<% } %>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    function toggleDropdown() {
+      const dropdown = document.getElementById('newStudyDropdown');
+      dropdown.classList.toggle('active');
+      // Close tools dropdown if open
+      document.getElementById('toolsDropdown')?.classList.remove('active');
+    }
+
+    function toggleToolsDropdown() {
+      const dropdown = document.getElementById('toolsDropdown');
+      dropdown.classList.toggle('active');
+      // Close new study dropdown if open
+      document.getElementById('newStudyDropdown')?.classList.remove('active');
+    }
+
+    // Close dropdown when clicking outside
+    window.addEventListener('click', function(e) {
+      if (!e.target.closest('.dropdown')) {
+        document.getElementById('newStudyDropdown').classList.remove('active');
+        document.getElementById('toolsDropdown')?.classList.remove('active');
+      }
+    });
+
+    function switchView(view) {
+      // Statik portta iki görünüm ayrı sayfa yüklemeleridir (KPI = index.html?view=kpi)
+      window.location.href = view === 'kpi' ? 'index.html?view=kpi' : 'index.html';
+    }
+
+    // Delete study function
+    // Orijinal DELETE /msa/type1/:id, /msa/type2/:id ve /msa/:id rotalarının supabase-js portu.
+    // FK'ler ON DELETE CASCADE olduğundan ölçüm/operatör/parça/sonuç/CAPA kayıtları otomatik silinir.
+    async function deleteStudy(studyId, studyType, studyName) {
+      if (!confirm(`"${studyName}" çalışmasını silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!`)) {
+        return;
+      }
+
+      try {
+        let query = MSA.db.from(MSA.T.studies).select('id, study_name').eq('id', studyId);
+        if (studyType === 'type1') {
+          query = query.eq('study_type', 'type1');
+        } else if (studyType === 'type2') {
+          query = query.eq('study_type', 'type2');
+        }
+        const { data: study, error: selErr } = await query.maybeSingle();
+
+        let result;
+        if (selErr) {
+          result = { success: false, message: 'Failed to delete study: ' + selErr.message };
+        } else if (!study) {
+          result = { success: false, message: 'Study not found or access denied' };
+        } else {
+          const del = await MSA.db.from(MSA.T.studies).delete().eq('id', studyId);
+          result = del.error
+            ? { success: false, message: 'Failed to delete study: ' + del.error.message }
+            : { success: true, message: 'Study deleted successfully' };
+        }
+
+        if (result.success) {
+          alert('✅ Çalışma başarıyla silindi');
+          window.location.reload();
+        } else {
+          alert('❌ Hata: ' + (result.message || 'Çalışma silinemedi'));
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('❌ Çalışma silinirken bir hata oluştu');
+      }
+    }
+
+    // Create study from schedule
+    function createStudyFromSchedule(scheduleId, studyType) {
+      if (!confirm('Bu plandan yeni bir MSA çalışması başlatmak istiyor musunuz?')) {
+        return;
+      }
+
+      const normalizedType = (studyType || 'type2').toLowerCase();
+      if (normalizedType === 'type1') {
+        window.location.href = `type1-new.html?schedule_id=${scheduleId}`;
+        return;
+      }
+      if (normalizedType === 'type2') {
+        window.location.href = `new-study.html?schedule_id=${scheduleId}`;
+        return;
+      }
+      window.location.href = `new-study.html?schedule_id=${scheduleId}`;
+    }
+  </script>
+
+  <!-- Theme Switcher -->
+  <script src="js/theme-switcher.js"></script>
+</body>
+</html>

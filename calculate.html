@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/msa-calculations.js?v=jasp1"></script>
+<title>Hesaplama - Gage R&R</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Hesaplanıyor…</div>
+<script>
+(async () => {
+  // GET /msa/:id/calculate portu — msaRoutes.js:1861-2208; orkestrasyon MSA.calculateStudy içinde birebir.
+  const studyId = MSA.requireQ('id');
+  const allowIncomplete = MSA.q('allowIncomplete') === '1';
+  try {
+    const locals = await MSA.calculateStudy(studyId, { allowIncomplete });
+
+    if (locals && locals.redirect) {
+      const r = locals.redirect;
+      const params = r.params || {};
+
+      // Orijinal akış: eksik veri → data-entry?warning=... banner'ı ("... Devam edilsin mi?").
+      // Sunucu tarafında devam yolu yoktu; statikte confirm() ile emüle edilir:
+      // Tamam → allowIncomplete=1 ile yeniden hesapla; İptal → orijinal redirect (banner data-entry'de görünür).
+      if (params.warning && !allowIncomplete) {
+        if (confirm(params.warning)) {
+          return location.replace('calculate.html?id=' + encodeURIComponent(studyId) + '&allowIncomplete=1');
+        }
+      }
+
+      const qs = new URLSearchParams(params).toString();
+      return location.replace(r.page + (qs ? '?' + qs : ''));
+    }
+
+    await MSA.renderPage('results.ejs', locals);
+  } catch (error) {
+    console.error('❌ CALCULATE ERROR - CATCH BLOCK');
+    console.error('❌ Error:', error.message);
+    if (error.message === 'Study not found') {
+      return MSA.renderError('Hata', 'Study not found');
+    }
+    // Rotanın catch bloğu portu: data-entry'ye hata mesajıyla dön
+    location.replace('data-entry.html?id=' + encodeURIComponent(studyId) +
+      '&error=' + encodeURIComponent('Hesaplama sırasında hata oluştu: ' + error.message));
+  }
+})();
+</script>
+</body>
+</html>

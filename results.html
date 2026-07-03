@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/msa-calculations.js?v=jasp1"></script>
+<title>Analiz Sonuçları - Gage R&R</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+(async () => {
+  // GET /msa/:id/results portu — msaRoutes.js:2211-2513 birebir (yetki kontrolü erp-guard'a düştü)
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+
+    // checkStudyAccess portu: çalışmayı getir (paylaşım/yetki sistemi düştü — herkes görebilir)
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) {
+      return MSA.renderError('Erişim Reddedildi', 'Çalışma bulunamadı');
+    }
+
+    if (study.status === 'draft') {
+      console.log('⚠️ Study is draft, redirecting to data-entry');
+      return location.replace('data-entry.html?id=' + encodeURIComponent(studyId));
+    }
+
+    // Get measurements with operator and part names (LEFT JOIN portu)
+    const { measurements, operators, parts } = await MSA.getMeasurementsWithNames(studyId);
+
+    // Convert measurement values to numbers (database returns strings)
+    const numericMeasurements = measurements.map(m => ({
+      ...m,
+      measurement: parseFloat(m.measurement),
+      trial: parseInt(m.trial)
+    }));
+
+    // Get analysis options - parse if string
+    let analysisOptions = MSA.parseJson(study.analysis_options, {}) || {};
+
+    // Ensure analysis_options has required fields with defaults
+    if (!analysisOptions.interaction_pooling) {
+      console.log('⚠️ No interaction_pooling specified, using default: auto');
+      analysisOptions.interaction_pooling = 'auto';
+    }
+
+    // Ensure plots object exists with defaults
+    if (!analysisOptions.plots) {
+      analysisOptions.plots = {
+        anova_table: true,
+        components_contribution: true,
+        components_variance: true,
+        gauge_evaluation: true,
+        xbar_r_chart: true,
+        by_operator: true,
+        by_part: true,
+        operator_part_interaction: true,
+        scatter_plots: true,
+        fit_line: true,
+        show_origin_line: true,
+        measurements_part: true,
+        measurements_op: true,
+        display_all: false,
+        traffic_light: true
+      };
+    } else {
+      // Ensure specific keys exist (backward compatibility for old studies)
+      let needsUpdate = false;
+
+      if (analysisOptions.plots.scatter === undefined) {
+        console.log('⚠️ Adding missing scatter (Matrix Plot)');
+        analysisOptions.plots.scatter = true;
+        needsUpdate = true;
+      }
+      if (analysisOptions.plots.measurements_part === undefined && analysisOptions.plots.measurements_by_part === undefined) {
+        console.log('⚠️ Adding missing measurements_part');
+        analysisOptions.plots.measurements_part = true;
+        needsUpdate = true;
+      }
+      if (analysisOptions.plots.measurements_op === undefined && analysisOptions.plots.measurements_by_op === undefined) {
+        console.log('⚠️ Adding missing measurements_op');
+        analysisOptions.plots.measurements_op = true;
+        needsUpdate = true;
+      }
+
+      // VERİTABANINA KAYDET!
+      if (needsUpdate) {
+        console.log('💾 Updating database with backward compatibility fixes...');
+        const r = await MSA.db.from(MSA.T.studies)
+          .update({ analysis_options: analysisOptions, updated_at: MSA.nowIso() })
+          .eq('id', studyId);
+        MSA.throwIf(r.error, 'analysis_options backfill');
+        console.log('✅ Database updated with complete plot options');
+      }
+    }
+
+    // Get tolerance width from study
+    const toleranceWidth = (analysisOptions && analysisOptions.tolerance && analysisOptions.tolerance.width) || null;
+
+    // Check if results already exist in database
+    let results, controlCharts;
+
+    if (study.anova_results && study.variance_components && study.gauge_evaluation) {
+      // ✅ Results exist in database - just read them (FAST!)
+      console.log('✅ Reading results from database (no recalculation needed)');
+      try {
+        results = {
+          anovaTable: MSA.parseJson(study.anova_results, null),
+          varianceComponents: MSA.parseJson(study.variance_components, null),
+          gaugeEvaluation: MSA.parseJson(study.gauge_evaluation, null)
+        };
+
+        // Add interpretation from stored data
+        const grr = results.gaugeEvaluation.totalGaugeRR.pctStudyVar;
+        results.interpretation = {
+          acceptability: study.is_acceptable === 'acceptable' ? 'Acceptable' :
+                        study.is_acceptable === 'marginal' ? 'Marginal' : 'Unacceptable',
+          recommendation: grr < 10 ? 'Ölçüm sistemi kabul edilebilir' :
+                         grr < 30 ? 'Duruma göre kabul edilebilir' :
+                         'Ölçüm sistemi kabul edilemez'
+        };
+
+        // Calculate control charts (lightweight operation)
+        controlCharts = window.msaCalculations.calculateControlCharts(numericMeasurements);
+        console.log('✅ Results loaded from database successfully');
+      } catch (parseError) {
+        console.error('❌ Error parsing stored results, will recalculate:', parseError);
+        // Fall through to recalculation below
+        results = null;
+      }
+    }
+
+    // Only recalculate if results don't exist or parsing failed
+    if (!results) {
+      try {
+        console.log('🔄 Recalculating results (no stored results found)...');
+        results = window.msaCalculations.calculateGaugeRR(numericMeasurements, toleranceWidth, analysisOptions);
+        controlCharts = window.msaCalculations.calculateControlCharts(numericMeasurements);
+        console.log('✅ Results recalculated successfully');
+      } catch (calcError) {
+        console.error('❌ Recalculation error:', calcError);
+        return MSA.renderError('Hesaplama Hatası', 'Sonuçlar hesaplanırken bir hata oluştu: ' + calcError.message);
+      }
+    }
+
+    console.log('👥 Operators found:', operators.length);
+    console.log('📦 Parts found:', parts.length);
+
+    // CRITICAL FIX: Ensure plot options have defaults for rendering
+    // This fixes old studies where these keys don't exist
+    if (!analysisOptions.plots) {
+      analysisOptions.plots = {};
+    }
+
+    // Set defaults for missing plot options (backward compatibility)
+    const plotDefaults = {
+      scatter: true,
+      measurements_part: true,
+      measurements_op: true,
+      interaction: true,
+      components: true,
+      range_charts: true,
+      average_chart: true,
+      traffic_light: true
+    };
+
+    Object.keys(plotDefaults).forEach(key => {
+      if (analysisOptions.plots[key] === undefined) {
+        analysisOptions.plots[key] = plotDefaults[key];
+        console.log(`⚠️ Set default for plots.${key} = ${plotDefaults[key]}`);
+      }
+    });
+
+    console.log('📊 Final plot options:', analysisOptions.plots);
+
+    // Get branding settings for PDF header (app_settings düştü — sabit)
+    const branding = MSA.BRANDING;
+
+    // Get CAPA if exists (only active ones)
+    const { data: capaRows, error: capaErr } = await MSA.db.from(MSA.T.capa)
+      .select('*')
+      .eq('study_id', studyId)
+      .in('status', ['open', 'in_progress', 'overdue'])
+      .limit(1);
+    MSA.throwIf(capaErr, 'capa select');
+    const capa = (capaRows && capaRows[0]) || null;
+
+    console.log('✅ All data ready, rendering results page...');
+
+    await MSA.renderPage('results.ejs', {
+      user,
+      study,
+      results,
+      controlCharts,
+      measurements,
+      analysisOptions,
+      operators,  // Add operator names
+      parts,      // Add part names
+      branding,  // Add branding settings to view
+      capa  // Add CAPA if exists
+    });
+  } catch (error) {
+    console.error('❌ Results page error:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sonuç sayfası yüklenirken bir hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>

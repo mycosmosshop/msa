@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ekipman Listesi - <%= branding.company_name %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <style>
+    :root {
+      --primary-color: <%= branding.primary_color %>;
+      --secondary-color: <%= branding.secondary_color %>;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      min-height: 100vh;
+      padding: 30px 0;
+    }
+
+    .card {
+      border: none;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border-radius: 15px 15px 0 0 !important;
+      padding: 20px 30px;
+    }
+
+    .table thead {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      border: none;
+    }
+
+    .btn-primary:hover {
+      background: var(--secondary-color);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="card">
+      <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h3 class="mb-0">
+              <i class="bi bi-tools"></i> Ekipman Listesi
+            </h3>
+            <p class="mb-0 mt-2" style="opacity: 0.9;">MSA planlamasında kullanılan ölçüm ekipmanlarını yönetin</p>
+          </div>
+          <a href="index.html" class="btn btn-light">
+            <i class="bi bi-arrow-left"></i> Dashboard
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <button class="btn btn-primary" onclick="showAddModal()">
+            <i class="bi bi-plus-circle"></i> Yeni Ekipman Ekle
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover" id="equipmentTable">
+            <thead>
+              <tr>
+                <th>Cihaz Adı</th>
+                <th>Seri No</th>
+                <th>Cihaz No</th>
+                <th>Lokasyon</th>
+                <th>Açıklama</th>
+                <th>Otomatik Plan</th>
+                <th>Durum</th>
+                <th>İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="equipmentTableBody">
+              <tr>
+                <td colspan="8" class="text-center">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Yükleniyor...</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Equipment Modal -->
+  <div class="modal fade" id="equipmentModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="equipmentModalTitle">Yeni Ekipman Ekle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="equipmentForm">
+            <div class="mb-3">
+              <label class="form-label">Cihaz Adı *</label>
+              <input type="text" class="form-control" id="equipment_name" required
+                     placeholder="Örn: Dijital Mikrometre">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Seri No *</label>
+              <input type="text" class="form-control" id="equipment_serial" required
+                     placeholder="Örn: SN-2024-001">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Cihaz No *</label>
+              <input type="text" class="form-control" id="equipment_device" required
+                     placeholder="Örn: MIT-001">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Lokasyon</label>
+              <input type="text" class="form-control" id="equipment_location"
+                     placeholder="Örn: Kalite Kontrol Laboratuvarı">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Açıklama</label>
+              <textarea class="form-control" id="equipment_description" rows="2"
+                        placeholder="Ek bilgiler..."></textarea>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="equipment_is_active" checked>
+              <label class="form-check-label" for="equipment_is_active">
+                Aktif
+              </label>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="equipment_schedule_msa">
+              <label class="form-check-label" for="equipment_schedule_msa">
+                <strong>📅 Otomatik MSA Planlaması Oluştur</strong>
+                <small class="d-block text-muted">Kaydedildikten sonra periyodik MSA planlaması oluşturulur</small>
+              </label>
+            </div>
+            <div class="mb-3" id="schedule_interval_container" style="display: none; margin-left: 25px;">
+              <label class="form-label"><strong>Planlama Periyodu</strong></label>
+              <select class="form-control" id="equipment_schedule_interval">
+                <option value="3">Her 3 Ayda Bir</option>
+                <option value="6">Her 6 Ayda Bir</option>
+                <option value="12" selected>Yıllık (12 Ay)</option>
+                <option value="24">İki Yılda Bir (24 Ay)</option>
+                <option value="36">Üç Yılda Bir (36 Ay)</option>
+              </select>
+            </div>
+            <div class="mb-3" id="schedule_start_date_container" style="display: none; margin-left: 25px;">
+              <label class="form-label"><strong>İlk Planlama Tarihi</strong></label>
+              <input type="date" class="form-control" id="equipment_schedule_start_date">
+              <div class="form-text">Bu tarih ilk MSA planlamasının oluşturulacağı günü belirler. Periyot seçiminize göre sonraki planlamalar kapanıştan sonra otomatik oluşur.</div>
+            </div>
+            <div class="mb-3" id="schedule_types_container" style="display: none; margin-left: 25px;">
+              <label class="form-label"><strong>Otomatik Oluşturulacak MSA Tipleri</strong></label>
+              <div class="form-text">MSA planı oluşturulurken hangi tip çalışmaların taslaklarının açılacağını seçin.</div>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="schedule_type_type1" name="schedule_type_option" value="type1">
+                <label class="form-check-label" for="schedule_type_type1">
+                  Type 1 – Instrument Capability
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="schedule_type_type2" name="schedule_type_option" value="type2">
+                <label class="form-check-label" for="schedule_type_type2">
+                  Type 2 – Gage R&R Studies
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="schedule_type_type3" name="schedule_type_option" value="type3">
+                <label class="form-check-label" for="schedule_type_type3">
+                  Type 3 – Gage R&R (Automatic Equipment)
+                </label>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="button" class="btn btn-primary" onclick="saveEquipment()">Kaydet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let equipmentList = [];
+    let editingEquipmentId = null;
+
+    function getTodayIso() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    function getSelectedScheduleTypes() {
+      return Array.from(document.querySelectorAll('input[name="schedule_type_option"]:checked'))
+        .map(input => input.value);
+    }
+
+    function resetScheduleTypeSelections() {
+      document.querySelectorAll('input[name="schedule_type_option"]').forEach(input => {
+        input.checked = false;
+      });
+    }
+
+    function setScheduleTypeSelections(values = []) {
+      resetScheduleTypeSelections();
+      values.forEach(value => {
+        const checkbox = document.querySelector(`input[name="schedule_type_option"][value="${value}"]`);
+        if (checkbox) {
+          checkbox.checked = true;
+        }
+      });
+    }
+
+    function parseSavedScheduleTypes(rawValue) {
+      if (!rawValue) {
+        return [];
+      }
+      if (Array.isArray(rawValue)) {
+        return rawValue;
+      }
+      try {
+        const parsed = JSON.parse(rawValue);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch (error) {
+        // Ignore JSON parse errors
+      }
+      return rawValue
+        .toString()
+        .split(',')
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    function formatScheduleTypeLabels(types) {
+      if (!types || types.length === 0) {
+        return 'Tüm Tipler';
+      }
+      const labelMap = {
+        type1: 'Type 1',
+        type2: 'Type 2',
+        type3: 'Type 3'
+      };
+      return types.map(type => labelMap[type] || type.toUpperCase()).join(', ');
+    }
+
+    function renderAutoScheduleCell(equipment) {
+      if (!equipment.auto_schedule_interval) {
+        return '<span class="text-muted">-</span>';
+      }
+      const types = parseSavedScheduleTypes(equipment.auto_schedule_types);
+      const startDate = equipment.auto_schedule_start_date
+        ? new Date(equipment.auto_schedule_start_date).toLocaleDateString('tr-TR')
+        : null;
+      return `
+        <div class="d-flex flex-column" style="gap: 4px;">
+          <span class="badge bg-info text-dark">Her ${equipment.auto_schedule_interval} Ay</span>
+          <small class="text-muted">${formatScheduleTypeLabels(types)}</small>
+          ${startDate ? `<small class="text-muted">İlk Tarih: ${startDate}</small>` : ''}
+        </div>
+      `;
+    }
+
+    function toggleScheduleOptions(isChecked) {
+      const intervalContainer = document.getElementById('schedule_interval_container');
+      const typesContainer = document.getElementById('schedule_types_container');
+      const startDateContainer = document.getElementById('schedule_start_date_container');
+      const startDateInput = document.getElementById('equipment_schedule_start_date');
+      if (intervalContainer) {
+        intervalContainer.style.display = isChecked ? 'block' : 'none';
+      }
+      if (typesContainer) {
+        typesContainer.style.display = isChecked ? 'block' : 'none';
+      }
+      if (startDateContainer) {
+        startDateContainer.style.display = isChecked ? 'block' : 'none';
+      }
+
+      if (isChecked && getSelectedScheduleTypes().length === 0) {
+        const defaultType = document.getElementById('schedule_type_type2');
+        if (defaultType) {
+          defaultType.checked = true;
+        }
+      }
+
+      if (startDateInput) {
+        if (isChecked) {
+          if (!startDateInput.value) {
+            startDateInput.value = getTodayIso();
+          }
+        } else {
+          startDateInput.value = '';
+        }
+      }
+    }
+
+    // Load equipment on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      loadEquipment();
+
+      // Toggle schedule interval visibility
+      const scheduleMsaCheckbox = document.getElementById('equipment_schedule_msa');
+      toggleScheduleOptions(scheduleMsaCheckbox.checked);
+      scheduleMsaCheckbox.addEventListener('change', function() {
+        toggleScheduleOptions(this.checked);
+      });
+    });
+
+    // ================================================================
+    // Sunucu rotalarının supabase-js portları (msaRoutes.js:4636-4995)
+    // Rol/paylaşım sistemi düştü: herkes tüm ekipmanları görür
+    // (CONVERSION-GUIDE — Düşen özellikler). created_by → created_by_email.
+    // ================================================================
+
+    // GET /msa/equipment/list portu — msaRoutes.js:4636
+    async function fetchEquipmentList() {
+      const { data, error } = await MSA.db.from(MSA.T.equipment)
+        .select('*')
+        .order('created_at', { ascending: false });
+      MSA.throwIf(error, 'equipment list select');
+      return { success: true, equipment: data || [] };
+    }
+
+    // POST /msa/equipment portu — msaRoutes.js:4698
+    async function createEquipmentRecord(body) {
+      try {
+        const user = await MSA.currentUser();
+        const { name, serial_number, device_number, location, description, schedule_msa, schedule_interval, schedule_types, schedule_start_date } = body;
+        const normalizedScheduleTypes = MSA.normalizeScheduleTypes(schedule_types);
+        const parsedInterval = schedule_msa && schedule_interval ? parseInt(schedule_interval, 10) : null;
+        const normalizedStartDate = schedule_msa ? MSA.normalizeDateInput(schedule_start_date) : null;
+
+        // Validation
+        if (!name || !serial_number || !device_number) {
+          return { success: false, message: 'Cihaz adı, seri no ve cihaz no zorunludur' };
+        }
+
+        if (schedule_msa && normalizedScheduleTypes.length === 0) {
+          return { success: false, message: 'Otomatik MSA planlaması için en az bir MSA tipi seçmelisiniz' };
+        }
+
+        if (schedule_msa && !normalizedStartDate) {
+          return { success: false, message: 'Geçerli bir ilk planlama tarihi seçmelisiniz' };
+        }
+
+        // Check if already exists
+        const dup = await MSA.db.from(MSA.T.equipment)
+          .select('id')
+          .eq('serial_number', serial_number)
+          .eq('device_number', device_number)
+          .maybeSingle();
+        MSA.throwIf(dup.error, 'equipment duplicate select');
+
+        if (dup.data) {
+          return { success: false, message: 'Bu seri no ve cihaz no ile kayıtlı ekipman zaten mevcut' };
+        }
+
+        // Insert equipment (json kolonuna OBJE yazılır — JSON.stringify yok)
+        const ins = await MSA.db.from(MSA.T.equipment).insert({
+          name,
+          serial_number,
+          device_number,
+          location: location || null,
+          description: description || null,
+          is_active: true,
+          created_by_email: user.email,
+          auto_schedule_interval: parsedInterval,
+          auto_schedule_types: schedule_msa ? normalizedScheduleTypes : null,
+          auto_schedule_start_date: normalizedStartDate
+        }).select('*').single();
+        MSA.throwIf(ins.error, 'equipment insert');
+        const equipment = ins.data;
+
+        // Auto-create MSA schedule if requested
+        const createdSchedules = [];
+        if (schedule_msa && normalizedScheduleTypes.length > 0) {
+          for (const type of normalizedScheduleTypes) {
+            try {
+              const result = await MSA.createAutoScheduleDraft({
+                equipment,
+                studyType: type,
+                intervalMonths: parsedInterval || 12,
+                plannedByEmail: user.email,
+                responsibleEmail: user.email,
+                context: {
+                  planned_date: normalizedStartDate,
+                  gauge_name: equipment.name,
+                  gauge_number: equipment.serial_number,
+                  location: equipment.location
+                }
+              });
+              createdSchedules.push(result);
+              console.log(`✅ Auto-created ${type} schedule ${result.scheduleId} for equipment ${equipment.id}`);
+            } catch (scheduleError) {
+              console.error(`⚠️ Failed to create auto schedule for type ${type}:`, scheduleError);
+            }
+          }
+        }
+
+        return {
+          success: true,
+          message: 'Ekipman başarıyla eklendi' + (createdSchedules.length ? ` ve ${createdSchedules.length} MSA planlaması oluşturuldu` : ''),
+          equipment,
+          scheduleId: createdSchedules[0]?.scheduleId || null,
+          schedules: createdSchedules
+        };
+      } catch (error) {
+        console.error('Add equipment error:', error);
+        return { success: false, message: 'Ekipman eklenirken hata oluştu' };
+      }
+    }
+
+    // PUT /msa/equipment/:id portu — msaRoutes.js:4804
+    async function updateEquipmentRecord(equipmentId, body) {
+      try {
+        const user = await MSA.currentUser();
+        const {
+          name,
+          serial_number,
+          device_number,
+          location,
+          description,
+          is_active,
+          schedule_msa,
+          schedule_interval,
+          schedule_types,
+          schedule_start_date
+        } = body;
+
+        if (!name || !serial_number || !device_number) {
+          return { success: false, message: 'Cihaz adı, seri no ve cihaz no zorunludur' };
+        }
+
+        const eqRes = await MSA.db.from(MSA.T.equipment).select('*').eq('id', equipmentId).maybeSingle();
+        MSA.throwIf(eqRes.error, 'equipment select');
+        const equipment = eqRes.data;
+        if (!equipment) {
+          return { success: false, message: 'Ekipman bulunamadı' };
+        }
+
+        const dupRes = await MSA.db.from(MSA.T.equipment)
+          .select('id')
+          .eq('serial_number', serial_number)
+          .eq('device_number', device_number)
+          .neq('id', equipmentId)
+          .maybeSingle();
+        MSA.throwIf(dupRes.error, 'equipment duplicate select');
+
+        if (dupRes.data) {
+          return { success: false, message: 'Bu seri no ve cihaz no ile başka bir ekipman kayıtlı' };
+        }
+
+        const wantsAutoSchedule = Boolean(schedule_msa);
+        const normalizedScheduleTypes = wantsAutoSchedule ? MSA.normalizeScheduleTypes(schedule_types) : [];
+        const parsedInterval = wantsAutoSchedule && schedule_interval ? parseInt(schedule_interval, 10) : null;
+        const normalizedStartDate = wantsAutoSchedule ? MSA.normalizeDateInput(schedule_start_date) : null;
+
+        if (wantsAutoSchedule) {
+          if (normalizedScheduleTypes.length === 0) {
+            return { success: false, message: 'Otomatik planlama için en az bir MSA tipi seçmelisiniz' };
+          }
+          if (!normalizedStartDate) {
+            return { success: false, message: 'Geçerli bir ilk planlama tarihi seçmelisiniz' };
+          }
+        }
+
+        const enableAutoSchedules = wantsAutoSchedule && normalizedScheduleTypes.length > 0;
+        const intervalValue = enableAutoSchedules ? (parsedInterval || 12) : null;
+
+        const upd = await MSA.db.from(MSA.T.equipment)
+          .update({
+            name,
+            serial_number,
+            device_number,
+            location: location || null,
+            description: description || null,
+            is_active: typeof is_active === 'boolean' ? is_active : equipment.is_active,
+            auto_schedule_interval: enableAutoSchedules ? intervalValue : null,
+            auto_schedule_types: enableAutoSchedules ? normalizedScheduleTypes : null,
+            auto_schedule_start_date: enableAutoSchedules ? normalizedStartDate : null,
+            updated_at: MSA.nowIso()
+          })
+          .eq('id', equipmentId);
+        MSA.throwIf(upd.error, 'equipment update');
+
+        const updatedEquipment = {
+          ...equipment,
+          name,
+          serial_number,
+          device_number,
+          location: location || null
+        };
+
+        if (!enableAutoSchedules && (equipment.auto_schedule_interval || equipment.auto_schedule_types)) {
+          await MSA.cancelAutoSchedulesForEquipment(updatedEquipment);
+        }
+
+        if (enableAutoSchedules) {
+          await MSA.upsertAutoSchedulesForEquipment({
+            equipmentData: updatedEquipment,
+            scheduleTypes: normalizedScheduleTypes,
+            plannedDate: normalizedStartDate,
+            intervalMonths: intervalValue || 12,
+            userEmail: user.email
+          });
+        }
+
+        return { success: true, message: 'Ekipman başarıyla güncellendi' };
+      } catch (error) {
+        console.error('Update equipment error:', error);
+        return { success: false, message: 'Ekipman güncellenirken hata oluştu' };
+      }
+    }
+
+    // DELETE /msa/equipment/:id portu — msaRoutes.js:4928
+    async function deleteEquipmentRecord(equipmentId) {
+      try {
+        const eqRes = await MSA.db.from(MSA.T.equipment).select('*').eq('id', equipmentId).maybeSingle();
+        MSA.throwIf(eqRes.error, 'equipment select');
+        const equipment = eqRes.data;
+        if (!equipment) {
+          return { success: false, message: 'Ekipman bulunamadı' };
+        }
+
+        // Check if equipment is used in any MSA studies
+        // (gauge_name = name OR gauge_number = serial/device — knex OR bloğunun .or() portu)
+        const orFilter = MSA.equipmentScheduleOrFilter(equipment);
+        let usedInStudies = [];
+        let totalCount = 0;
+        if (orFilter) {
+          const usedRes = await MSA.db.from(MSA.T.studies)
+            .select('id, study_name, status', { count: 'exact' })
+            .or(orFilter)
+            .limit(5); // Sadece ilk 5 çalışmayı göster
+          MSA.throwIf(usedRes.error, 'equipment usage select');
+          usedInStudies = usedRes.data || [];
+          totalCount = usedRes.count || usedInStudies.length;
+        }
+
+        if (usedInStudies.length > 0) {
+          // Çalışma isimlerini listele
+          const studyNames = usedInStudies.map(s =>
+            `"${s.study_name}" (${s.status === 'draft' ? 'Taslak' : s.status === 'completed' ? 'Tamamlandı' : 'Aktif'})`
+          ).join(', ');
+
+          const moreText = totalCount > 5 ? ` ve ${totalCount - 5} çalışma daha` : '';
+
+          return {
+            success: false,
+            message: `Bu ekipman ${totalCount} MSA çalışmasında kullanılıyor ve silinemez.`,
+            details: `Kullanıldığı çalışmalar: ${studyNames}${moreText}`,
+            usedInStudies: usedInStudies,
+            totalCount: totalCount
+          };
+        }
+
+        // Delete equipment
+        const del = await MSA.db.from(MSA.T.equipment).delete().eq('id', equipmentId);
+        MSA.throwIf(del.error, 'equipment delete');
+
+        return { success: true, message: 'Ekipman başarıyla silindi' };
+      } catch (error) {
+        console.error('Delete equipment error:', error);
+        return { success: false, message: 'Ekipman silinirken hata oluştu' };
+      }
+    }
+
+    // Load equipment from server
+    async function loadEquipment() {
+      try {
+        const result = await fetchEquipmentList();
+
+        if (result.success) {
+          equipmentList = result.equipment;
+          renderEquipmentTable();
+        }
+      } catch (error) {
+        console.error('Load equipment error:', error);
+        document.getElementById('equipmentTableBody').innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center text-danger">
+              <i class="bi bi-exclamation-triangle"></i> Yükleme hatası
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    // Render equipment table
+    function renderEquipmentTable() {
+      const tbody = document.getElementById('equipmentTableBody');
+
+      if (equipmentList.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="text-center text-muted">
+              <i class="bi bi-inbox"></i> Henüz ekipman eklenmedi
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = equipmentList.map(eq => `
+        <tr>
+          <td><strong>${eq.name}</strong></td>
+          <td><code>${eq.serial_number}</code></td>
+          <td><code>${eq.device_number}</code></td>
+          <td>${eq.location || '<span class="text-muted">-</span>'}</td>
+          <td>${eq.description || '<span class="text-muted">-</span>'}</td>
+          <td>${renderAutoScheduleCell(eq)}</td>
+          <td>
+            <span class="badge ${eq.is_active ? 'bg-success' : 'bg-secondary'}">
+              ${eq.is_active ? 'Aktif' : 'Pasif'}
+            </span>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-warning" onclick="showEditModal(${eq.id})" title="Düzenle">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteEquipment(${eq.id}, '${eq.name}')" title="Sil">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Show add modal
+    function showAddModal() {
+      editingEquipmentId = null;
+      document.getElementById('equipmentModalTitle').textContent = 'Yeni Ekipman Ekle';
+      document.getElementById('equipmentForm').reset();
+      document.getElementById('equipment_is_active').checked = true;
+      document.getElementById('equipment_schedule_msa').checked = false;
+      const startDateInput = document.getElementById('equipment_schedule_start_date');
+      if (startDateInput) {
+        startDateInput.value = '';
+      }
+      resetScheduleTypeSelections();
+      toggleScheduleOptions(false);
+      new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+    }
+
+    // Show edit modal
+    function showEditModal(id) {
+      const equipment = equipmentList.find(eq => eq.id === id);
+      if (!equipment) return;
+
+      editingEquipmentId = id;
+      document.getElementById('equipmentModalTitle').textContent = 'Ekipman Düzenle';
+      document.getElementById('equipment_name').value = equipment.name;
+      document.getElementById('equipment_serial').value = equipment.serial_number;
+      document.getElementById('equipment_device').value = equipment.device_number;
+      document.getElementById('equipment_location').value = equipment.location || '';
+      document.getElementById('equipment_description').value = equipment.description || '';
+      document.getElementById('equipment_is_active').checked = equipment.is_active;
+      const scheduleMsaCheckbox = document.getElementById('equipment_schedule_msa');
+      const intervalSelect = document.getElementById('equipment_schedule_interval');
+      const startDateInput = document.getElementById('equipment_schedule_start_date');
+
+      const hasAutoSchedule = !!equipment.auto_schedule_interval;
+      scheduleMsaCheckbox.checked = hasAutoSchedule;
+      if (intervalSelect && hasAutoSchedule && equipment.auto_schedule_interval) {
+        intervalSelect.value = equipment.auto_schedule_interval.toString();
+      }
+
+      if (hasAutoSchedule) {
+        const savedTypes = parseSavedScheduleTypes(equipment.auto_schedule_types);
+        setScheduleTypeSelections(savedTypes.length > 0 ? savedTypes : ['type2']);
+        if (startDateInput) {
+          const createdDate = equipment.created_at ? equipment.created_at.split('T')[0] : getTodayIso();
+          startDateInput.value = equipment.auto_schedule_start_date || createdDate;
+        }
+      } else {
+        resetScheduleTypeSelections();
+        if (startDateInput) {
+          startDateInput.value = '';
+        }
+      }
+
+      toggleScheduleOptions(hasAutoSchedule);
+      new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+    }
+
+    // Save equipment
+    async function saveEquipment() {
+      const name = document.getElementById('equipment_name').value.trim();
+      const serial_number = document.getElementById('equipment_serial').value.trim();
+      const device_number = document.getElementById('equipment_device').value.trim();
+      const location = document.getElementById('equipment_location').value.trim();
+      const description = document.getElementById('equipment_description').value.trim();
+      const is_active = document.getElementById('equipment_is_active').checked;
+      const schedule_msa = document.getElementById('equipment_schedule_msa').checked;
+      const schedule_interval = parseInt(document.getElementById('equipment_schedule_interval').value);
+      const schedule_types = schedule_msa ? getSelectedScheduleTypes() : [];
+      const schedule_start_date = schedule_msa ? document.getElementById('equipment_schedule_start_date').value : null;
+
+      if (!name || !serial_number || !device_number) {
+        alert('Cihaz adı, seri no ve cihaz no zorunludur!');
+        return;
+      }
+
+      if (schedule_msa && schedule_types.length === 0) {
+        alert('Otomatik planlama için en az bir MSA tipi seçmelisiniz!');
+        return;
+      }
+
+      if (schedule_msa && !schedule_start_date) {
+        alert('Lütfen ilk planlama tarihi seçin.');
+        return;
+      }
+
+      const equipmentData = {
+        name,
+        serial_number,
+        device_number,
+        location,
+        description,
+        is_active,
+        schedule_msa,
+        schedule_interval: schedule_msa ? schedule_interval : null,
+        schedule_types,
+        schedule_start_date: schedule_msa ? schedule_start_date : null
+      };
+
+      try {
+        const result = editingEquipmentId
+          ? await updateEquipmentRecord(editingEquipmentId, equipmentData)
+          : await createEquipmentRecord(equipmentData);
+
+        if (result.success) {
+          alert(result.message);
+          bootstrap.Modal.getInstance(document.getElementById('equipmentModal')).hide();
+          loadEquipment();
+        } else {
+          alert('Hata: ' + result.message);
+        }
+      } catch (error) {
+        console.error('Save equipment error:', error);
+        alert('Bir hata oluştu!');
+      }
+    }
+
+    // Delete equipment
+    async function deleteEquipment(id, name) {
+      if (!confirm(`"${name}" ekipmanını silmek istediğinize emin misiniz?`)) {
+        return;
+      }
+
+      try {
+        const result = await deleteEquipmentRecord(id);
+
+        if (result.success) {
+          alert(result.message);
+          loadEquipment();
+        } else {
+          // Eğer ekipman MSA çalışmalarında kullanılıyorsa detaylı mesaj göster
+          if (result.usedInStudies && result.usedInStudies.length > 0) {
+            let detailMessage = `❌ ${result.message}\n\n`;
+            detailMessage += `📊 Toplam ${result.totalCount} çalışmada kullanılıyor:\n\n`;
+
+            result.usedInStudies.forEach((study, index) => {
+              const statusText = study.status === 'draft' ? '📝 Taslak' :
+                                study.status === 'completed' ? '✅ Tamamlandı' :
+                                '🔄 Aktif';
+              detailMessage += `${index + 1}. ${study.study_name} (${statusText})\n`;
+            });
+
+            if (result.totalCount > result.usedInStudies.length) {
+              detailMessage += `\n... ve ${result.totalCount - result.usedInStudies.length} çalışma daha`;
+            }
+
+            detailMessage += '\n\n💡 Bu ekipmanı silmek için önce ilgili MSA çalışmalarını silmeniz veya düzenlemeniz gerekir.';
+
+            alert(detailMessage);
+          } else {
+            alert('Hata: ' + result.message);
+          }
+        }
+      } catch (error) {
+        console.error('Delete equipment error:', error);
+        alert('Bir hata oluştu!');
+      }
+    }
+  </script>
+</body>
+</html>
