@@ -37,6 +37,15 @@
   // %(1-alpha) güven aralıkları
   function cpCI(cp,df,alpha){ if(cp==null||df<=0)return null; return { lo:cp*Math.sqrt(chi2Inv(alpha/2,df)/df), hi:cp*Math.sqrt(chi2Inv(1-alpha/2,df)/df) }; }
   function cpkCI(cpk,df,N,alpha){ if(cpk==null||df<=0)return null; const z=normInv(1-alpha/2); const hw=z*Math.sqrt(1/(9*N)+cpk*cpk/(2*df)); return { lo:cpk-hw, hi:cpk+hw }; }
+  // Kontrol kartı testleri (Nelson kuralları — yaygın alt küme: 1,2,3,5)
+  function controlTests(pts, cl, ucl, lcl){
+    const y=pts.map(p=>p.y); const n=y.length; const sig=(ucl-cl)/3; const viol=[];
+    let t1=[]; y.forEach((v,i)=>{ if(v>ucl||v<lcl) t1.push(i+1); }); if(t1.length) viol.push({rule:1,desc:'Kontrol sınırları dışında nokta (3σ)',pts:t1});
+    { let run=0,side=0,hit=[]; for(let i=0;i<n;i++){ const s=y[i]>cl?1:(y[i]<cl?-1:0); if(s!==0&&s===side)run++; else {run=(s!==0?1:0);side=s;} if(run>=9)hit.push(i+1); } if(hit.length) viol.push({rule:2,desc:'9 ardışık nokta merkez çizgisinin aynı tarafında',pts:hit}); }
+    { let inc=1,dec=1,hit=[]; for(let i=1;i<n;i++){ if(y[i]>y[i-1]){inc++;dec=1;} else if(y[i]<y[i-1]){dec++;inc=1;} else {inc=1;dec=1;} if(inc>=6||dec>=6)hit.push(i+1); } if(hit.length) viol.push({rule:3,desc:'6 ardışık nokta sürekli artan/azalan',pts:hit}); }
+    { const u2=cl+2*sig,l2=cl-2*sig; let hit=[]; for(let i=2;i<n;i++){ const w=[i-2,i-1,i]; const au=w.filter(j=>y[j]>u2).length, al=w.filter(j=>y[j]<l2).length; if(au>=2||al>=2)hit.push(i+1); } if(hit.length) viol.push({rule:5,desc:'3 noktadan 2si 2σ ötesinde (aynı taraf)',pts:hit}); }
+    return viol;
+  }
   // c4 sabiti (alt grup boyutu n)
   function c4(n){ if(n<2)return 1; // c4 = sqrt(2/(n-1)) * Γ(n/2)/Γ((n-1)/2)
     const g=(x)=> js0&&js0.gammafn? js0.gammafn(x) : Math.exp(lgamma(x));
@@ -209,29 +218,37 @@
     const D3={2:0,3:0,4:0,5:0,6:0,7:0.076,8:0.136,9:0.184,10:0.223}[n]||0;
     const D4={2:3.267,3:2.574,4:2.282,5:2.114,6:2.004,7:1.924,8:1.864,9:1.816,10:1.777}[n]||2.114;
     let xbarChart, sChart, chartLabels, ctrlKind;
-    const wantIMR = (chartType==='imr') || (chartType==='auto' && n<2) || n<2;
-    const wantR   = !wantIMR && chartType==='xbarr' && n>=2;
+    // Kart tipi: auto → alt grup boyutuna göre (n=1 I-MR, 2–8 X̄-R, ≥9 X̄-S); manuel seçim öncelikli (n=1 daima I-MR)
+    let kind;
+    if(n<2) kind='imr';
+    else if(chartType==='imr') kind='imr';
+    else if(chartType==='xbarr') kind='xbarr';
+    else if(chartType==='xbars') kind='xbars';
+    else kind = (n<=8 ? 'xbarr' : 'xbars');   // auto
     const f = sigmaMult/3;   // 3σ dışı katsayı için bant ölçekleme
-    if(wantIMR){
+    if(kind==='imr'){
       ctrlKind='imr';
       const mrPts=[]; for(let i=1;i<all.length;i++) mrPts.push(Math.abs(all[i]-all[i-1]));
       const halfI=sigmaMult*(mrbar/1.128);
       xbarChart={ points:all.map((v,i)=>({x:i+1,y:v})), cl:grandMean, ucl:grandMean+halfI, lcl:grandMean-halfI };
-      sChart={ points:mrPts.map((v,i)=>({x:i+2,y:v})), cl:mrbar, ucl:mrbar+(3.267*mrbar-mrbar)*f, lcl:Math.max(0,mrbar-(mrbar)*f*0) };
-      chartLabels={ top:'Bireysel Değerler (I)', bottom:'Hareketli Açıklık (MR)', topAxis:'Değer', bottomAxis:'MR', xAxis:'Gözlem' };
-    } else if(wantR){
+      sChart={ points:mrPts.map((v,i)=>({x:i+2,y:v})), cl:mrbar, ucl:mrbar+(3.267*mrbar-mrbar)*f, lcl:0 };
+      chartLabels={ top:'Bireysel Değerler (I)', bottom:'Hareketli Açıklık (MR)', topAxis:'Değer', bottomAxis:'MR', xAxis:'Gözlem', kind:'I-MR' };
+    } else if(kind==='xbarr'){
       ctrlKind='xbarr';
-      const half=sigmaMult*(sigmaWithin/Math.sqrt(n));
+      const half=sigmaMult*((rbar/d2n)/Math.sqrt(n));   // X̄ limitleri R-kartı σ'sından (A₂·R̄)
       xbarChart={ points:subs.map((s,i)=>({x:i+1,y:s.mean})), cl:xbarbar, ucl:xbarbar+half, lcl:xbarbar-half };
       sChart={ points:subs.map((s,i)=>({x:i+1,y:s.range})), cl:rbar, ucl:rbar+(D4*rbar-rbar)*f, lcl:Math.max(0, rbar+(D3*rbar-rbar)*f) };
-      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'R Kartı (alt grup açıklığı)', topAxis:'X̄', bottomAxis:'R', xAxis:'Alt grup' };
+      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'R Kartı (alt grup açıklığı)', topAxis:'X̄', bottomAxis:'R', xAxis:'Alt grup', kind:'X̄ & R' };
     } else {
       ctrlKind='xbars';
-      const half=sigmaMult*(sigmaWithin/Math.sqrt(n));
+      const half=sigmaMult*((sbar/c4n)/Math.sqrt(n));   // X̄ limitleri S-kartı σ'sından (A₃·s̄)
       xbarChart={ points:subs.map((s,i)=>({x:i+1,y:s.mean})), cl:xbarbar, ucl:xbarbar+half, lcl:xbarbar-half };
       sChart={ points:subs.map((s,i)=>({x:i+1,y:s.sd})), cl:sbar, ucl:sbar+(B4*sbar-sbar)*f, lcl:Math.max(0, sbar+(B3*sbar-sbar)*f) };
-      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'S Kartı (alt grup std sapması)', topAxis:'X̄', bottomAxis:'S', xAxis:'Alt grup' };
+      chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'S Kartı (alt grup std sapması)', topAxis:'X̄', bottomAxis:'S', xAxis:'Alt grup', kind:'X̄ & S' };
     }
+    // Kontrol kartı testleri (her iki kart için)
+    xbarChart.tests = controlTests(xbarChart.points, xbarChart.cl, xbarChart.ucl, xbarChart.lcl);
+    sChart.tests    = controlTests(sChart.points,    sChart.cl,    sChart.ucl,    sChart.lcl);
 
     // Q-Q normal olasılık grafiği (Benard medyan rank) + %95 pointwise bant
     const sortedQ=[...all].sort((a,b)=>a-b);
