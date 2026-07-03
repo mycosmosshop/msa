@@ -91,9 +91,13 @@
       (s.is_from_schedule === false || s.is_from_schedule === null || s.status !== 'draft')
     );
 
-    const type1Studies = myStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type1');
-    const type2Studies = myStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type2');
-    const type3Studies = myStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type3');
+    // Öznitelik (attribute) çalışmaları ayrı listelenir; Gage R&R tip listelerine sızmamalı
+    const isAttr = s => String(s.study_type || '').toLowerCase() === 'attribute';
+    const attributeStudies = myStudies.filter(isAttr);
+    const gageStudies = myStudies.filter(s => !isAttr(s));
+    const type1Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type1');
+    const type2Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type2');
+    const type3Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type3');
 
     // Tip 1 kabul edilebilirliği type1_results'tan (cgk + bias_significant) — birebir
     if (type1Studies.length > 0) {
@@ -179,6 +183,7 @@
       studies: myStudies,
       myStudies: myStudies,
       type1Studies, type2Studies, type3Studies,
+      attributeStudies,
       draftStudies,
       sharedStudies,
       allStudies: [],

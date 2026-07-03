@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/attr-calculations.js?v=1"></script>
+<title>Öznitelik Uyum Analizi</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// Öznitelik Uyum Analizi sonuç sayfası.
+// Mevcut tablolar yeniden kullanılır: msa_studies(study_type='attribute'),
+// msa_operators(değerlendiriciler), msa_parts(nominal_value=standart),
+// msa_measurements(measurement=rating). Yeni tablo yok.
+(async () => {
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies)
+      .select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) return MSA.renderError('Bulunamadı', 'Çalışma bulunamadı');
+    // Öznitelik çalışması ölçümlerden anında hesaplanır; taslak durumu engel değildir.
+    const { measurements, operators, parts } = await MSA.getMeasurementsWithNames(studyId);
+    if (!measurements.length) {
+      return location.replace('attr-data-entry.html?id=' + encodeURIComponent(studyId) +
+        '&error=' + encodeURIComponent('Önce değerlendirme verisi girmelisiniz!'));
+    }
+
+    // Parça standardı = msa_parts.nominal_value
+    const stdByPart = {};
+    (parts || []).forEach(p => {
+      stdByPart[String(p.part_number)] = (p.nominal_value === null || p.nominal_value === undefined) ? null : Number(p.nominal_value);
+    });
+
+    const data = measurements.map(m => ({
+      part: String(m.part),
+      appraiser: m.operator_name || String(m.operator),
+      trial: parseInt(m.trial),
+      rating: Number(m.measurement),
+      standard: stdByPart[String(m.part)]
+    }));
+
+    let results;
+    try {
+      results = window.attrCalculations.calculateAttributeAgreement(data);
+    } catch (calcErr) {
+      return MSA.renderError('Hesaplama Hatası', calcErr.message);
+    }
+
+    // Sonucu kaydet (pano/özet için) — gauge_evaluation JSON'una özet yaz
+    try {
+      const acceptabilityValue = results.interpretation.acceptabilityClass === 'good' ? 'acceptable' :
+        (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable');
+      await MSA.db.from(MSA.T.studies).update({
+        gauge_evaluation: {
+          attribute: true,
+          decisiveKappa: results.interpretation.decisiveKappa,
+          allVsStandard: results.kappa.allVsStandard,
+          between: results.kappa.between
+        },
+        status: 'calculated',
+        is_acceptable: acceptabilityValue
+      }).eq('id', studyId);
+    } catch (e) { console.warn('özet kaydedilemedi:', e); }
+
+    await MSA.renderPage('attr-results.ejs', { user, study, results, branding: MSA.BRANDING });
+  } catch (error) {
+    console.error('Öznitelik sonuç hatası:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>

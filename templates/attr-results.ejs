@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Öznitelik Uyum Analizi - <%= study.study_name %></title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root{ --p:#667eea; --p2:#764ba2; --bg:#f5f7fb; --card:#fff; --ink:#232a35; --muted:#6b7280;
+         --line:#e6e9f2; --good:#1e7e4a; --gbg:#eaf6ef; --mar:#b7791f; --mbg:#fdf6e6; --bad:#c0392b; --bbg:#fdecea; --shadow:0 2px 10px rgba(30,40,70,.07); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .hdr h1{margin:0;font-size:20px;font-weight:700}
+  .hdr .sub{opacity:.9;font-size:12.5px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px}
+  .badge.good{background:var(--gbg);color:var(--good)} .badge.marginal{background:var(--mbg);color:var(--mar)}
+  .badge.bad{background:var(--bbg);color:var(--bad)} .badge.neutral{background:#eef1f8;color:var(--muted)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
+  .card{background:var(--card);border-radius:13px;box-shadow:var(--shadow);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 3px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:10px 0 4px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#f3f5fb;font-weight:600;color:#39415a;font-size:12px;white-space:nowrap}
+  td:first-child,th:first-child{text-align:left}
+  tbody tr:hover{background:#fafbff}
+  .num{font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:12px}
+  .pill.good{background:var(--gbg);color:var(--good)} .pill.marginal{background:var(--mbg);color:var(--mar)}
+  .pill.bad{background:var(--bbg);color:var(--bad)} .pill.neutral{background:#eef1f8;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .chartbox{position:relative;height:280px}
+  .info{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));display:grid;gap:10px;margin-top:6px}
+  .info .kv{background:#f8f9fd;border-radius:9px;padding:9px 12px}
+  .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .info .kv span{font-size:15px;font-weight:700}
+  .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
+  @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <% var it = results.interpretation; var si = results.studyInfo; %>
+  <div class="hdr">
+    <div>
+      <h1><i class="bi bi-check2-square"></i> Öznitelik Uyum Analizi</h1>
+      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · ' + study.gauge_name : '' %></div>
+    </div>
+    <span class="badge <%= it.acceptabilityClass %>">
+      <i class="bi bi-<%= it.acceptabilityClass==='good'?'check-circle-fill':(it.acceptabilityClass==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
+      Genel Uyum: <%= it.acceptability %>
+    </span>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
+    <a class="btn ghost" href="attr-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
+    <a class="btn ghost" href="index.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Çalışma Bilgileri</h2>
+    <div class="info">
+      <div class="kv"><b>Değerlendirici</b><span><%= si.numAppraisers %></span></div>
+      <div class="kv"><b>Parça</b><span><%= si.numParts %></span></div>
+      <div class="kv"><b>Tekrar</b><span><%= si.numTrials %></span></div>
+      <div class="kv"><b>Kategoriler</b><span><%= si.categories.join(' / ') %></span></div>
+      <div class="kv"><b>Referans Standart</b><span><%= si.hasStandard ? 'Var' : 'Yok' %></span></div>
+      <% if(si.hasStandard){ %><div class="kv"><b>Tümü vs Standart κ</b><span><%= results.kappa.allVsStandard!=null? results.kappa.allVsStandard.toFixed(3):'—' %></span></div><% } %>
+    </div>
+    <div class="exp">
+      <b>Nasıl okunur?</b> Bu analiz, öznitelik (git/gitme, kabul/ret) tipi ölçümlerde değerlendiricilerin
+      kararlarının <b>kendi içinde tutarlı</b> (within), <b>birbiriyle uyumlu</b> (between) ve <b>doğru referansla eşleşip
+      eşleşmediğini</b> (vs standart) inceler. Yüzdeler ne kadar yüksekse ve kappa 1'e ne kadar yakınsa ölçüm sistemi o kadar güvenilirdir.
+      AIAG'a göre: <b>κ ≥ 0.90 çok iyi</b>, 0.75–0.90 iyi, 0.40–0.75 kabul edilebilir, &lt; 0.40 zayıf.
+    </div>
+  </div>
+
+  <%
+    function ciCell(o){ return (o.lower==null?'—':o.lower.toFixed(1)) + ' – ' + (o.upper==null?'—':o.upper.toFixed(1)); }
+    function pctPill(p){ var c = p>=90?'good':(p>=80?'marginal':'bad'); return '<span class="pill '+c+'">'+p.toFixed(1)+'%</span>'; }
+    function kv(k){ if(k==null) return '<span class="pill neutral">—</span>'; var v=it.kappaVerdict(k); return '<span class="pill '+v.cls+'">'+k.toFixed(3)+'</span>'; }
+  %>
+
+  <div class="card">
+    <h2><i class="bi bi-person-check i"></i> Değerlendirici İçi Uyum (Within Appraisers)</h2>
+    <div class="exp">Her değerlendiricinin <b>aynı parçayı tekrarlarında aynı şekilde değerlendirme</b> tutarlılığı. “Eşleşen” = tüm tekrarları birbiriyle aynı olan parça sayısı.</div>
+    <table>
+      <thead><tr><th>Değerlendirici</th><th>İncelenen</th><th>Eşleşen</th><th>Yüzde</th><th>%95 GA (Alt – Üst)</th></tr></thead>
+      <tbody>
+        <% results.withinAppraisers.forEach(function(w){ %>
+          <tr><td><%= w.appraiser %></td><td class="num"><%= w.inspected %></td><td class="num"><%= w.matched %></td>
+              <td><%- pctPill(w.percent) %></td><td class="num"><%= ciCell(w) %></td></tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if(si.hasStandard){ %>
+  <div class="card">
+    <h2><i class="bi bi-bullseye i"></i> Değerlendirici–Standart Uyumu (vs Standard)</h2>
+    <div class="exp">Her değerlendiricinin kararlarının <b>bilinen doğru referansla</b> eşleşmesi. “Eşleşen” = tüm tekrarları standartla aynı olan parça sayısı. Kabul için genelde <b>≥ %90</b> beklenir.</div>
+    <table>
+      <thead><tr><th>Değerlendirici</th><th>İncelenen</th><th>Eşleşen</th><th>Yüzde</th><th>%95 GA (Alt – Üst)</th></tr></thead>
+      <tbody>
+        <% results.eachVsStandard.forEach(function(w){ %>
+          <tr><td><%= w.appraiser %></td><td class="num"><%= w.inspected %></td><td class="num"><%= w.matched %></td>
+              <td><%- pctPill(w.percent) %></td><td class="num"><%= ciCell(w) %></td></tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+
+  <div class="card">
+    <h2><i class="bi bi-people i"></i> Değerlendiriciler Arası & Tümü–Standart</h2>
+    <div class="exp"><b>Between:</b> tüm değerlendiricilerin tüm tekrarlarında aynı kararı verdiği parça sayısı. <b>All vs Standard:</b> tüm kararların standartla eşleştiği parça sayısı.</div>
+    <table>
+      <thead><tr><th>Kaynak</th><th>İncelenen</th><th>Eşleşen</th><th>Yüzde</th><th>%95 GA (Alt – Üst)</th></tr></thead>
+      <tbody>
+        <% var b=results.betweenAppraisers; %>
+        <tr><td>Değerlendiriciler arası</td><td class="num"><%= b.inspected %></td><td class="num"><%= b.matched %></td><td><%- pctPill(b.percent) %></td><td class="num"><%= ciCell(b) %></td></tr>
+        <% if(si.hasStandard){ var av=results.allVsStandard; %>
+        <tr><td>Tümü vs Standart</td><td class="num"><%= av.inspected %></td><td class="num"><%= av.matched %></td><td><%- pctPill(av.percent) %></td><td class="num"><%= ciCell(av) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-graph-up i"></i> Değerlendirme Uyum Grafikleri</h2>
+    <div class="exp">Nokta = uyum yüzdesi, dikey çubuk = <b>%95 güven aralığı</b> (Clopper-Pearson). Çubuklar ne kadar kısa ve yüksekse o kadar iyi. Değerlendiricileri karşılaştırın; belirgin düşük olan operatörler ek eğitim gerektirir.</div>
+    <div class="grid2">
+      <div>
+        <div style="font-weight:600;font-size:13px;margin:4px 0 2px;text-align:center">Değerlendirici İçi (Within)</div>
+        <div class="chartbox"><canvas id="chartWithin"></canvas></div>
+      </div>
+      <% if(si.hasStandard){ %>
+      <div>
+        <div style="font-weight:600;font-size:13px;margin:4px 0 2px;text-align:center">Değerlendirici vs Standart</div>
+        <div class="chartbox"><canvas id="chartVsStd"></canvas></div>
+      </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-diagram-3 i"></i> Kappa Katsayıları (Fleiss / Cohen)</h2>
+    <div class="exp"><b>Fleiss' kappa</b> şansa göre düzeltilmiş uyumu ölçer (within & between); <b>Cohen's kappa</b> standartla uyumu ölçer. 1 = kusursuz, 0 = şans düzeyinde. Renk kodu AIAG eşiklerine göredir.</div>
+    <table>
+      <thead><tr><th>Değerlendirici</th><th>Within (öz-tutarlılık)</th><% if(si.hasStandard){ %><th>vs Standart</th><% } %><th>Between</th></tr></thead>
+      <tbody>
+        <% results.fleissKappa.forEach(function(k){ %>
+          <tr <%= k.appraiser==='Tümü'?'style="font-weight:700;background:#f3f5fb"':'' %>>
+            <td><%= k.appraiser %></td>
+            <td><%- kv(k.within) %></td>
+            <% if(si.hasStandard){ %><td><%- kv(k.vsStandard) %></td><% } %>
+            <td><%- kv(k.between!=null?k.between:null) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <div class="chartbox" style="height:250px;margin-top:12px"><canvas id="chartKappa"></canvas></div>
+  </div>
+
+  <div class="foot">GageAI · Öznitelik Uyum Analizi — AIAG MSA 4. Baskı / JASP metodolojisi ile doğrulanmıştır.</div>
+</div>
+
+<script>
+(function(){
+  var results = <%- JSON.stringify(results) %>;
+  var hasStd = results.studyInfo.hasStandard;
+  var appr = results.studyInfo.appraisers;
+
+  // %95 GA whisker eklentisi
+  var whiskerPlugin = {
+    id:'whisker',
+    afterDatasetsDraw:function(c){
+      var ds = c.data.datasets[0]; var meta = c.getDatasetMeta(0);
+      var ci = ds._ci || []; var ctx = c.ctx; var y = c.scales.y;
+      ctx.save(); ctx.strokeStyle='#41506b'; ctx.lineWidth=1.6;
+      meta.data.forEach(function(pt,i){
+        if(!ci[i]||ci[i].lower==null) return;
+        var x=pt.x, yl=y.getPixelForValue(ci[i].lower), yu=y.getPixelForValue(ci[i].upper);
+        ctx.beginPath(); ctx.moveTo(x,yu); ctx.lineTo(x,yl);
+        ctx.moveTo(x-8,yu); ctx.lineTo(x+8,yu);
+        ctx.moveTo(x-8,yl); ctx.lineTo(x+8,yl); ctx.stroke();
+      });
+      ctx.restore();
+    }
+  };
+
+  function agreementChart(id, rowsKey){
+    var el=document.getElementById(id); if(!el) return;
+    var rows = results[rowsKey];
+    var pts = rows.map(function(r){return r.percent;});
+    var ci = rows.map(function(r){return {lower:r.lower,upper:r.upper};});
+    new Chart(el,{
+      type:'scatter',
+      data:{ datasets:[{ data:appr.map(function(a,i){return {x:i,y:pts[i]};}),
+        _ci:ci, backgroundColor:'#667eea', borderColor:'#667eea', pointRadius:6, pointHoverRadius:8 }]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ type:'linear', min:-0.5, max:appr.length-0.5,
+                     afterBuildTicks:function(a){ a.ticks = appr.map(function(_,i){return {value:i};}); },
+                     ticks:{ callback:function(v){ return appr[v]!==undefined ? appr[v] : ''; } }, title:{display:true,text:'Değerlendirici'} },
+                 y:{ min:0,max:100, title:{display:true,text:'Uyum %'} } },
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:function(ctx){ var i=ctx.dataIndex; return appr[i]+': %'+pts[i].toFixed(1)+'  (GA '+(ci[i].lower==null?'—':ci[i].lower.toFixed(1))+'–'+(ci[i].upper==null?'—':ci[i].upper.toFixed(1))+')'; } } } }
+      },
+      plugins:[whiskerPlugin]
+    });
+  }
+
+  agreementChart('chartWithin','withinAppraisers');
+  if(hasStd) agreementChart('chartVsStd','eachVsStandard');
+
+  // Kappa bar chart
+  var kEl=document.getElementById('chartKappa');
+  if(kEl){
+    var within = appr.map(function(a){ var r=results.fleissKappa.find(function(x){return x.appraiser===a;}); return r?r.within:null; });
+    var vsStd = appr.map(function(a){ var r=results.fleissKappa.find(function(x){return x.appraiser===a;}); return r?r.vsStandard:null; });
+    var dsets=[{label:'Within (öz-tutarlılık)', data:within, backgroundColor:'#667eea'}];
+    if(hasStd) dsets.push({label:'vs Standart', data:vsStd, backgroundColor:'#1e7e4a'});
+    new Chart(kEl,{ type:'bar',
+      data:{ labels:appr, datasets:dsets },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ y:{ min:0,max:1, title:{display:true,text:'Kappa'},
+          grid:{ color:function(ctx){ return ctx.tick.value===0.9||ctx.tick.value===0.75?'#e0b84f':'#eee'; } } } },
+        plugins:{ legend:{position:'top'}, tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+': '+(c.raw==null?'—':c.raw.toFixed(3)); } } },
+          annotation:false }
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
