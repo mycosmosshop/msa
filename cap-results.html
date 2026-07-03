@@ -37,7 +37,7 @@
     // URL parametreleri = interaktif ayarlar (Ayarlar panelinden gelir); yoksa çalışmanın kayıtlı değerleri
     const qp = (k, d) => { const v = MSA.q(k); return (v === null || v === undefined || v === '') ? d : v; };
     const callOpts = {
-      lsl: opts.lsl, usl: opts.usl,
+      lsl: qp('lsl', opts.lsl), usl: qp('usl', opts.usl),
       target: qp('target', opts.target),
       subgroupSize: parseInt(qp('sg', study.num_trials || opts.subgroup_size || 5), 10),
       withinMethod: qp('within', 'sbar'),
@@ -54,7 +54,13 @@
     } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
 
     try {
+      // Girilen/etkin spesifikasyonu çalışmaya kaydet (LSL/USL/Hedef ölçünün kalıcı özelliği)
+      const num = v => { const x = parseFloat(v); return isFinite(x) ? x : null; };
+      const savedOpts = Object.assign({}, opts, {
+        lsl: num(callOpts.lsl), usl: num(callOpts.usl), target: num(callOpts.target), subgroup_size: callOpts.subgroupSize
+      });
       await MSA.db.from(MSA.T.studies).update({
+        analysis_options: savedOpts,
         gauge_evaluation: { capability: true, cp: results.within.cp, cpk: results.within.cpk, pp: results.overall.cp, ppk: results.overall.cpk },
         status: 'calculated',
         is_acceptable: results.interpretation.acceptabilityClass === 'good' ? 'acceptable' : (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable')

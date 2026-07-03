@@ -105,9 +105,16 @@
         <input type="number" id="optBins" min="4" max="40" value="<%= op.bins||si.N&&Math.min(Math.max(Math.ceil(Math.sqrt(si.N)),8),20)||10 %>"></label>
       <label>Kontrol limiti σ katsayısı
         <input type="number" id="optSigma" min="1" max="6" step="0.5" value="<%= op.sigmaMult||3 %>"></label>
-      <label>Hedef değer (opsiyonel)
-        <input type="number" id="optTarget" step="any" value="<%= si.origTarget!=null?si.origTarget:'' %>"></label>
       <label class="chk"><input type="checkbox" id="optUnbias"<%= op.useUnbiasing!==false?' checked':'' %>> Sapmasızlık sabiti (c₄/d₂) kullan</label>
+    </div>
+    <div style="font-weight:700;font-size:12px;color:#39415a;text-transform:uppercase;letter-spacing:.3px;margin:16px 2px 8px">Ölçü Spesifikasyonu (girip Uygula deyince kaydedilir)</div>
+    <div class="optgrid">
+      <label>Alt spesifikasyon (LSL)
+        <input type="number" id="optLsl" step="any" value="<%= si.origLsl!=null?si.origLsl:'' %>" placeholder="ör. 94"></label>
+      <label>Hedef (Target)
+        <input type="number" id="optTarget" step="any" value="<%= si.origTarget!=null?si.origTarget:'' %>" placeholder="ör. 100"></label>
+      <label>Üst spesifikasyon (USL)
+        <input type="number" id="optUsl" step="any" value="<%= si.origUsl!=null?si.origUsl:'' %>" placeholder="ör. 106"></label>
     </div>
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" onclick="capReload()"><i class="bi bi-arrow-repeat"></i> Uygula ve Yeniden Hesapla</button>
@@ -310,7 +317,9 @@ function capReload(){
   add('sigma', val('optSigma'));
   var sg=val('optSg'); if(sg) add('sg', sg);
   var b=val('optBins'); if(b) add('bins', b);
-  var t=val('optTarget'); if(t!=='') add('target', t);
+  var ls=val('optLsl'); add('lsl', ls);
+  var us=val('optUsl'); add('usl', us);
+  var t=val('optTarget'); add('target', t);
   location.href='cap-results.html?'+p.join('&');
 }
 </script>
