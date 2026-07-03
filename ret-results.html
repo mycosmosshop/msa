@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="js/ret-calculations.js?v=1"></script>
+<title>Test-Retest</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// Test-retest — mevcut tablolar: msa_studies(study_type='testretest'), msa_measurements(operator='1').
+(async () => {
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) return MSA.renderError('Bulunamadı', 'Çalışma bulunamadı');
+
+    const { measurements } = await MSA.getMeasurementsWithNames(studyId);
+    if (!measurements.length) {
+      return location.replace('ret-data-entry.html?id=' + encodeURIComponent(studyId) + '&error=' + encodeURIComponent('Önce ölçüm verisi girmelisiniz!'));
+    }
+    const data = measurements.map(m => ({ part: String(m.part), trial: parseInt(m.trial), measurement: Number(m.measurement) }));
+
+    const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    let results;
+    try {
+      results = window.retCalculations.calculateTestRetest(data, { tolerance: opts.tolerance, processStdDev: opts.process_std_dev });
+    } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+
+    try {
+      await MSA.db.from(MSA.T.studies).update({
+        gauge_evaluation: { testretest: true, grr: results.shortGauge.grr, rBar: results.shortGauge.rBar, pctTolerance: results.shortGauge.pctTolerance },
+        status: 'calculated',
+        is_acceptable: results.interpretation.decisivePct == null ? 'marginal' : (results.interpretation.acceptabilityClass === 'good' ? 'acceptable' : (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable'))
+      }).eq('id', studyId);
+    } catch (e) { console.warn('özet kaydedilemedi', e); }
+
+    await MSA.renderPage('ret-results.ejs', { user, study, results, branding: MSA.BRANDING });
+  } catch (error) {
+    console.error('Test-retest sonuç hatası:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>

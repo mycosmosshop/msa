@@ -95,9 +95,11 @@
     const stype = s => String(s.study_type || '').toLowerCase();
     const isAttr = s => stype(s) === 'attribute';
     const isLin = s => stype(s) === 'linearity';
+    const isRet = s => stype(s) === 'testretest';
     const attributeStudies = myStudies.filter(isAttr);
     const linearityStudies = myStudies.filter(isLin);
-    const gageStudies = myStudies.filter(s => !isAttr(s) && !isLin(s));
+    const testretestStudies = myStudies.filter(isRet);
+    const gageStudies = myStudies.filter(s => !isAttr(s) && !isLin(s) && !isRet(s));
     const type1Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type1');
     const type2Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type2');
     const type3Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type3');
@@ -188,6 +190,7 @@
       type1Studies, type2Studies, type3Studies,
       attributeStudies,
       linearityStudies,
+      testretestStudies,
       draftStudies,
       sharedStudies,
       allStudies: [],
