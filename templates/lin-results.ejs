@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Type 4 Doğrusallık - <%= study.study_name %></title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  :root{ --p:#667eea; --p2:#764ba2; --bg:#f5f7fb; --card:#fff; --ink:#232a35; --muted:#6b7280;
+         --line:#e6e9f2; --good:#1e7e4a; --gbg:#eaf6ef; --mar:#b7791f; --mbg:#fdf6e6; --bad:#c0392b; --bbg:#fdecea; --shadow:0 2px 10px rgba(30,40,70,.07); }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:20px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .hdr h1{margin:0;font-size:20px;font-weight:700} .hdr .sub{opacity:.9;font-size:12.5px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px}
+  .badge.good{background:var(--gbg);color:var(--good)} .badge.marginal{background:var(--mbg);color:var(--mar)} .badge.bad{background:var(--bbg);color:var(--bad)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
+  .card{background:var(--card);border-radius:13px;box-shadow:var(--shadow);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 3px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:10px 0 4px;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#f3f5fb;font-weight:600;color:#39415a;font-size:12px;white-space:nowrap}
+  td:first-child,th:first-child{text-align:left}
+  .num{font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:12px}
+  .pill.good{background:var(--gbg);color:var(--good)} .pill.marginal{background:var(--mbg);color:var(--mar)} .pill.bad{background:var(--bbg);color:var(--bad)} .pill.neutral{background:#eef1f8;color:var(--muted)}
+  .info{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));display:grid;gap:10px;margin-top:6px}
+  .info .kv{background:#f8f9fd;border-radius:9px;padding:9px 12px}
+  .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .info .kv span{font-size:15px;font-weight:700}
+  .eq{background:#eef1f8;border-radius:9px;padding:10px 14px;font-size:15px;font-weight:700;text-align:center;color:#3a4a7a;margin-top:8px}
+  .grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:14px}@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .chartbox{position:relative;height:320px} .chartbox.sm{height:280px}
+  .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
+  @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <% var it=results.interpretation; var si=results.studyInfo; var L=results.linearity; var rg=results.regression;
+     function fp(p){ return results.fmtP(p); }
+     function pill(cls,label){ return '<span class="pill '+cls+'">'+label+'</span>'; } %>
+  <div class="hdr">
+    <div><h1><i class="bi bi-graph-down-arrow"></i> Type 4 Doğrusallık & Bias</h1>
+      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
+    <span class="badge <%= it.acceptabilityClass %>">
+      <i class="bi bi-<%= it.acceptabilityClass==='good'?'check-circle-fill':(it.acceptabilityClass==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
+      Doğrusallık: <%= it.acceptability %>
+    </span>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
+    <a class="btn ghost" href="lin-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
+    <a class="btn ghost" href="index.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Özet</h2>
+    <div class="info">
+      <div class="kv"><b>%Doğrusallık</b><span><%= L.pctLinearity.toFixed(2) %>%</span></div>
+      <div class="kv"><b>%Bias</b><span><%= L.pctBias!=null? L.pctBias.toFixed(2)+'%':'—' %></span></div>
+      <div class="kv"><b>R²</b><span><%= L.r2!=null? L.r2.toFixed(3):'—' %></span></div>
+      <div class="kv"><b>Eğim</b><span><%= rg.slope.coef.toFixed(4) %></span></div>
+      <div class="kv"><b>Ort. Bias</b><span><%= results.total.meanBias.toFixed(3) %></span></div>
+      <div class="kv"><b>Parça / Ölçüm</b><span><%= si.numParts %> / <%= si.numMeasurements %></span></div>
+    </div>
+    <div class="exp"><b>Doğrusallık (linearity)</b>, ölçüm cihazının biasının ölçüm aralığı boyunca ne kadar tutarlı olduğunu gösterir.
+      İdeal cihazda bias, referans değerinden bağımsızdır (yatay çizgi). Eğim ne kadar dik ve <b>%Doğrusallık</b> ne kadar büyükse,
+      cihaz aralığın farklı bölgelerinde farklı hata yapıyor demektir. AIAG'a göre <b>%Doğrusallık &lt; %5 iyi</b>, %5–10 kabul edilebilir, &gt;%10 zayıf.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-rulers i"></i> Bias Tablosu (Gauge Bias)</h2>
+    <div class="exp">Her referans için <b>bias = ortalama ölçüm − referans</b>. p-değeri, o noktadaki biasın istatistiksel olarak sıfırdan farklı olup olmadığını gösterir (tek örnek t-testi).</div>
+    <table>
+      <thead><tr><th>Parça</th><th>Referans</th><th>Gözlenen Ort.</th><th>Ortalama Bias</th><th>p-değeri</th></tr></thead>
+      <tbody>
+        <% results.biasTable.forEach(function(b){ %>
+          <tr><td><%= b.part %></td><td class="num"><%= b.reference.toFixed(3) %></td><td class="num"><%= b.observedMean.toFixed(3) %></td>
+            <td class="num" style="font-weight:600"><%= b.meanBias.toFixed(3) %></td>
+            <td class="num"><%= fp(b.pValue) %> <%= (b.pValue!=null&&b.pValue<0.05)?'<i class="bi bi-asterisk" style="font-size:9px;color:#c0392b"></i>':'' %></td></tr>
+        <% }); %>
+        <tr style="font-weight:700;background:#f3f5fb"><td>Toplam</td><td>—</td><td>—</td>
+          <td class="num"><%= results.total.meanBias.toFixed(3) %></td><td class="num"><%= fp(results.total.pValue) %></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-diagram-2 i"></i> Regresyon Modeli</h2>
+    <div class="exp">Bias değerlerinin referansa göre doğrusal regresyonu. <b>Eğim (slope)</b> sıfırdan anlamlı farklıysa doğrusallık sorunu vardır.</div>
+    <table>
+      <thead><tr><th>Terim</th><th>Katsayı</th><th>Std. Hata</th><th>t-değeri</th><th>p-değeri</th></tr></thead>
+      <tbody>
+        <tr><td>Sabit (Intercept)</td><td class="num"><%= rg.intercept.coef.toFixed(4) %></td><td class="num"><%= rg.intercept.se.toFixed(4) %></td><td class="num"><%= rg.intercept.t.toFixed(2) %></td><td class="num"><%= fp(rg.intercept.p) %></td></tr>
+        <tr><td>Eğim (Slope)</td><td class="num"><%= rg.slope.coef.toFixed(4) %></td><td class="num"><%= rg.slope.se.toFixed(4) %></td><td class="num"><%= rg.slope.t.toFixed(2) %></td><td class="num"><%= fp(rg.slope.p) %></td></tr>
+      </tbody>
+    </table>
+    <div class="eq"><%= rg.equation %></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-check2-square i"></i> Doğrusallık Değerlendirmesi (Gauge Linearity)</h2>
+    <table>
+      <thead><tr><th>Std. Hata</th><th>R²</th><th>%Doğrusallık</th><th>%Bias</th><th>Değerlendirme</th></tr></thead>
+      <tbody>
+        <tr><td class="num"><%= L.stdError.toFixed(4) %></td><td class="num"><%= L.r2!=null?L.r2.toFixed(3):'—' %></td>
+          <td class="num" style="font-weight:600"><%= L.pctLinearity.toFixed(3) %></td>
+          <td class="num"><%= L.pctBias!=null?L.pctBias.toFixed(2):'—' %></td>
+          <td><%- pill(it.linVerdict.cls, it.linVerdict.label) %></td></tr>
+      </tbody>
+    </table>
+    <div class="exp" style="border-left-color:#9aa4bf"><b>%Doğrusallık = |eğim| × 100.</b> %Bias = |ortalama bias| / proses varyasyonu (6σ = <%= si.processVariation.toFixed(3) %>) × 100.
+      <%= it.biasSignificant ? 'Ortalama bias istatistiksel olarak <b>anlamlıdır</b> — kalibrasyon önerilir.' : 'Ortalama bias istatistiksel olarak anlamlı değildir.' %></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-graph-up i"></i> Bias – Doğrusallık Grafiği</h2>
+    <div class="exp">× = bireysel bias gözlemleri, kırmızı nokta = referans ortalaması, kırmızı çizgi = regresyon (bias eğilimi), gri bant = %95 güven aralığı, kesikli çizgi = sıfır bias. Kırmızı çizgi yatay ve sıfıra yakınsa cihaz doğrusaldır.</div>
+    <div class="grid2">
+      <div class="chartbox"><canvas id="chartBias"></canvas></div>
+      <div>
+        <div style="font-weight:600;font-size:13px;text-align:center;margin:4px 0 2px">% Proses Varyasyonu</div>
+        <div class="chartbox sm"><canvas id="chartPct"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">GageAI · Type 4 Doğrusallık & Bias — AIAG MSA 4. Baskı / JASP metodolojisi ile doğrulanmıştır.</div>
+</div>
+
+<script>
+(function(){
+  var R = <%- JSON.stringify(results) %>;
+  var g = R.graph;
+
+  // Bias-linearity grafiği
+  var el=document.getElementById('chartBias');
+  if(el){
+    var band = g.band;
+    new Chart(el,{
+      data:{ datasets:[
+        { type:'line', label:'GA Üst', data:band.map(function(b){return {x:b.x,y:b.upper};}), borderColor:'rgba(150,150,150,.35)', backgroundColor:'rgba(150,150,150,.15)', pointRadius:0, fill:'+1', borderWidth:1, tension:0 },
+        { type:'line', label:'GA Alt', data:band.map(function(b){return {x:b.x,y:b.lower};}), borderColor:'rgba(150,150,150,.35)', pointRadius:0, fill:false, borderWidth:1, tension:0 },
+        { type:'line', label:'Regresyon', data:g.linePts, borderColor:'#d33', backgroundColor:'#d33', pointRadius:0, borderWidth:2.5, tension:0 },
+        { type:'scatter', label:'Bireysel bias', data:g.points, backgroundColor:'rgba(90,100,120,.55)', pointStyle:'crossRot', pointRadius:4, pointHoverRadius:6 },
+        { type:'scatter', label:'Referans ort.', data:g.meanPoints, backgroundColor:'#d33', borderColor:'#900', pointRadius:6, pointHoverRadius:8 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ title:{display:true,text:'Referans değeri'} }, y:{ title:{display:true,text:'Bias'},
+          grid:{ color:function(c){ return c.tick.value===0?'#999':'#eee'; }, lineWidth:function(c){ return c.tick.value===0?1.5:1; } } } },
+        plugins:{ legend:{ labels:{ filter:function(i){ return ['Regresyon','Bireysel bias','Referans ort.'].indexOf(i.text)>=0; }, usePointStyle:true, boxWidth:8 } },
+          tooltip:{ callbacks:{ label:function(c){ return 'ref '+c.parsed.x+': bias '+c.parsed.y.toFixed(3); } } } }
+      }
+    });
+  }
+
+  // % proses varyasyonu bar
+  var pel=document.getElementById('chartPct');
+  if(pel){
+    new Chart(pel,{ type:'bar',
+      data:{ labels:['Doğrusallık','Bias'], datasets:[{ data:[R.linearity.pctLinearity, R.linearity.pctBias||0],
+        backgroundColor:['#667eea','#d33'] }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ y:{ beginAtZero:true, title:{display:true,text:'Yüzde (%)'} } },
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:function(c){ return c.label+': %'+c.raw.toFixed(2); } } } }
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

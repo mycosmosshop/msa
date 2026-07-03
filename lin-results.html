@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="js/lin-calculations.js?v=1"></script>
+<title>Type 4 Doğrusallık</title>
+</head>
+<body>
+<div style="font-family:'Segoe UI',sans-serif;padding:40px;color:#667eea">Yükleniyor…</div>
+<script>
+// Type 4 Linearity — mevcut tablolar yeniden kullanılır: msa_studies(study_type='linearity'),
+// msa_parts.nominal_value=referans, msa_measurements.measurement=ölçüm (operator='1').
+(async () => {
+  const studyId = MSA.requireQ('id');
+  try {
+    const user = await MSA.currentUser();
+    const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
+    MSA.throwIf(stErr, 'study select');
+    if (!study) return MSA.renderError('Bulunamadı', 'Çalışma bulunamadı');
+
+    const { measurements, parts } = await MSA.getMeasurementsWithNames(studyId);
+    if (!measurements.length) {
+      return location.replace('lin-data-entry.html?id=' + encodeURIComponent(studyId) + '&error=' + encodeURIComponent('Önce ölçüm verisi girmelisiniz!'));
+    }
+    const refByPart = {};
+    (parts || []).forEach(p => { refByPart[String(p.part_number)] = (p.nominal_value == null ? null : Number(p.nominal_value)); });
+
+    const data = measurements
+      .map(m => ({ part: String(m.part), reference: refByPart[String(m.part)], measurement: Number(m.measurement) }))
+      .filter(d => d.reference != null && isFinite(d.reference));
+
+    if (!data.length) {
+      return location.replace('lin-data-entry.html?id=' + encodeURIComponent(studyId) + '&error=' + encodeURIComponent('Referans değerleri eksik! Her parçaya referans girin.'));
+    }
+
+    const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    const processVariation = MSA.q('pv') || (opts.process_variation != null ? opts.process_variation : null);
+
+    let results;
+    try {
+      results = window.linCalculations.calculateLinearity(data, { processVariation: processVariation });
+    } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+
+    try {
+      await MSA.db.from(MSA.T.studies).update({
+        gauge_evaluation: { linearity: true, pctLinearity: results.linearity.pctLinearity, pctBias: results.linearity.pctBias, slope: results.regression.slope.coef },
+        status: 'calculated',
+        is_acceptable: results.interpretation.acceptabilityClass === 'good' ? 'acceptable' : (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable')
+      }).eq('id', studyId);
+    } catch (e) { console.warn('özet kaydedilemedi', e); }
+
+    await MSA.renderPage('lin-results.ejs', { user, study, results, branding: MSA.BRANDING });
+  } catch (error) {
+    console.error('Linearity sonuç hatası:', error);
+    MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);
+  }
+})();
+</script>
+</body>
+</html>

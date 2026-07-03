@@ -91,10 +91,13 @@
       (s.is_from_schedule === false || s.is_from_schedule === null || s.status !== 'draft')
     );
 
-    // Öznitelik (attribute) çalışmaları ayrı listelenir; Gage R&R tip listelerine sızmamalı
-    const isAttr = s => String(s.study_type || '').toLowerCase() === 'attribute';
+    // Öznitelik ve Doğrusallık çalışmaları ayrı listelenir; Gage R&R tip listelerine sızmamalı
+    const stype = s => String(s.study_type || '').toLowerCase();
+    const isAttr = s => stype(s) === 'attribute';
+    const isLin = s => stype(s) === 'linearity';
     const attributeStudies = myStudies.filter(isAttr);
-    const gageStudies = myStudies.filter(s => !isAttr(s));
+    const linearityStudies = myStudies.filter(isLin);
+    const gageStudies = myStudies.filter(s => !isAttr(s) && !isLin(s));
     const type1Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type1');
     const type2Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type2');
     const type3Studies = gageStudies.filter(s => MSA.normalizeStudyType(s.study_type) === 'type3');
@@ -184,6 +187,7 @@
       myStudies: myStudies,
       type1Studies, type2Studies, type3Studies,
       attributeStudies,
+      linearityStudies,
       draftStudies,
       sharedStudies,
       allStudies: [],
