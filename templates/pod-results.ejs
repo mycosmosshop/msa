@@ -67,7 +67,8 @@
     </div>
     <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;display:flex;flex-wrap:wrap;gap:12px 20px">
       <label class="optlbl"><input type="checkbox" checked onchange="tgl('secFit',this)"> Model uyum tablosu</label>
-      <label class="optlbl"><input id="cbBand" type="checkbox" checked onchange="toggleBand(this)"> Güven aralığı (%<%= inp.ci %>)</label>
+      <label class="optlbl"><input id="cbDens" type="checkbox" checked onchange="toggleDensity(this)"> Yoğunluk göster (hit/miss)</label>
+      <label class="optlbl"><input id="cbBand" type="checkbox" onchange="toggleBand(this)"> Güven aralığı (%<%= inp.ci %>)</label>
       <label class="optlbl"><input id="cbRug" type="checkbox" checked onchange="toggleRug(this)"> Veriyi göster (rug)</label>
       <label class="optlbl"><input id="cbObs" type="checkbox" checked onchange="toggleObs(this)"> Gözlenen oranlar</label>
       <label class="optlbl"><input id="cbLogX" type="checkbox" onchange="toggleLogX(this)"> Logaritmik x-ekseni</label>
@@ -109,7 +110,7 @@
 
   <div class="card">
     <h2><i class="bi bi-graph-up-arrow i"></i> Tespit Grafiği (Detection Plot)</h2>
-    <div class="exp">Mavi eğri = POD modeli (1 tespit etme olasılığı). Gri bant = %<%= (results.studyInfo.ciLevel*100).toFixed(0) %> güven aralığı. Gri noktalar = her boyuttaki gözlenen tespit oranı. Üst/alt kısa çizgiler (rug) = ham hit(1)/miss(0) gözlemleri. Kesikli çizgiler a₅₀ ve a₉₀ boyutlarını gösterir.</div>
+    <div class="exp">Siyah eğri = POD modeli (1 tespit etme olasılığı). <b>Üstteki/alttaki gri eğriler = yoğunluk</b>: üstte tespit edilen (hit), altta kaçırılan (miss) gözlemlerin boyut dağılımı — hit'ler büyük boyutta, miss'ler küçük boyutta yoğunlaşır. Üst/alt kısa çizgiler (rug) = ham gözlemler. Kesikli çizgiler a₅₀/a₉₀ boyutları. (İsterseniz seçeneklerden <b>%<%= (results.studyInfo.ciLevel*100).toFixed(0) %> güven aralığı</b> bandını açabilirsiniz.)</div>
     <div class="chartbox"><canvas id="chartPod"></canvas></div>
   </div>
 
@@ -121,6 +122,7 @@ var POD_CH=null;
 function tgl(id,cb){ var el=document.getElementById(id); if(el) el.style.display=cb.checked?'':'none'; }
 function setDs(label,hidden){ if(!POD_CH)return; var d=POD_CH.data.datasets.find(function(x){return x._role===label;}); if(d){ d.hidden=hidden; POD_CH.update(); } }
 function toggleBand(cb){ if(!POD_CH)return; POD_CH.data.datasets.forEach(function(d){ if(d._role==='bandLo'||d._role==='bandHi') d.hidden=!cb.checked; }); POD_CH.update(); }
+function toggleDensity(cb){ if(!POD_CH)return; POD_CH.data.datasets.forEach(function(d){ if(d._role==='densHit'||d._role==='densMiss') d.hidden=!cb.checked; }); POD_CH.update(); }
 function toggleRug(cb){ if(window.__setRug) window.__setRug(cb.checked); }
 function toggleObs(cb){ setDs('obs',!cb.checked); }
 function toggleLogX(cb){ if(!POD_CH)return; POD_CH.options.scales.x.type = cb.checked?'logarithmic':'linear'; POD_CH.update(); }
@@ -150,16 +152,19 @@ function applyInputs(){
   }catch(e){} }};
   window.__setRug=function(v){ showRug=v; POD_CH.update(); };
   var xmin=g.curve[0].x, xmax=g.curve[g.curve.length-1].x;
+  var AMP=0.12;
   POD_CH=new Chart(el,{
     data:{ datasets:[
-      { type:'line', _role:'bandLo', label:'CI alt', data:g.curve.map(function(p){return {x:p.x,y:p.yLo};}), borderColor:'#9aa0ac', borderWidth:1, pointRadius:0, tension:0.3, fill:false },
-      { type:'line', _role:'bandHi', label:'CI üst', data:g.curve.map(function(p){return {x:p.x,y:p.yHi};}), borderColor:'#9aa0ac', backgroundColor:'rgba(150,155,170,.10)', borderWidth:1, pointRadius:0, tension:0.3, fill:'-1' },
+      { type:'line', _role:'bandLo', label:'CI alt', hidden:true, data:g.curve.map(function(p){return {x:p.x,y:p.yLo};}), borderColor:'#9aa0ac', borderWidth:1, pointRadius:0, tension:0.3, fill:false },
+      { type:'line', _role:'bandHi', label:'CI üst', hidden:true, data:g.curve.map(function(p){return {x:p.x,y:p.yHi};}), borderColor:'#9aa0ac', backgroundColor:'rgba(150,155,170,.10)', borderWidth:1, pointRadius:0, tension:0.3, fill:'-1' },
+      { type:'line', _role:'densHit', label:'Yoğunluk (hit)', data:g.curve.map(function(p){return {x:p.x,y:1.0+AMP*(p.dHit||0)};}), borderColor:'#9aa0ac', borderWidth:1.2, pointRadius:0, tension:0.35, fill:false },
+      { type:'line', _role:'densMiss', label:'Yoğunluk (miss)', data:g.curve.map(function(p){return {x:p.x,y:0.0-AMP*(p.dMiss||0)};}), borderColor:'#9aa0ac', borderWidth:1.2, pointRadius:0, tension:0.35, fill:false },
       { type:'line', _role:'curve', label:'POD eğrisi', data:g.curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#111', borderWidth:2.2, pointRadius:0, tension:0.3, fill:false },
       { type:'scatter', _role:'obs', label:'Gözlenen oran', data:g.observed, backgroundColor:'rgba(90,90,90,.55)', pointRadius:4, pointHoverRadius:7 }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{ x:{ type:'linear', min:xmin, max:xmax, title:{display:true,text:'Boyut'}, grid:{display:false} },
-               y:{ min:-0.08, max:1.12, title:{display:true,text:'1 tespit etme olasılığı'}, grid:{color:'#f0f2f7'}, ticks:{stepSize:0.2} } },
+               y:{ min:-0.16, max:1.18, title:{display:true,text:'1 tespit etme olasılığı'}, grid:{color:'#f0f2f7'}, ticks:{stepSize:0.2} } },
       plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8, filter:function(it){ return ['POD eğrisi','Gözlenen oran'].indexOf(it.text)!==-1; } } },
         tooltip:{ callbacks:{ label:function(c){ return c.dataset._role==='obs' ? ('Boyut '+c.parsed.x+': '+(g.observed[c.dataIndex]?g.observed[c.dataIndex].hits+'/'+g.observed[c.dataIndex].n:'')+' (%'+(c.parsed.y*100).toFixed(0)+')') : (c.dataset.label+': %'+(c.parsed.y*100).toFixed(1)); } } } },
     },

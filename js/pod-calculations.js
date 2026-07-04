@@ -116,6 +116,19 @@
     const observed=Object.keys(bySize).map(s=>({ x:parseFloat(s), y:bySize[s].h/bySize[s].n, n:bySize[s].n, hits:bySize[s].h })).sort((a,b)=>a.x-b.x);
     const rug = rows.map(r=>({ x:r.size, y:r.detected }));
 
+    // Yoğunluk eğrileri (JASP "Show density"): kovaryatın hit ve miss gruplarındaki KDE'si
+    const hitX = rows.filter(r=>r.detected===1).map(r=>r.size);
+    const missX = rows.filter(r=>r.detected===0).map(r=>r.size);
+    function kde(dat, gx){ if(!dat.length) return gx.map(()=>0);
+      const mm=dat.reduce((a,b)=>a+b,0)/dat.length;
+      const sd=Math.sqrt(dat.reduce((s,v)=>s+(v-mm)*(v-mm),0)/Math.max(dat.length-1,1))||1;
+      const h=(1.06*sd*Math.pow(dat.length,-0.2))||1;
+      return gx.map(x=>{ let s=0; for(let i=0;i<dat.length;i++){ const u=(x-dat[i])/h; s+=Math.exp(-0.5*u*u); } return s/(dat.length*h*2.5066282746); }); }
+    const gridX = curve.map(p=>p.x);
+    const dH=kde(hitX,gridX), dM=kde(missX,gridX);
+    const dmax=Math.max(Math.max.apply(null,dH), Math.max.apply(null,dM), 1e-9);
+    curve.forEach((p,i)=>{ p.dHit=dH[i]/dmax; p.dMiss=dM[i]/dmax; });
+
     return {
       studyInfo:{ n, positives:ys.reduce((a,b)=>a+b,0), sizes:observed.length, link, logTransform:logCov, ciLevel },
       parameters:{
