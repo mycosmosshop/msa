@@ -282,7 +282,56 @@
     };
   }
 
-  const api={ calculateSubgroupChart, calculateIndividualsChart, calculateAttributeChart, konst };
+  // ── Time Weighted Charts (CUSUM, EWMA) ──────────────────────────────────
+  function calculateTimeWeighted(values, options){
+    options = options || {};
+    const x = (values||[]).map(Number).filter(v=>isFinite(v));
+    const n = x.length;
+    if(n<4) throw new Error('En az birkaç ölçüm gerekli');
+    const w = Math.max(2, parseInt(options.movingRangeLength,10)||2);
+    const xbar = mean(x);
+    // σ tahmini (X-mR): MR̄/d2
+    let mrsum=0; for(let i=w-1;i<n;i++){ const win=x.slice(i-w+1,i+1); mrsum+=Math.max.apply(null,win)-Math.min.apply(null,win); }
+    const MRbar = mrsum/(n-w+1);
+    const d2 = konst(w)[2];
+    const sigma = (options.known && options.known.sd!=null && isFinite(parseFloat(options.known.sd))) ? parseFloat(options.known.sd) : MRbar/d2;
+
+    const out = { studyInfo:{ numPoints:n, xbar, MRbar, sigma, movingRangeLength:w } };
+
+    // CUSUM (standartlaştırılmış, tabular)
+    if(options.cusum!==false){
+      const h = (options.cusumH!=null&&isFinite(parseFloat(options.cusumH)))?parseFloat(options.cusumH):4;
+      const shift = (options.shiftSize!=null&&isFinite(parseFloat(options.shiftSize)))?parseFloat(options.shiftSize):0.5;
+      const k = shift/2;
+      const target = (options.target!=null && options.target!=='' && isFinite(parseFloat(options.target))) ? parseFloat(options.target) : xbar;
+      const cplus=[], cminus=[]; let cp=0, cm=0; const signalsU=[], signalsL=[];
+      for(let i=0;i<n;i++){ const z=(x[i]-target)/sigma;
+        cp=Math.max(0, z-k+cp); cm=Math.max(0, -k-z+cm);
+        cplus.push(cp); cminus.push(-cm);
+        if(cp>h) signalsU.push(i+1); if(cm>h) signalsL.push(i+1); }
+      out.cusum = { target, k, h, sigma, cplus, cminus, UCL:h, LCL:-h, CL:0,
+        signals:{ upper:signalsU, lower:signalsL }, nOut:signalsU.length+signalsL.length, ylabel:'Kümülatif toplam (σ)' };
+    }
+
+    // EWMA
+    if(options.ewma!==false){
+      const L = (options.ewmaL!=null&&isFinite(parseFloat(options.ewmaL)))?parseFloat(options.ewmaL):3;
+      const lam = (options.lambda!=null&&isFinite(parseFloat(options.lambda)))?parseFloat(options.lambda):0.3;
+      const mu0 = (options.target!=null && options.target!=='' && isFinite(parseFloat(options.target)) && options.ewmaUseTarget) ? parseFloat(options.target) : xbar;
+      const z=[], UCLarr=[], LCLarr=[]; let prev=mu0; const signals=[];
+      for(let i=0;i<n;i++){ const zi=lam*x[i]+(1-lam)*prev; prev=zi; z.push(zi);
+        const f=Math.sqrt(lam/(2-lam)*(1-Math.pow(1-lam,2*(i+1))));
+        const u=mu0+L*sigma*f, l=mu0-L*sigma*f; UCLarr.push(u); LCLarr.push(l);
+        if(zi>u||zi<l) signals.push(i+1); }
+      out.ewma = { lambda:lam, L, mu0, sigma, points:z, raw:x, UCLarr, LCLarr, CL:mu0,
+        UCL:Math.max.apply(null,UCLarr), LCL:Math.min.apply(null,LCLarr), varying:true,
+        signals, nOut:signals.length, ylabel:'EWMA' };
+    }
+    out.interpretation = { inControl: !((out.cusum&&out.cusum.nOut)||(out.ewma&&out.ewma.nOut)) };
+    return out;
+  }
+
+  const api={ calculateSubgroupChart, calculateIndividualsChart, calculateAttributeChart, calculateTimeWeighted, konst };
   if(typeof module!=='undefined'&&module.exports) module.exports=api;
   if(typeof window!=='undefined') window.controlCalculations=api;
 })();

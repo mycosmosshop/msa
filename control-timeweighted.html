@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Zaman Ağırlıklı Grafikler (CUSUM / EWMA)</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2;--good:#1e7e4a;--bad:#c0392b;--gbg:#eaf6ef;--bbg:#fdecea}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .hdr h1{margin:0;font-size:19px} .hdr p{margin:3px 0 0;opacity:.9;font-size:12.5px}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:rgba(255,255,255,.2);color:#fff} .btn.sm{padding:6px 12px;font-size:12.5px}
+  .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:16px 18px;margin:14px 0}
+  .card h2{margin:0 0 4px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.6px;color:#4a5568;margin:8px 0;line-height:1.5}
+  .tabs{display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:0 0 8px}
+  .tab{border:0;background:transparent;padding:8px 15px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer}
+  .tab.on{background:#fff;color:#41506b;box-shadow:0 1px 4px rgba(30,40,70,.12)}
+  textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
+  .grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
+  .grp .t{font-weight:700;font-size:13px;color:#39415a;display:flex;align-items:center;gap:8px}
+  .opts{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:8px}
+  .optlbl{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#41506b;font-weight:600}
+  .optlbl input[type=number]{width:66px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-weight:400}
+  .chartbox{position:relative;height:300px}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:6px}
+  .kv .b{background:#f8f9fd;border-radius:9px;padding:9px 12px} .kv .b b{display:block;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase} .kv .b span{font-size:15px;font-weight:700}
+  .verdict{padding:8px 13px;border-radius:9px;font-weight:700;font-size:13px;display:inline-flex;gap:7px;align-items:center;margin-top:6px}
+  .verdict.good{background:var(--gbg);color:var(--good)} .verdict.bad{background:var(--bbg);color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-hourglass-split"></i> Zaman Ağırlıklı Grafikler</h1><p>Time Weighted Charts — CUSUM & EWMA (bireysel gözlem, JASP uyumlu)</p></div>
+    <a class="btn ghost" href="control-charts.html"><i class="bi bi-arrow-left"></i> Pano</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-table i"></i> Veri</h2>
+    <div class="tabs">
+      <button class="tab on" id="tabPaste" onclick="setMode('paste')"><i class="bi bi-clipboard"></i> Yapıştır</button>
+      <button class="tab" id="tabCol" onclick="setMode('col')"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+    </div>
+    <div id="mPaste"><div class="exp">Ölçümleri gözlem sırasıyla yapıştırın (boşluk/virgül/satır). Bireysel gözlem (n=1).</div>
+      <textarea id="data" placeholder="ör. 10.0 9.8 10.2 9.9 ..."></textarea></div>
+    <div id="mCol" style="display:none"><div class="exp">Ölçümleri sütuna girip <b>Ölçüm</b> kutusuna sürükleyin.</div><div id="jaspHost"></div></div>
+
+    <div class="grp">
+      <label class="t"><input type="checkbox" id="cCusum" checked> Kümülatif Toplam (CUSUM)</label>
+      <div class="opts">
+        <label class="optlbl">Limit için σ sayısı (h) <input type="number" id="cH" value="4" step="0.5" min="1"></label>
+        <label class="optlbl">Kayma boyutu (δ) <input type="number" id="cShift" value="0.5" step="0.1" min="0.1"></label>
+        <label class="optlbl">Hedef <input type="number" id="cTarget" step="any" placeholder="boş=ortalama"></label>
+      </div>
+    </div>
+    <div class="grp">
+      <label class="t"><input type="checkbox" id="cEwma" checked> Üstel Ağırlıklı Hareketli Ortalama (EWMA)</label>
+      <div class="opts">
+        <label class="optlbl">Limit için σ sayısı (L) <input type="number" id="eL" value="3" step="0.5" min="1"></label>
+        <label class="optlbl">Lambda (λ) <input type="number" id="eLambda" value="0.3" step="0.05" min="0.05" max="1"></label>
+      </div>
+    </div>
+    <div class="opts" style="margin-top:10px">
+      <span style="font-weight:700;color:#39415a;font-size:12.5px">σ tahmini (X-mR):</span>
+      <label class="optlbl">Hareketli menzil uzunluğu <input type="number" id="mrl" value="2" min="2" max="25"></label>
+      <span id="mrlWarn" style="display:none;color:#c0392b;font-size:12px;background:#fdecea;border:1px solid #f5c6c0;border-radius:7px;padding:4px 9px"></span>
+      <label class="optlbl"><input type="checkbox" id="useKnown"> Bilinen σ</label>
+      <input type="number" id="kSd" step="any" disabled placeholder="σ" style="width:80px;padding:5px 7px;border:1px solid var(--line);border-radius:7px">
+    </div>
+    <div class="opts" style="margin-top:10px">
+      <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
+      <button class="btn primary sm" style="background:#1e7e4a" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veri</button>
+      <label class="optlbl" style="margin-left:auto">Çalışma adı <input id="studyName" onblur="renameStudy()" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-weight:400;min-width:150px"></label>
+      <span id="saveState" style="color:var(--muted);font-size:12px"><i class="bi bi-cloud"></i> Hesaplayınca otomatik kaydedilir</span>
+    </div>
+  </div>
+  <div id="report"></div>
+</div>
+
+<script>
+var charts=[], jaspCtrl=null, dmode='paste', currentId=null;
+document.querySelectorAll('.hdr a[href$=".html"]').forEach(function(a){ a.setAttribute('href', a.getAttribute('href')+'?v='+Date.now()); });
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error(src));};document.head.appendChild(s);});}
+function nf(x,d){ if(x==null||!isFinite(x))return '—'; return Number(x).toFixed(d==null?3:d); }
+function setMode(m){ dmode=m; document.getElementById('mPaste').style.display=m==='paste'?'':'none'; document.getElementById('mCol').style.display=m==='col'?'':'none';
+  document.getElementById('tabPaste').classList.toggle('on',m==='paste'); document.getElementById('tabCol').classList.toggle('on',m==='col'); }
+document.getElementById('useKnown').addEventListener('change',function(){ document.getElementById('kSd').disabled=!this.checked; });
+
+var lastMrl=2, mrlTimer=null;
+function mrlWarn(msg){ var w=document.getElementById('mrlWarn'); if(!w)return; w.textContent=msg; w.style.display=''; clearTimeout(mrlTimer); mrlTimer=setTimeout(function(){w.style.display='none';},4000); }
+function validateMrl(){ var el=document.getElementById('mrl'); var raw=el.value.trim(); var v=parseInt(raw,10);
+  if(raw===''||!isFinite(v)||v<2){ mrlWarn('Hareketli menzil uzunluğu ≥ 2 olmalı. Son değere döndürüldü: '+lastMrl); el.value=lastMrl; return false; }
+  if(v>25){ mrlWarn('En fazla 25. Son değere döndürüldü: '+lastMrl); el.value=lastMrl; return false; } lastMrl=v; el.value=v; return true; }
+(function(){ var el=document.getElementById('mrl'); if(el){ el.addEventListener('change',validateMrl); el.addEventListener('blur',validateMrl); } })();
+
+function loadExample(){
+  var s=11; function rnd(){ s=(s*9301+49297)%233280; return s/233280; }
+  var out=[]; for(var i=0;i<25;i++){ var shift=(i>=15?0.9:0); out.push((10+shift+(rnd()-0.5)*0.9).toFixed(2)); }
+  document.getElementById('data').value=out.join(' '); document.getElementById('cTarget').value=10; setMode('paste');
+}
+function readData(){
+  if(dmode==='col' && jaspCtrl){ var v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+    var M=jaspCtrl.role('measurement')[0], n=jaspCtrl.rowCount(), num=jaspCtrl.num, vals=[]; for(var r=0;r<n;r++){ var x=num(M.values[r]); if(x!=null) vals.push(x); } return vals; }
+  return document.getElementById('data').value.trim().split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
+}
+
+function calc(doSave){
+  if(doSave===undefined) doSave=true;
+  validateMrl();
+  var vals; try{ vals=readData(); }catch(e){ if(doSave) alert(e.message); return; }
+  if(vals.length<4){ if(doSave) alert('En az birkaç ölçüm girin.'); return; }
+  var opts={ cusum:document.getElementById('cCusum').checked, ewma:document.getElementById('cEwma').checked,
+    cusumH:parseFloat(document.getElementById('cH').value)||4, shiftSize:parseFloat(document.getElementById('cShift').value)||0.5,
+    target:document.getElementById('cTarget').value, ewmaUseTarget:false,
+    ewmaL:parseFloat(document.getElementById('eL').value)||3, lambda:parseFloat(document.getElementById('eLambda').value)||0.3,
+    movingRangeLength:parseInt(document.getElementById('mrl').value,10)||2 };
+  if(!opts.cusum && !opts.ewma){ if(doSave) alert('En az bir grafik seçin (CUSUM veya EWMA).'); return; }
+  if(document.getElementById('useKnown').checked){ var sdv=document.getElementById('kSd').value; if(sdv!=='') opts.known={ sd:parseFloat(sdv) }; }
+  var R; try{ R=window.controlCalculations.calculateTimeWeighted(vals,opts); }catch(e){ if(doSave) alert('Hata: '+e.message); return; }
+  draw(R); window.__hasResult=true; if(doSave) persist(R);
+}
+
+function limLabels(getY, items){ return { id:'lim', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return;
+  items.forEach(function(it){ if(it.v==null||!isFinite(it.v))return; var py=y.getPixelForValue(it.v); if(py<y.top-1||py>y.bottom+1)return; ctx.save(); ctx.fillStyle='#fff'; ctx.strokeStyle=it.col; ctx.font='11px Segoe UI'; var w=ctx.measureText(it.t).width+8; ctx.fillRect(x.right-w-2,py-9,w,16); ctx.strokeRect(x.right-w-2,py-9,w,16); ctx.fillStyle=it.col; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(it.t,x.right-w+2,py); ctx.restore(); }); }catch(e){} } }; }
+
+function drawCusum(cu){
+  var n=cu.cplus.length; function hl(v){ return [{x:1,y:v},{x:n,y:v}]; }
+  var cp=cu.cplus.map(function(v,i){return {x:i+1,y:v};});
+  var cm=cu.cminus.map(function(v,i){return {x:i+1,y:v};});
+  var upSet={}; cu.signals.upper.forEach(function(s){upSet[s]=1;}); var loSet={}; cu.signals.lower.forEach(function(s){loSet[s]=1;});
+  var ds=[
+    { type:'line', data:hl(cu.UCL), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5 },
+    { type:'line', data:hl(cu.LCL), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5 },
+    { type:'line', data:hl(0), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.2 },
+    { type:'line', label:'C+', data:cp, borderColor:'#2563eb', pointBackgroundColor:cp.map(function(p){return upSet[p.x]?'#c0392b':'#2563eb';}), pointRadius:3, borderWidth:1.6, tension:0 },
+    { type:'line', label:'C−', data:cm, borderColor:'#7b1fa2', pointBackgroundColor:cm.map(function(p){return loSet[p.x]?'#c0392b':'#7b1fa2';}), pointRadius:3, borderWidth:1.6, tension:0 }
+  ];
+  charts.push(new Chart(document.getElementById('cCusumCanvas'),{ data:{datasets:ds}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{right:8}},
+    scales:{ x:{type:'linear',min:0.5,max:n+0.5,title:{display:true,text:'Gözlem'},ticks:{stepSize:Math.ceil(n/15)}}, y:{title:{display:true,text:cu.ylabel}} },
+    plugins:{ legend:{display:true,labels:{filter:function(it){return it.text==='C+'||it.text==='C−';}}} } },
+    plugins:[ limLabels(null,[{v:cu.UCL,t:'+h = '+nf(cu.UCL,2),col:'#c0392b'},{v:cu.LCL,t:'−h = '+nf(cu.LCL,2),col:'#c0392b'}]) ] }));
+}
+function drawEwma(e){
+  var n=e.points.length; function arr(a){return a.map(function(v,i){return {x:i+1,y:v};});} function hl(v){return [{x:1,y:v},{x:n,y:v}];}
+  var pts=arr(e.points); var sig={}; e.signals.forEach(function(s){sig[s]=1;});
+  var ds=[
+    { type:'line', data:arr(e.UCLarr), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0 },
+    { type:'line', data:arr(e.LCLarr), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0 },
+    { type:'line', data:hl(e.CL), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.2 },
+    { type:'scatter', data:e.raw.map(function(v,i){return {x:i+1,y:v};}), backgroundColor:'rgba(150,155,170,.4)', pointRadius:2 },
+    { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p){return sig[p.x]?'#c0392b':'#2563eb';}), pointRadius:3, borderWidth:1.8, tension:0 }
+  ];
+  charts.push(new Chart(document.getElementById('cEwmaCanvas'),{ data:{datasets:ds}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{right:8}},
+    scales:{ x:{type:'linear',min:0.5,max:n+0.5,title:{display:true,text:'Gözlem'},ticks:{stepSize:Math.ceil(n/15)}}, y:{title:{display:true,text:e.ylabel}} },
+    plugins:{ legend:{display:false} } }, plugins:[ limLabels(null,[{v:e.CL,t:'MÇ = '+nf(e.CL),col:'#1e7e4a'}]) ] }));
+}
+function draw(R){
+  charts.forEach(function(c){try{c.destroy();}catch(e){}}); charts=[];
+  var si=R.studyInfo;
+  var html='<div class="card"><h2><i class="bi bi-clipboard-data i"></i> Özet</h2>'+
+    '<div class="verdict '+(R.interpretation.inControl?'good':'bad')+'"><i class="bi bi-'+(R.interpretation.inControl?'check-circle-fill':'exclamation-triangle-fill')+'"></i> '+(R.interpretation.inControl?'Süreç kontrol altında':'Kontrol dışı sinyal(ler) var')+'</div>'+
+    '<div class="kv"><div class="b"><b>Gözlem</b><span>'+si.numPoints+'</span></div><div class="b"><b>Ortalama</b><span>'+nf(si.xbar)+'</span></div><div class="b"><b>σ (X-mR)</b><span>'+nf(si.sigma,4)+'</span></div></div>'+
+    '<div class="exp">σ, X-mR yöntemiyle (MR̄/d₂) tahmin edildi. <b>CUSUM</b> küçük ve kalıcı kaymaları, <b>EWMA</b> küçük kaymaları hafızalı biçimde erken yakalar.</div></div>';
+  if(R.cusum) html+='<div class="card"><h2><i class="bi bi-graph-up i"></i> CUSUM (Kümülatif Toplam)</h2><div class="exp">Hedef = '+nf(R.cusum.target)+', k = '+nf(R.cusum.k,2)+' (=δ/2), karar aralığı h = '+nf(R.cusum.h,2)+'σ. C+ üst, C− alt birikimi; |değer| > h olunca kayma sinyali. '+(R.cusum.nOut?('<b style=\"color:#c0392b\">Sinyal: üst '+(R.cusum.signals.upper.join(', ')||'—')+' · alt '+(R.cusum.signals.lower.join(', ')||'—')+'</b>'):'<b style=\"color:#1e7e4a\">Sinyal yok.</b>')+'</div><div class="chartbox"><canvas id="cCusumCanvas"></canvas></div></div>';
+  if(R.ewma) html+='<div class="card"><h2><i class="bi bi-activity i"></i> EWMA</h2><div class="exp">λ = '+nf(R.ewma.lambda,2)+', L = '+nf(R.ewma.L,1)+'σ, merkez = '+nf(R.ewma.mu0)+'. Limitler başta dar, zamanla asimptota genişler. '+(R.ewma.nOut?('<b style=\"color:#c0392b\">Sinyal: '+R.ewma.signals.join(', ')+'</b>'):'<b style=\"color:#1e7e4a\">Sinyal yok.</b>')+'</div><div class="chartbox"><canvas id="cEwmaCanvas"></canvas></div></div>';
+  document.getElementById('report').innerHTML=html;
+  if(R.cusum) drawCusum(R.cusum);
+  if(R.ewma) drawEwma(R.ewma);
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(function(){ charts.forEach(function(c){try{c.resize();}catch(e){}}); });
+}
+
+function defaultName(){ try{ return 'CUSUM/EWMA '+new Date().toLocaleDateString('tr-TR'); }catch(e){ return 'CUSUM/EWMA'; } }
+async function persist(R){
+  var el=document.getElementById('studyName'); var name=(el.value||'').trim(); if(!name){ name=defaultName(); el.value=name; }
+  var user={}; try{ user=await MSA.currentUser(); }catch(e){}
+  var g=function(id){return document.getElementById(id).value;};
+  var rec={ study_name:name, study_type:'timeweighted', description:'Zaman ağırlıklı grafik (CUSUM/EWMA)', status:'calculated',
+    num_operators:1, num_parts:1, num_trials:1, owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
+    is_acceptable:R.interpretation.inControl?'acceptable':'unacceptable',
+    analysis_options:{ timeweighted:true, cusum:document.getElementById('cCusum').checked, ewma:document.getElementById('cEwma').checked,
+      cH:g('cH'), cShift:g('cShift'), cTarget:g('cTarget'), eL:g('eL'), eLambda:g('eLambda'), mrl:g('mrl'),
+      useKnown:document.getElementById('useKnown').checked, kSd:g('kSd'), mode:dmode, data:g('data') } };
+  var st=document.getElementById('saveState');
+  try{ if(currentId){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',currentId); if(u.error)throw u.error; }
+    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; currentId=r.data.id; history.replaceState(null,'','control-timeweighted.html?id='+currentId); }
+    if(st) st.innerHTML='<i class="bi bi-cloud-check" style="color:#1e7e4a"></i> Panoya kaydedildi';
+  }catch(e){ if(st) st.innerHTML='<i class="bi bi-cloud-slash" style="color:#c0392b"></i> Kaydedilemedi: '+e.message; }
+}
+async function renameStudy(){ if(!currentId)return; var name=(document.getElementById('studyName').value||'').trim(); if(name){ try{ await MSA.db.from(MSA.T.studies).update({study_name:name}).eq('id',currentId); }catch(e){} } }
+
+function mountJasp(initial){ if(!window.MSA||!MSA.ColAssign) return;
+  jaspCtrl=MSA.ColAssign.mount(document.getElementById('jaspHost'),{ roles:[ { key:'measurement', label:'Ölçüm', multi:false, numeric:true, required:true } ], minRows:15, initial: initial||{ columns:[{name:'Ölçüm',values:[]}] } }); }
+(async function(){
+  try{ await MSA.currentUser(); }catch(e){}
+  if(!window.controlCalculations){ await loadScript('js/control-calculations.js?v='+Date.now()); }
+  var id=MSA.q('id');
+  if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
+    if(q.data){ var o=q.data.analysis_options||{};
+      document.getElementById('cCusum').checked=o.cusum!==false; document.getElementById('cEwma').checked=o.ewma!==false;
+      ['cH','cShift','cTarget','eL','eLambda','mrl','kSd'].forEach(function(k){ if(o[k]!=null&&o[k]!=='') document.getElementById(k).value=o[k]; });
+      if(o.mrl){ lastMrl=parseInt(o.mrl,10)||2; }
+      if(o.useKnown){ document.getElementById('useKnown').checked=true; document.getElementById('kSd').disabled=false; }
+      document.getElementById('data').value=o.data||''; document.getElementById('studyName').value=q.data.study_name||'';
+      mountJasp(); setMode(o.mode==='col'?'col':'paste');
+      if(o.data&&o.data.trim()){ calc(); return; } return;
+    } }
+  mountJasp(); loadExample(); document.getElementById('studyName').value=defaultName(); calc(false);
+})();
+</script>
+</body>
+</html>
