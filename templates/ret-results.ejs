@@ -30,6 +30,9 @@
   .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
   .info .kv span{font-size:16px;font-weight:700}
   .chartbox{position:relative;height:360px}
+  .chartbox.sm{height:300px}
+  .optlbl{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:#41506b;font-weight:600;cursor:pointer}
+  .optlbl input{width:16px;height:16px;cursor:pointer}
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
   @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
 </style>
@@ -53,6 +56,28 @@
   </div>
 
   <div class="card">
+    <h2><i class="bi bi-sliders i"></i> Analiz Seçenekleri</h2>
+    <div class="exp">JASP <i>Analysis options</i> karşılığı. Proses std sapması / tolerans girip <b>Uygula</b> deyin (%GRR ve trafik ışığı yeniden hesaplanır). Grafik ve tabloları aç/kapatın.</div>
+    <% var inp = results._inputs || {tol:'',psd:''}; %>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin:8px 0 4px">
+      <label class="optlbl" style="flex-direction:column;align-items:flex-start;gap:3px">Proses std. sapması
+        <input id="inPsd" type="number" step="any" value="<%= inp.psd %>" placeholder="ör. 1" style="width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:7px"></label>
+      <label class="optlbl" style="flex-direction:column;align-items:flex-start;gap:3px">Tolerans (USL−LSL)
+        <input id="inTol" type="number" step="any" value="<%= inp.tol %>" placeholder="ör. 2" style="width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:7px"></label>
+      <button class="btn primary" onclick="applyInputs()"><i class="bi bi-arrow-repeat"></i> Uygula</button>
+    </div>
+    <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;display:flex;flex-wrap:wrap;gap:14px 22px">
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secRR',this)"> r&R tablosu</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secRun',this)"> Parça çalışma grafiği (Run chart)</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secScatter',this)"> Saçılım grafiği</label>
+      <label class="optlbl" style="margin-left:18px"><input id="cbFit" type="checkbox" checked onchange="toggleFit(this)"> └ Eğilim çizgisi (fit)</label>
+      <label class="optlbl" style="margin-left:18px"><input id="cbAll" type="checkbox" onchange="toggleAll(this)"> └ Tüm ölçümleri göster</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secRange',this)"> Menzil grafiği (Range chart)</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secTraffic',this)"> Trafik ışığı</label>
+    </div>
+  </div>
+
+  <div class="card" id="secRR">
     <h2><i class="bi bi-speedometer i"></i> Kısa Mastar Çalışması (Short Gauge Study)</h2>
     <div class="exp">Bu hızlı yöntem, her parçanın <b>iki tekrarı arasındaki menzil</b>i kullanarak ölçüm cihazının <b>tekrarlanabilirlik hatasını (GRR)</b> tahmin eder.
       <b>GRR = R̄ / d₂*</b>, burada R̄ ortalama menzil, d₂* alt grup boyutu ve parça sayısına göre düzeltilmiş sabittir.</div>
@@ -72,34 +97,132 @@
     <% } %>
   </div>
 
-  <div class="card">
-    <h2><i class="bi bi-graph-up-arrow i"></i> 1. Ölçüm – 2. Ölçüm Grafiği</h2>
+  <div class="card" id="secRun">
+    <h2><i class="bi bi-activity i"></i> Parça Çalışma Grafiği (Run Chart of Parts)</h2>
+    <div class="exp">Her parçanın tüm ölçümleri parça sırasına göre gösterilir. Aynı parçanın noktaları birbirine ne kadar yakınsa (dikey yayılım küçük) cihaz o kadar tekrarlanabilirdir.</div>
+    <div class="chartbox"><canvas id="chartRun"></canvas></div>
+  </div>
+
+  <div class="card" id="secScatter">
+    <h2><i class="bi bi-graph-up-arrow i"></i> Saçılım: 1. Ölçüm – 2. Ölçüm</h2>
     <div class="exp">Her nokta bir parçanın iki ölçümünü gösterir. Noktalar <b>45° kesikli çizgiye</b> (kusursuz tekrar) ne kadar yakınsa cihaz o kadar tutarlıdır. Mavi çizgi gerçek eğilim (fit). Dağılım genişse tekrarlanabilirlik zayıftır.</div>
     <div class="chartbox"><canvas id="chartScatter"></canvas></div>
+  </div>
+
+  <div class="card" id="secRange">
+    <h2><i class="bi bi-distribute-vertical i"></i> Menzil Grafiği (Range Chart)</h2>
+    <div class="exp">Her parçanın iki ölçümü arasındaki menzil (R). <b>ÜKS = D₄·R̄</b>, <b>AKS = D₃·R̄</b>, merkez çizgi R̄. Noktalar limitler içindeyse ölçüm süreci <b>kararlıdır</b> (tekrarlanabilirlik tutarlı). Limit dışı nokta o parçada anormal tekrar farkı demektir.</div>
+    <div class="chartbox sm"><canvas id="chartRange"></canvas></div>
+    <table style="max-width:520px;margin:12px auto 0">
+      <thead><tr><th>Menzil grafiği testleri</th></tr></thead>
+      <tbody><tr><td style="text-align:left;<%= results.rangeChart.violations.length?'color:#c0392b':'color:#1e7e4a' %>">
+        <% if(results.rangeChart.violations.length){ %>Kontrol dışı nokta(lar): parça <%= results.rangeChart.violations.join(', ') %> (menzil ÜKS/AKS dışında).
+        <% } else { %>Test ihlali yok — tüm menziller kontrol limitleri içinde.<% } %>
+      </td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="secTraffic">
+    <h2><i class="bi bi-stoplights i"></i> Trafik Işığı (GRR %)</h2>
+    <div class="exp">GRR'nin çalışma varyasyonuna oranı (<b><%= results.traffic.basis %></b>). <span style="color:var(--good);font-weight:700">Yeşil &lt;%10</span> · <span style="color:var(--mar);font-weight:700">Sarı %10–30</span> · <span style="color:var(--bad);font-weight:700">Kırmızı &gt;%30</span> (AIAG).</div>
+    <div class="chartbox sm" style="height:150px"><canvas id="chartTraffic"></canvas></div>
+    <div style="text-align:center;font-size:15px;margin-top:6px">%GRR = <b><%= results.traffic.pct.toFixed(2) %>%</b></div>
   </div>
 
   <div class="foot">GageAI · Test-Retest (Menzil Yöntemi) — AIAG MSA 4. Baskı / JASP metodolojisi ile doğrulanmıştır.</div>
 </div>
 
 <script>
+var CH={};
+function tgl(id,cb){ var el=document.getElementById(id); if(el) el.style.display=cb.checked?'':'none'; }
+function applyInputs(){
+  var psd=document.getElementById('inPsd').value, tol=document.getElementById('inTol').value;
+  var u=new URL(location.href); u.searchParams.set('id','<%= study.id %>');
+  if(psd!=='') u.searchParams.set('psd',psd); else u.searchParams.delete('psd');
+  if(tol!=='') u.searchParams.set('tol',tol); else u.searchParams.delete('tol');
+  location.href=u.toString();
+}
+function toggleFit(cb){ if(!CH.scatter) return; var d=CH.scatter.data.datasets.find(function(x){return x.label&&x.label.indexOf('Eğilim')===0;}); if(d){ d.hidden=!cb.checked; CH.scatter.update(); } }
+function toggleAll(cb){ if(!CH.run) return; CH.run.data.datasets.forEach(function(d){ if(d._trial>1) d.hidden=!cb.checked; }); CH.run.update(); }
+
 (function(){
   var R = <%- JSON.stringify(results) %>;
   var g = R.graph;
-  var el=document.getElementById('chartScatter');
-  if(el){
+
+  // --- Run chart of parts ---
+  (function(){
+    var el=document.getElementById('chartRun'); if(!el) return;
+    var nT=R.studyInfo.numTrials;
+    var COL=['#667eea','#c0392b','#1e7e4a','#b7791f','#7b1fa2'];
+    var ds=[];
+    for(var t=0;t<nT;t++){
+      var pts=g.runChart.filter(function(p){return p.values[t]!=null;}).map(function(p){return {x:p.x,y:p.values[t]};});
+      ds.push({ type:'scatter', label:'Ölçüm '+(t+1), data:pts, backgroundColor:COL[t%COL.length], pointRadius:5, pointHoverRadius:7, _trial:t+1, hidden:false });
+    }
+    // parça ortalaması çizgisi
+    var meanLine=g.runChart.map(function(p){ var v=p.values.filter(function(x){return x!=null;}); return {x:p.x, y:v.reduce(function(a,b){return a+b;},0)/v.length}; });
+    ds.push({ type:'line', label:'Parça ort.', data:meanLine, borderColor:'#9aa4bf', borderWidth:1.4, pointRadius:0, tension:0 });
+    CH.run=new Chart(el,{ data:{datasets:ds}, options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ type:'linear', title:{display:true,text:'Parça'}, ticks:{stepSize:1} }, y:{ title:{display:true,text:'Ölçüm'} } },
+      plugins:{ legend:{labels:{usePointStyle:true,boxWidth:8}} } } });
+  })();
+
+  // --- Scatter 1 vs 2 (linear eksen düzeltmesi) ---
+  (function(){
+    var el=document.getElementById('chartScatter'); if(!el) return;
+    var lo=null,hi=null; g.diag.forEach(function(p){ lo=(lo==null?p.x:Math.min(lo,p.x)); hi=(hi==null?p.x:Math.max(hi,p.x)); });
+    var pad=(hi-lo)*0.08||1;
     var ds=[
-      { type:'line', label:'45° (kusursuz)', data:g.diag, borderColor:'#999', borderDash:[6,5], pointRadius:0, borderWidth:1.5, tension:0 },
-      { type:'scatter', label:'Parçalar', data:g.scatter, backgroundColor:'#667eea', pointRadius:6, pointHoverRadius:8 }
+      { type:'line', label:'45° (kusursuz)', data:g.diag, borderColor:'#999', borderDash:[6,5], pointRadius:0, borderWidth:1.5, tension:0 }
     ];
-    if(g.fit) ds.splice(1,0,{ type:'line', label:'Eğilim (fit)', data:g.fit, borderColor:'#2563eb', pointRadius:0, borderWidth:2.5, tension:0 });
-    new Chart(el,{ data:{ datasets:ds },
+    if(g.fit) ds.push({ type:'line', label:'Eğilim (fit)', data:g.fit, borderColor:'#2563eb', pointRadius:0, borderWidth:2.5, tension:0 });
+    ds.push({ type:'scatter', label:'Parçalar', data:g.scatter, backgroundColor:'#667eea', pointRadius:6, pointHoverRadius:8 });
+    CH.scatter=new Chart(el,{ data:{ datasets:ds },
       options:{ responsive:true, maintainAspectRatio:false,
-        scales:{ x:{ title:{display:true,text:'1. Ölçüm'} }, y:{ title:{display:true,text:'2. Ölçüm'} } },
+        scales:{ x:{ type:'linear', min:lo-pad, max:hi+pad, title:{display:true,text:'1. Ölçüm'} },
+                 y:{ type:'linear', min:lo-pad, max:hi+pad, title:{display:true,text:'2. Ölçüm'} } },
         plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8} },
           tooltip:{ callbacks:{ label:function(c){ return c.dataset.label==='Parçalar' ? ('Parça '+(g.scatter[c.dataIndex]?g.scatter[c.dataIndex].part:'')+': ('+c.parsed.x.toFixed(3)+', '+c.parsed.y.toFixed(3)+')') : (c.dataset.label); } } } }
       }
     });
-  }
+  })();
+
+  // --- Range chart ---
+  (function(){
+    var el=document.getElementById('chartRange'); if(!el) return;
+    var rc=R.rangeChart;
+    var pts=rc.points.map(function(p){return {x:p.sample,y:p.range};});
+    var n=rc.points.length;
+    var limLine=function(v){ return [{x:1,y:v},{x:n,y:v}]; };
+    var limPlugin={ id:'retLim', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx, x=c.scales.x, y=c.scales.y; if(!x||!y)return;
+      function lab(v,txt,col){ if(v==null||!isFinite(v))return; var py=y.getPixelForValue(v); ctx.save(); ctx.fillStyle='#fff'; ctx.strokeStyle=col; ctx.font='11px Segoe UI';
+        var w=ctx.measureText(txt).width+8; ctx.fillRect(x.right-w-2,py-9,w,16); ctx.strokeRect(x.right-w-2,py-9,w,16); ctx.fillStyle=col; ctx.textBaseline='middle'; ctx.fillText(txt,x.right-w+2,py); ctx.restore(); }
+      lab(rc.UCL,'ÜKS = '+rc.UCL.toFixed(3),'#c0392b'); lab(rc.CL,'R̄ = '+rc.CL.toFixed(3),'#1e7e4a'); lab(rc.LCL,'AKS = '+rc.LCL.toFixed(3),'#c0392b'); }catch(e){} } };
+    CH.range=new Chart(el,{ data:{ datasets:[
+      { type:'line', label:'ÜKS', data:limLine(rc.UCL), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', label:'AKS', data:limLine(rc.LCL), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', label:'R̄', data:limLine(rc.CL), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', label:'Menzil', data:pts, borderColor:'#2563eb', backgroundColor:'#2563eb', pointBackgroundColor:pts.map(function(p){return (p.y>rc.UCL||p.y<rc.LCL)?'#c0392b':'#2563eb';}), pointRadius:4, borderWidth:1.8, tension:0 }
+    ]}, options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ type:'linear', title:{display:true,text:'Parça (alt grup)'}, ticks:{stepSize:1}, min:1, max:n }, y:{ title:{display:true,text:'Örnek menzili'}, beginAtZero:true } },
+      plugins:{ legend:{display:false} } }, plugins:[limPlugin] });
+  })();
+
+  // --- Traffic light ---
+  (function(){
+    var el=document.getElementById('chartTraffic'); if(!el) return;
+    var pct=R.traffic.pct;
+    var markPlugin={ id:'retMark', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx, x=c.scales.x, y=c.scales.y; if(!x||!y)return;
+      var px=x.getPixelForValue(Math.min(pct,100)); ctx.save(); ctx.strokeStyle='#111'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+      ctx.fillStyle='#111'; ctx.font='bold 12px Segoe UI'; ctx.fillText(pct.toFixed(2)+'%', Math.min(px+4,x.right-46), y.top+12); ctx.restore(); }catch(e){} } };
+    CH.traffic=new Chart(el,{ type:'bar', data:{ labels:[''], datasets:[
+      { label:'İyi', data:[10], backgroundColor:'#1e7e4a', barPercentage:1, categoryPercentage:1 },
+      { label:'Marjinal', data:[20], backgroundColor:'#e0a020', barPercentage:1, categoryPercentage:1 },
+      { label:'Zayıf', data:[70], backgroundColor:'#c0392b', barPercentage:1, categoryPercentage:1 }
+    ]}, options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ stacked:true, min:0, max:100, title:{display:true,text:'GRR çalışma varyasyonu %'}, ticks:{callback:function(v){return v+'%';}} }, y:{ stacked:true } },
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} } }, plugins:[markPlugin] });
+  })();
 })();
 </script>
 </body>

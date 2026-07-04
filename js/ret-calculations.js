@@ -29,6 +29,10 @@
     return D2_INF[n] || D2_INF[2];
   }
 
+  // R kontrol grafiği sabitleri (alt grup boyutu n): [D3, D4]
+  const D3D4 = {2:[0,3.267],3:[0,2.575],4:[0,2.282],5:[0,2.114],6:[0,2.004],
+    7:[0.076,1.924],8:[0.136,1.864],9:[0.184,1.816],10:[0.223,1.777]};
+
   function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
 
   function calculateTestRetest(measurements, options) {
@@ -82,6 +86,20 @@
       diag = [{x:lo,y:lo},{x:hi,y:hi}];
     }
 
+    // Menzil kontrol grafiği (R chart): UCL = D4·R̄, LCL = D3·R̄, CL = R̄
+    const dd = D3D4[nSub] || D3D4[2];
+    const rUCL = dd[1] * Rbar, rLCL = dd[0] * Rbar, rCL = Rbar;
+    const rangePoints = partRows.map((pr, i) => ({ sample: i + 1, part: pr.part, range: pr.range }));
+    const rangeViolations = rangePoints.filter(p => p.range > rUCL + 1e-12 || p.range < rLCL - 1e-12).map(p => p.sample);
+    const rangeChart = { UCL: rUCL, CL: rCL, LCL: rLCL, points: rangePoints, violations: rangeViolations };
+
+    // Traffic light: GRR'nin çalışma varyasyonu yüzdesi. Tolerans/proses verildiyse ona göre;
+    // hiçbiri yoksa JASP gibi proses std sapması = 1 varsayılır → %GRR = GRR·100.
+    let trafficPct, trafficBasis;
+    if (pctTolerance != null) { trafficPct = pctTolerance; trafficBasis = 'tolerans'; }
+    else if (pctProcess != null) { trafficPct = pctProcess; trafficBasis = 'proses σ'; }
+    else { trafficPct = grr * 100; trafficBasis = 'proses σ = 1 (varsayılan)'; }
+
     // Değerlendirme: %GRR (tolerans varsa) yoksa nötr
     let verdict = { label: 'Bilgi', cls: 'neutral' };
     const decisivePct = pctTolerance != null ? pctTolerance : (pctProcess != null ? pctProcess : null);
@@ -95,6 +113,8 @@
       studyInfo: { numParts: m, numTrials: nSub },
       shortGauge: { sampleSize: m, rBar: Rbar, d2, grr, studyVar, pctTolerance, pctProcess },
       partRows,
+      rangeChart,
+      traffic: { pct: trafficPct, basis: trafficBasis },
       graph: { scatter, fit, diag, runChart: partRows.map((pr,i)=>({ x:i+1, part:pr.part, values:pr.values, range:pr.range })) },
       interpretation: { verdict, decisivePct, acceptability: verdict.label, acceptabilityClass: verdict.cls }
     };

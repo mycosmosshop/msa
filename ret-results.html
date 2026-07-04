@@ -7,7 +7,7 @@
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
 <script src="js/msa-common.js"></script>
-<script src="js/ret-calculations.js?v=1"></script>
+<script src="js/ret-calculations.js?v=2"></script>
 <title>Test-Retest</title>
 </head>
 <body>
@@ -29,10 +29,14 @@
     const data = measurements.map(m => ({ part: String(m.part), trial: parseInt(m.trial), measurement: Number(m.measurement) }));
 
     const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    const qTol = MSA.q('tol'), qPsd = MSA.q('psd');
+    const tol = qTol != null && qTol !== '' ? parseFloat(qTol) : opts.tolerance;
+    const psd = qPsd != null && qPsd !== '' ? parseFloat(qPsd) : opts.process_std_dev;
     let results;
     try {
-      results = window.retCalculations.calculateTestRetest(data, { tolerance: opts.tolerance, processStdDev: opts.process_std_dev });
+      results = window.retCalculations.calculateTestRetest(data, { tolerance: tol, processStdDev: psd });
     } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+    results._inputs = { tol: (tol!=null?tol:''), psd: (psd!=null?psd:'') };
 
     try {
       await MSA.db.from(MSA.T.studies).update({
