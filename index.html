@@ -98,7 +98,9 @@
     const isRet = s => stype(s) === 'testretest';
     const isNested = s => stype(s) === 'nested';
     const isPod = s => stype(s) === 'pod';
-    const isCap = s => stype(s) === 'capability';
+    // Kapabilite modülüne ait TÜM tipler (ayrı modül; MSA panosunda gösterilmez)
+    const CAP_MODULE_TYPES = ['capability','binomial','poisson','tolerance','comparison','multi'];
+    const isCap = s => CAP_MODULE_TYPES.indexOf(stype(s)) !== -1;
     const attributeStudies = myStudies.filter(isAttr);
     const linearityStudies = myStudies.filter(isLin);
     const testretestStudies = myStudies.filter(isRet);
