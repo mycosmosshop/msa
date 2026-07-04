@@ -450,10 +450,10 @@
       else { sds.push({ type:'line', label:'Overall', data:g.curveOverall.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', pointRadius:0, borderWidth:2, tension:0.35, order:1, xAxisID:'xLin' });
              sds.push({ type:'line', label:'Within', data:g.curveWithin.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#c0392b', borderDash:[6,3], pointRadius:0, borderWidth:1.8, tension:0.35, order:2, xAxisID:'xLin' }); }
       var sspec={ id:'sspec', afterDatasetsDraw:function(c){ var ctx=c.ctx, xl=c.scales.xLin, y=c.scales.y; if(!xl)return;
-        function vl(v,col){ if(v==null||!isFinite(v))return; var px=xl.getPixelForValue(v); if(px<xl.left-1||px>xl.right+1)return; ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke(); ctx.restore(); }
-        vl(g.lsl,'#c0392b'); vl(g.usl,'#c0392b'); vl(g.target,'#1e7e4a'); }};
+        function vl(v,col,lbl){ if(v==null||!isFinite(v))return; var px=xl.getPixelForValue(v); if(px<xl.left-1||px>xl.right+1)return; ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(px,y.top+8); ctx.lineTo(px,y.bottom); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='bold 9px Segoe UI'; ctx.textAlign='center'; ctx.fillText(lbl,px,y.top+6); ctx.restore(); }
+        vl(g.lsl,'#c0392b','LSL'); vl(g.usl,'#c0392b','USL'); vl(g.target,'#1e7e4a','Hedef'); }};
       new Chart(sh,{ data:{ labels:g.hist.map(function(b){return nfmt(b.mid);}), datasets:sds },
-        options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{display:false,grid:{display:false},offset:false}, xLin:{type:'linear',display:false,min:sxmin,max:sxmax}, y:{display:true,beginAtZero:true,ticks:{font:{size:9}}} }, plugins:{legend:{display:false}} }, plugins:[sspec] });
+        options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:8}}, scales:{ x:{display:false,grid:{display:false},offset:false}, xLin:{type:'linear',display:false,min:sxmin,max:sxmax}, y:{display:true,beginAtZero:true,ticks:{font:{size:9}}} }, plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:9},filter:function(it){return it.text!=='Frekans';}}}} }, plugins:[sspec] });
     }
     var sq=document.getElementById('sixQQ');
     if(sq && g.qq){ new Chart(sq,{ data:{ datasets:[
@@ -466,19 +466,27 @@
     if(sl && g.subgroupValues){ var pts=[]; g.subgroupValues.forEach(function(s){ (s.values||[]).forEach(function(v){ pts.push({x:s.x,y:v}); }); });
       new Chart(sl,{ data:{ datasets:[{ type:'scatter', data:pts, pointRadius:2.4, pointBackgroundColor:'rgba(90,110,150,.6)' }] },
         options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{type:'linear',title:{display:true,text:'Alt grup',font:{size:9}},ticks:{font:{size:9}}}, y:{ticks:{font:{size:9},callback:function(v){return nfmt(v);}}} }, plugins:{legend:{display:false}} } }); }
-    // Yeterlilik Plotu (Spec / Overall / Within yatay aralıkları)
+    // Yeterlilik Plotu (Minitab tarzı: Overall / Within / Spec uçları çentikli yatay aralıklar)
     var cp=document.getElementById('sixCapPlot');
     if(cp){
       var mn=g.mean, sw=g.sigmaWithin, so=g.sigmaOverall, L=g.lsl, U=g.usl;
       var labs=[], rows=[], cols=[];
-      labs.push('Spec'); rows.push([L!=null?L:(U!=null?U:mn), U!=null?U:(L!=null?L:mn)]); cols.push('#c0392b');
+      // Sıra üstten alta: Overall, Within, Spec
       if(g.isNonNormal && R.nonNormal){ labs.push('Overall'); rows.push([R.nonNormal.P00135, R.nonNormal.P99865]); cols.push('#1f2a44'); }
       else { labs.push('Overall'); rows.push([mn-3*so, mn+3*so]); cols.push('#1f2a44');
-             labs.push('Within'); rows.push([mn-3*sw, mn+3*sw]); cols.push('#5b8def'); }
-      new Chart(cp,{ type:'bar', data:{ labels:labs, datasets:[{ data:rows, backgroundColor:cols, borderColor:cols, borderWidth:1, barThickness:9 }] },
-        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{padding:{right:6}},
-          scales:{ x:{ ticks:{font:{size:8},maxRotation:0,autoSkip:true,maxTicksLimit:5,callback:function(v){return nfmt(v);}} }, y:{ ticks:{font:{size:10}} } },
-          plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(c){return nfmt(c.raw[0])+' … '+nfmt(c.raw[1]);}}} } } });
+             labs.push('Within'); rows.push([mn-3*sw, mn+3*sw]); cols.push('#c0392b'); }
+      labs.push('Spec'); rows.push([L!=null?L:(U!=null?U:mn), U!=null?U:(L!=null?L:mn)]); cols.push('#1e7e4a');
+      // Eksen yakınlaştırma (veri+spec aralığı, küçük pay)
+      var allv=[]; rows.forEach(function(r){ allv.push(r[0],r[1]); });
+      var vmn=Math.min.apply(null,allv), vmx=Math.max.apply(null,allv); var pad=(vmx-vmn)*0.08||1;
+      // Uç çentikleri
+      var capsPlugin={ id:'caps'+cp.id, afterDatasetsDraw:function(c){ var ctx=c.ctx, meta=c.getDatasetMeta(0), xs=c.scales.x;
+        meta.data.forEach(function(bar,i){ var d=c.data.datasets[0].data[i]; if(!d)return; var x1=xs.getPixelForValue(d[0]), x2=xs.getPixelForValue(d[1]), yc=bar.y, h=7;
+          ctx.save(); ctx.strokeStyle=cols[i]; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x1,yc-h); ctx.lineTo(x1,yc+h); ctx.moveTo(x2,yc-h); ctx.lineTo(x2,yc+h); ctx.stroke(); ctx.restore(); }); } };
+      new Chart(cp,{ type:'bar', data:{ labels:labs, datasets:[{ data:rows, backgroundColor:cols, borderColor:cols, borderWidth:0, barThickness:4 }] },
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{padding:{right:8,left:2}},
+          scales:{ x:{ min:vmn-pad, max:vmx+pad, ticks:{font:{size:8},maxRotation:0,autoSkip:true,maxTicksLimit:5,callback:function(v){return nfmt(v);}}, grid:{color:'rgba(0,0,0,.04)'} }, y:{ ticks:{font:{size:10,weight:'600'}}, grid:{display:false} } },
+          plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(c){return nfmt(c.raw[0])+' … '+nfmt(c.raw[1]);}}} } }, plugins:[capsPlugin] });
     }
   }
 })();
