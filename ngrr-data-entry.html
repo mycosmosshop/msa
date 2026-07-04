@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <title>Nested Gage R&R Veri Girişi</title>
 <style>
@@ -19,13 +22,16 @@
   .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ok{background:#1e7e4a;color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
   .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:14px;margin:14px 0;overflow:auto}
   .hint{font-size:12px;color:var(--muted);margin:8px 2px}
-  table{border-collapse:collapse;font-size:13px;min-width:100%}
-  th,td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
-  th{background:#f3f5fb;font-weight:600;font-size:11.5px}
-  td.op{background:#e8ecfb;font-weight:700;text-align:left;color:#3a4a7a}
-  td.part{background:#fafbff;font-weight:600;text-align:left}
+  table.grid{border-collapse:collapse;font-size:13px;min-width:100%}
+  table.grid th,table.grid td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
+  table.grid th{background:#f3f5fb;font-weight:600;font-size:11.5px}
+  table.grid td.op{background:#e8ecfb;font-weight:700;text-align:left;color:#3a4a7a}
+  table.grid td.part{background:#fafbff;font-weight:600;text-align:left}
   input.m{width:74px;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;font-size:13px}
   .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .tabs{display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:2px 0 6px}
+  .tab{border:0;background:transparent;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .tab.on{background:#fff;color:#41506b;box-shadow:0 1px 4px rgba(30,40,70,.12)}
 </style>
 </head>
 <body>
@@ -39,9 +45,22 @@
     </div>
   </div>
   <div id="msg"></div>
-  <div class="hint">Her operatör <b>kendi parçalarını</b> ölçer (nested). Her parça için tekrarlı ölçümleri girin.</div>
-  <div class="card"><table id="grid"></table></div>
-  <div class="hint" id="prog"></div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabGrid" type="button"><i class="bi bi-table"></i> Tablo Girişi</button>
+    <button class="tab" id="tabJasp" type="button"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+  </div>
+
+  <div id="modeGrid">
+    <div class="hint">Her operatör <b>kendi parçalarını</b> ölçer (nested). Her parça için tekrarlı ölçümleri girin.</div>
+    <div class="card"><table id="grid" class="grid"></table></div>
+    <div class="hint" id="prog"></div>
+  </div>
+
+  <div id="modeJasp" style="display:none">
+    <div class="hint"><i class="bi bi-info-circle"></i> <b>Operatör</b>, <b>Parça</b> ve <b>Ölçüm</b> sütunlarını atayın. Nested tasarımda her parça yalnızca <b>tek</b> operatöre aittir; her operatörün <b>eşit</b> sayıda parçası olmalıdır. <b>Ölçüm</b> için tek sütun=uzun, çok sütun=tekrarlar.</div>
+    <div class="card"><div id="jaspHost"></div></div>
+  </div>
 </div>
 <script>
 (async () => {
@@ -54,8 +73,8 @@
 
   const { measurements, operators, parts } = await MSA.getMeasurementsWithNames(studyId);
   const nT=study.num_trials;
-  const opts=MSA.parseJson(study.analysis_options,{})||{};
-  const b=opts.parts_per_op || Math.round(study.num_parts/study.num_operators);
+  const optsJson=MSA.parseJson(study.analysis_options,{})||{};
+  const b=optsJson.parts_per_op || Math.round(study.num_parts/study.num_operators);
   const existing={}; measurements.forEach(m=>existing[m.operator+'-'+m.part+'-'+m.trial]=m.measurement);
   const opsSorted=[...operators].sort((a,b)=>a.operator_number-b.operator_number);
   const partsSorted=[...parts].sort((a,b)=>a.part_number-b.part_number);
@@ -65,7 +84,6 @@
   head+='</tr>';
   let rows='';
   opsSorted.forEach((op,oi)=>{
-    // bu operatörün parçaları: blok atama
     const opParts = partsSorted.slice(oi*b, oi*b+b);
     opParts.forEach((p,pi)=>{
       rows+='<tr>'+(pi===0?'<td class="op" rowspan="'+opParts.length+'">'+op.operator_name+'</td>':'')+
@@ -78,18 +96,76 @@
   });
   document.getElementById('grid').innerHTML=head+rows;
 
-  function prog(){ const ms=[...document.querySelectorAll('input.m')]; const f=ms.filter(i=>i.value.trim()!=='').length;
+  function prog(){ const ms=[...document.querySelectorAll('#grid input.m')]; const f=ms.filter(i=>i.value.trim()!=='').length;
     document.getElementById('prog').textContent=f+' / '+ms.length+' ölçüm girildi'; }
-  document.querySelectorAll('input').forEach(i=>i.addEventListener('input',prog)); prog();
+  document.querySelectorAll('#grid input').forEach(i=>i.addEventListener('input',prog)); prog();
 
-  async function saveAll(){
-    const meas=[]; [...document.querySelectorAll('input.m')].forEach(i=>{
+  // ---- JASP sütun ata ----
+  const opCol=[], ptCol=[], meCol=[];
+  opsSorted.forEach((op,oi)=>{ const opParts=partsSorted.slice(oi*b, oi*b+b);
+    opParts.forEach(p=>{ for(let t=1;t<=nT;t++){ const v=existing[op.operator_number+'-'+p.part_number+'-'+t];
+      if(v==null||v==='') continue; opCol.push(op.operator_name); ptCol.push(p.part_name||('Parça '+p.part_number)); meCol.push(Number(v)); } }); });
+  const jaspCtrl = MSA.ColAssign.mount(document.getElementById('jaspHost'), {
+    roles:[
+      { key:'operator',    label:'Operatör', multi:false, numeric:false, required:true },
+      { key:'part',        label:'Parça',    multi:false, numeric:false, required:true },
+      { key:'measurement', label:'Ölçüm',    multi:true,  numeric:true,  required:true, hint:'tek sütun=uzun · çok sütun=tekrarlar' }
+    ],
+    minRows: Math.max(12, opCol.length+2),
+    initial: (opCol.length ? { columns:[{name:'Operatör',values:opCol},{name:'Parça',values:ptCol},{name:'Ölçüm',values:meCol}], assign:{ operator:[0], part:[1], measurement:[2] } }
+                           : { columns:[{name:'Operatör',values:[]},{name:'Parça',values:[]},{name:'Ölçüm',values:[]}] })
+  });
+
+  let mode='grid';
+  const tG=document.getElementById('tabGrid'), tJ=document.getElementById('tabJasp');
+  function setMode(m){ mode=m;
+    document.getElementById('modeGrid').style.display=m==='grid'?'':'none';
+    document.getElementById('modeJasp').style.display=m==='jasp'?'':'none';
+    tG.classList.toggle('on',m==='grid'); tJ.classList.toggle('on',m==='jasp'); }
+  tG.addEventListener('click',()=>setMode('grid')); tJ.addEventListener('click',()=>setMode('jasp'));
+
+  async function saveGrid(){
+    const meas=[]; [...document.querySelectorAll('#grid input.m')].forEach(i=>{
       const v=i.value.trim(); if(v==='') return;
       meas.push({ operator:String(i.dataset.op), part:String(i.dataset.part), trial:parseInt(i.dataset.trial), measurement:parseFloat(v) });
     });
     const res=await MSA.saveMeasurements(studyId, meas);
     if(!res.success) throw new Error(res.message||'Kayıt hatası'); return res.count;
   }
+  async function saveJasp(){
+    const v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+    const O=jaspCtrl.role('operator')[0], P=jaspCtrl.role('part')[0], M=jaspCtrl.role('measurement');
+    const n=jaspCtrl.rowCount(), num=jaspCtrl.num;
+    const opOrder=[], comboByOp={}, cell={};
+    function reg(a,x){ if(a.indexOf(x)===-1) a.push(x); }
+    function collect(ol,pl,vals){ reg(opOrder,ol); comboByOp[ol]=comboByOp[ol]||[]; if(comboByOp[ol].indexOf(pl)===-1) comboByOp[ol].push(pl);
+      const k=ol+'||'+pl; cell[k]=cell[k]||[]; vals.forEach(x=>{ if(x!=null) cell[k].push(x); }); }
+    if(M.length<=1){ const mc=M[0];
+      for(let r=0;r<n;r++){ const ol=String(O.values[r]==null?'':O.values[r]).trim(), pl=String(P.values[r]==null?'':P.values[r]).trim(), mv=num(mc.values[r]);
+        if(!ol||!pl||mv==null) continue; collect(ol,pl,[mv]); } }
+    else { for(let r=0;r<n;r++){ const ol=String(O.values[r]==null?'':O.values[r]).trim(), pl=String(P.values[r]==null?'':P.values[r]).trim();
+        if(!ol||!pl) continue; const vals=M.map(c=>num(c.values[r])); if(vals.every(x=>x==null)) continue; collect(ol,pl,vals); } }
+    if(!opOrder.length) throw new Error('Operatör/Parça/Ölçüm dolu satır yok');
+    const counts=opOrder.map(o=>comboByOp[o].length);
+    const bpo=counts[0]; const balanced=counts.every(c=>c===bpo);
+    if(!balanced && !confirm('Uyarı: operatörlerin parça sayıları eşit değil ('+counts.join(', ')+'). Nested analiz dengeli tasarım ister. Yine de kaydedilsin mi?')) throw new Error('İptal edildi');
+    // global parça numaralandırma (operatör bloklarına göre)
+    const partRows=[], meas=[]; let pnum=0, maxT=0;
+    const opNum={}; opOrder.forEach((o,i)=>opNum[o]=i+1);
+    opOrder.forEach(o=>{ comboByOp[o].forEach(lbl=>{ pnum++; partRows.push({ study_id:studyId, part_number:pnum, part_name:lbl });
+      const arr=cell[o+'||'+lbl]||[]; maxT=Math.max(maxT,arr.length);
+      arr.forEach((mv,t)=>meas.push({ operator:String(opNum[o]), part:String(pnum), trial:t+1, measurement:mv })); }); });
+    await MSA.db.from(MSA.T.operators).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.parts).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.operators).insert(opOrder.map((o,i)=>({ study_id:studyId, operator_name:o, operator_number:i+1 })));
+    await MSA.db.from(MSA.T.parts).insert(partRows);
+    const res=await MSA.saveMeasurements(studyId, meas); if(!res.success) throw new Error(res.message||'Kayıt hatası');
+    const newOpts=Object.assign({}, optsJson, { parts_per_op: bpo });
+    await MSA.db.from(MSA.T.studies).update({ num_operators:opOrder.length, num_parts:pnum, num_trials:Math.max(1,maxT), analysis_options:newOpts }).eq('id',studyId);
+    return res.count;
+  }
+  const saveAll=()=> mode==='jasp' ? saveJasp() : saveGrid();
+
   document.getElementById('save').addEventListener('click', async ()=>{
     const bn=document.getElementById('save'); bn.disabled=true; bn.textContent='Kaydediliyor…';
     try{ const c=await saveAll(); bn.innerHTML='<i class="bi bi-check2"></i> Kaydedildi ('+c+')'; setTimeout(()=>{bn.disabled=false;bn.innerHTML='<i class="bi bi-save"></i> Kaydet';},1500); }

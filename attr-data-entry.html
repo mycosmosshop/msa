@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <title>Öznitelik Veri Girişi</title>
 <style>
@@ -20,16 +23,19 @@
   .btn.ok{background:#1e7e4a;color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
   .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:14px;margin:14px 0;overflow:auto}
   .hint{font-size:12px;color:var(--muted);margin:8px 2px}
-  table{border-collapse:collapse;font-size:13px;min-width:100%}
-  th,td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
-  th{background:#f3f5fb;font-weight:600;font-size:11.5px;position:sticky;top:0}
-  th.app{background:#e8ecfb;color:#3a4a7a}
-  td.part{background:#fafbff;font-weight:600;text-align:left;position:sticky;left:0}
+  table.grid{border-collapse:collapse;font-size:13px;min-width:100%}
+  table.grid th,table.grid td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
+  table.grid th{background:#f3f5fb;font-weight:600;font-size:11.5px;position:sticky;top:0}
+  table.grid th.app{background:#e8ecfb;color:#3a4a7a}
+  table.grid td.part{background:#fafbff;font-weight:600;text-align:left;position:sticky;left:0}
   input.r,input.s{width:42px;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;font-size:13px}
-  input.s{background:#fff8 e6;background:#fffdf3;border-color:#e8d9a8}
+  input.s{background:#fffdf3;border-color:#e8d9a8}
   input.r.v1{background:#eafaf0} input.r.v0{background:#fdecec} input.s.v1{background:#eafaf0} input.s.v0{background:#fdecec}
   .acts{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 0}
   .prog{font-size:12.5px;color:var(--muted)}
+  .tabs{display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:2px 0 6px}
+  .tab{border:0;background:transparent;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .tab.on{background:#fff;color:#41506b;box-shadow:0 1px 4px rgba(30,40,70,.12)}
 </style>
 </head>
 <body>
@@ -43,9 +49,22 @@
     </div>
   </div>
   <div id="msg"></div>
-  <div class="hint"><b>Standart</b> = parçanın bilinen doğru değeri. <b>Değerlendirme</b> hücreleri: <b>1 = Kabul</b>, <b>0 = Ret</b>. (Standart bilinmiyorsa boş bırakabilirsiniz — o zaman yalnızca uyum/tutarlılık hesaplanır.)</div>
-  <div class="card"><table id="grid"></table></div>
-  <div class="prog" id="prog"></div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabGrid" type="button"><i class="bi bi-table"></i> Tablo Girişi</button>
+    <button class="tab" id="tabJasp" type="button"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+  </div>
+
+  <div id="modeGrid">
+    <div class="hint"><b>Standart</b> = parçanın bilinen doğru değeri. <b>Değerlendirme</b> hücreleri: <b>1 = Kabul</b>, <b>0 = Ret</b>. (Standart bilinmiyorsa boş bırakabilirsiniz — o zaman yalnızca uyum/tutarlılık hesaplanır.)</div>
+    <div class="card"><table id="grid" class="grid"></table></div>
+    <div class="prog" id="prog"></div>
+  </div>
+
+  <div id="modeJasp" style="display:none">
+    <div class="hint"><i class="bi bi-info-circle"></i> <b>Operatör</b>, <b>Parça</b>, (opsiyonel) <b>Standart</b> ve <b>Değerlendirme</b> (1=Kabul/0=Ret) sütunlarını atayın. Değerlendirme için tek sütun=uzun, çok sütun=tekrarlar (T1, T2…).</div>
+    <div class="card"><div id="jaspHost"></div></div>
+  </div>
 </div>
 
 <script>
@@ -64,7 +83,6 @@
   const existing = {}; measurements.forEach(m => existing[m.operator+'-'+m.part+'-'+m.trial] = m.measurement);
   const stdByPart = {}; parts.forEach(p => stdByPart[String(p.part_number)] = p.nominal_value);
 
-  // Grid oluştur
   const grid=document.getElementById('grid');
   let head1='<tr><th rowspan="2" class="part">Parça</th><th rowspan="2">Standart</th>';
   let head2='<tr>';
@@ -94,14 +112,41 @@
     document.getElementById('prog').textContent=filled+' / '+rs.length+' değerlendirme girildi'; }
   updateProg();
 
-  async function saveAll(){
-    // Standartlar
+  // ---- JASP sütun ata ----
+  const opCol=[], ptCol=[], stCol=[], evCol=[];
+  const partsSorted=[...parts].sort((a,b)=>a.part_number-b.part_number);
+  operators.forEach(op=>{ partsSorted.forEach(p=>{ for(let t=1;t<=nT;t++){ const key=op.operator_number+'-'+p.part_number+'-'+t;
+    const v=existing[key]; if(v==null||v==='') continue;
+    opCol.push(op.operator_name); ptCol.push(p.part_name||('Parça '+p.part_number));
+    stCol.push(stdByPart[String(p.part_number)]==null?'':Number(stdByPart[String(p.part_number)])); evCol.push(Number(v)); } }); });
+  const hasStd = stCol.some(x=>x!=='');
+  const jaspCtrl = MSA.ColAssign.mount(document.getElementById('jaspHost'), {
+    roles:[
+      { key:'operator',   label:'Operatör',      multi:false, numeric:false, required:true },
+      { key:'part',       label:'Parça',         multi:false, numeric:false, required:true },
+      { key:'standard',   label:'Standart',      multi:false, numeric:true,  required:false, hint:'opsiyonel · 1/0' },
+      { key:'assessment', label:'Değerlendirme', multi:true,  numeric:true,  required:true,  hint:'1=Kabul · 0=Ret' }
+    ],
+    minRows: Math.max(12, opCol.length+2),
+    initial: (opCol.length ? { columns:[{name:'Operatör',values:opCol},{name:'Parça',values:ptCol},{name:'Standart',values:stCol},{name:'Değerlendirme',values:evCol}],
+                               assign: hasStd ? { operator:[0], part:[1], standard:[2], assessment:[3] } : { operator:[0], part:[1], assessment:[3] } }
+                           : { columns:[{name:'Operatör',values:[]},{name:'Parça',values:[]},{name:'Standart',values:[]},{name:'Değerlendirme',values:[]}] })
+  });
+
+  let mode='grid';
+  const tG=document.getElementById('tabGrid'), tJ=document.getElementById('tabJasp');
+  function setMode(m){ mode=m;
+    document.getElementById('modeGrid').style.display=m==='grid'?'':'none';
+    document.getElementById('modeJasp').style.display=m==='jasp'?'':'none';
+    tG.classList.toggle('on',m==='grid'); tJ.classList.toggle('on',m==='jasp'); }
+  tG.addEventListener('click',()=>setMode('grid')); tJ.addEventListener('click',()=>setMode('jasp'));
+
+  async function saveGrid(){
     const stdUpdates=[...grid.querySelectorAll('input.s')].map(i=>({part:parseInt(i.dataset.part), val:i.value.trim()}));
     for(const s of stdUpdates){
       const nv = s.val===''?null:parseFloat(s.val);
       await MSA.db.from(MSA.T.parts).update({ nominal_value:nv }).eq('study_id',studyId).eq('part_number',s.part);
     }
-    // Değerlendirmeler
     const meas=[]; [...grid.querySelectorAll('input.r')].forEach(i=>{
       const v=i.value.trim(); if(v==='') return;
       meas.push({ operator:String(i.dataset.op), part:String(i.dataset.part), trial:parseInt(i.dataset.trial), measurement:parseFloat(v) });
@@ -110,6 +155,35 @@
     if(!res.success) throw new Error(res.message || 'Kayıt hatası');
     return res.count;
   }
+  async function saveJasp(){
+    const v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+    const O=jaspCtrl.role('operator')[0], P=jaspCtrl.role('part')[0], S=jaspCtrl.role('standard')[0], M=jaspCtrl.role('assessment');
+    const n=jaspCtrl.rowCount(), num=jaspCtrl.num;
+    const opOrder=[], ptOrder=[], stdBy={}, cell={};
+    function reg(a,x){ if(a.indexOf(x)===-1) a.push(x); }
+    function collect(ol,pl,sv,vals){ reg(opOrder,ol); reg(ptOrder,pl);
+      if(sv!=null && stdBy[pl]==null) stdBy[pl]=(sv>=0.5?1:0);
+      const k=ol+'||'+pl; cell[k]=cell[k]||[]; vals.forEach(x=>{ if(x!=null) cell[k].push(x>=0.5?1:0); }); }
+    if(M.length<=1){ const mc=M[0];
+      for(let r=0;r<n;r++){ const ol=String(O.values[r]==null?'':O.values[r]).trim(), pl=String(P.values[r]==null?'':P.values[r]).trim(), mv=num(mc.values[r]);
+        if(!ol||!pl||mv==null) continue; collect(ol,pl, S?num(S.values[r]):null, [mv]); } }
+    else { for(let r=0;r<n;r++){ const ol=String(O.values[r]==null?'':O.values[r]).trim(), pl=String(P.values[r]==null?'':P.values[r]).trim();
+        if(!ol||!pl) continue; const vals=M.map(c=>num(c.values[r])); if(vals.every(x=>x==null)) continue; collect(ol,pl, S?num(S.values[r]):null, vals); } }
+    if(!opOrder.length||!ptOrder.length) throw new Error('Operatör/Parça/Değerlendirme dolu satır yok');
+    const opNum={}; opOrder.forEach((o,i)=>opNum[o]=i+1);
+    const ptNum={}; ptOrder.forEach((p,i)=>ptNum[p]=i+1);
+    let maxT=0; const meas=[];
+    opOrder.forEach(o=>{ ptOrder.forEach(p=>{ const arr=cell[o+'||'+p]||[]; maxT=Math.max(maxT,arr.length);
+      arr.forEach((mv,t)=>meas.push({ operator:String(opNum[o]), part:String(ptNum[p]), trial:t+1, measurement:mv })); }); });
+    await MSA.db.from(MSA.T.operators).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.parts).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.operators).insert(opOrder.map((o,i)=>({ study_id:studyId, operator_name:o, operator_number:i+1 })));
+    await MSA.db.from(MSA.T.parts).insert(ptOrder.map((p,i)=>({ study_id:studyId, part_number:i+1, part_name:p, nominal_value:(stdBy[p]==null?null:stdBy[p]) })));
+    const res=await MSA.saveMeasurements(studyId, meas); if(!res.success) throw new Error(res.message||'Kayıt hatası');
+    await MSA.db.from(MSA.T.studies).update({ num_operators:opOrder.length, num_parts:ptOrder.length, num_trials:Math.max(1,maxT) }).eq('id',studyId);
+    return res.count;
+  }
+  const saveAll=()=> mode==='jasp' ? saveJasp() : saveGrid();
 
   document.getElementById('save').addEventListener('click', async ()=>{
     const b=document.getElementById('save'); b.disabled=true; b.textContent='Kaydediliyor…';

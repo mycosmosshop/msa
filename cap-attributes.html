@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <title>Nitel Yeterlilik (Binomial / Poisson)</title>
@@ -58,7 +59,18 @@
   <div class="card">
     <h2><i class="bi bi-table i"></i> Veri Girişi</h2>
     <div class="exp" id="modeDesc"></div>
-    <table class="dt"><thead><tr><th style="width:70px">Alt Grup</th><th id="colN">Örnek Boyutu (n)</th><th id="colV">Kusurlu (d)</th></tr></thead><tbody id="dtbody"></tbody></table>
+    <div style="display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:0 0 10px">
+      <button id="tabRows" type="button" onclick="setAttrMode('rows')" style="border:0;background:#fff;padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:#41506b;cursor:pointer;box-shadow:0 1px 4px rgba(30,40,70,.12)"><i class="bi bi-table"></i> Satır Girişi</button>
+      <button id="tabCol" type="button" onclick="setAttrMode('col')" style="border:0;background:transparent;padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:#5a6685;cursor:pointer"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+    </div>
+    <div id="attrRows">
+      <table class="dt"><thead><tr><th style="width:70px">Alt Grup</th><th id="colN">Örnek Boyutu (n)</th><th id="colV">Kusurlu (d)</th></tr></thead><tbody id="dtbody"></tbody></table>
+    </div>
+    <div id="attrCol" style="display:none">
+      <p style="font-size:12px;color:#6b7280;margin:0 0 8px"><i class="bi bi-info-circle"></i> İki sütun girin/yapıştırın: birini <b id="roleNlbl">Örnek Boyutu (n)</b>, diğerini <b id="roleVlbl">Kusurlu (d)</b> kutusuna sürükleyin, sonra <b>Tabloya Aktar</b>'a basın.</p>
+      <div id="jaspHost"></div>
+      <div style="margin-top:10px"><button class="btn ok" onclick="colToRows()"><i class="bi bi-arrow-down-square"></i> Tabloya Aktar</button></div>
+    </div>
     <div class="acts">
       <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
@@ -91,6 +103,9 @@ function setMode(m){
   document.getElementById('tabPoi').classList.toggle('on',m==='poisson');
   document.getElementById('colN').textContent = m==='binomial'?'Örnek Boyutu (n)':'Birim / Alan (n)';
   document.getElementById('colV').textContent = m==='binomial'?'Kusurlu (d)':'Hata Sayısı (c)';
+  var rn=document.getElementById('roleNlbl'), rv=document.getElementById('roleVlbl');
+  if(rn) rn.textContent = m==='binomial'?'Örnek Boyutu (n)':'Birim / Alan (n)';
+  if(rv) rv.textContent = m==='binomial'?'Kusurlu (d)':'Hata Sayısı (c)';
   document.getElementById('modeDesc').innerHTML = m==='binomial'
     ? '<b>Binomial:</b> Her alt grupta belirli sayıda (n) ürün kontrol edilir; kaçının <b>kusurlu</b> (Geçti/Kaldı) olduğu (d) girilir. Kusurlu oranı (p), <b>PPM</b> ve <b>Süreç Z</b> raporlanır.'
     : '<b>Poisson:</b> Her alt grupta belirli bir <b>birim/alan</b> (n — ör. rulo, m², adet) incelenir; toplam <b>hata sayısı</b> (c) girilir. Birim başına ortalama hata <b>DPU</b> raporlanır.';
@@ -103,6 +118,31 @@ function loadExample(){ render(EXAMPLES[MODE]); document.getElementById('target'
 function addRow(){ var b=document.getElementById('dtbody'); var i=b.children.length; b.insertAdjacentHTML('beforeend', rowHTML(i,'','')); }
 function clearRows(){ var rows=[]; for(var i=0;i<15;i++)rows.push(['','']); render(rows); }
 function readRows(){ var out=[]; var trs=document.querySelectorAll('#dtbody tr'); trs.forEach(function(tr){ var n=parseFloat(tr.querySelector('.rn').value); var v=parseFloat(tr.querySelector('.rv').value); if(isFinite(n)&&isFinite(v)) out.push(MODE==='binomial'?{n:n,d:v}:{n:n,c:v}); }); return out; }
+
+var attrMode='rows', jaspCtrl=null;
+function setAttrMode(m){ attrMode=m;
+  document.getElementById('attrRows').style.display=m==='rows'?'':'none';
+  document.getElementById('attrCol').style.display=m==='col'?'':'none';
+  var tr=document.getElementById('tabRows'), tc=document.getElementById('tabCol');
+  tr.style.background=m==='rows'?'#fff':'transparent'; tr.style.color=m==='rows'?'#41506b':'#5a6685'; tr.style.boxShadow=m==='rows'?'0 1px 4px rgba(30,40,70,.12)':'none';
+  tc.style.background=m==='col'?'#fff':'transparent'; tc.style.color=m==='col'?'#41506b':'#5a6685'; tc.style.boxShadow=m==='col'?'0 1px 4px rgba(30,40,70,.12)':'none';
+}
+function mountJasp(){
+  if(!window.MSA||!MSA.ColAssign) return;
+  jaspCtrl=MSA.ColAssign.mount(document.getElementById('jaspHost'),{
+    roles:[{ key:'n',  label:'Örnek / Birim (n)', multi:false, numeric:true, required:true },
+           { key:'dc', label:'Kusur / Hata (d)',  multi:false, numeric:true, required:true }],
+    minRows:15,
+    initial:{ columns:[{name:'n',values:[]},{name:'d',values:[]}] }
+  });
+}
+function colToRows(){
+  if(!jaspCtrl) return; var v=jaspCtrl.validate(); if(!v.ok){ alert(v.msg); return; }
+  var N=jaspCtrl.role('n')[0], D=jaspCtrl.role('dc')[0], num=jaspCtrl.num, n=jaspCtrl.rowCount(), rows=[];
+  for(var r=0;r<n;r++){ var nn=num(N.values[r]), dd=num(D.values[r]); if(nn==null&&dd==null) continue; rows.push([nn==null?'':nn, dd==null?'':dd]); }
+  if(!rows.length){ alert('n ve d/c sütunlarına veri girin.'); return; }
+  render(rows); setAttrMode('rows');
+}
 
 function calc(){
   var rows=readRows();
@@ -230,6 +270,7 @@ async function loadSaved(id){
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.attrCapCalculations){ await loadScript('js/attr-cap-calculations.js?v='+Date.now()); }
+  mountJasp();
   var id=MSA.q('id');
   if(id){ await loadSaved(id); }
   else { var m=(new URLSearchParams(location.search)).get('mode'); setMode(m==='poisson'?'poisson':'binomial'); document.getElementById('studyName').value=defaultName(); }

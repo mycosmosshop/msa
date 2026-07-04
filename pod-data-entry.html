@@ -3,29 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <title>POD Veri Girişi</title>
 <style>
   :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2}
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
-  .wrap{max-width:640px;margin:0 auto;padding:18px}
+  .wrap{max-width:720px;margin:0 auto;padding:18px}
   .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
   .hdr h1{margin:0;font-size:18px}
   .btn{border:0;border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
   .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ok{background:#1e7e4a;color:#fff} .btn.ghost{background:#eef1f8;color:#41506b}
   .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:14px;margin:14px 0;overflow:auto}
   .hint{font-size:12px;color:var(--muted);margin:8px 2px}
-  table{border-collapse:collapse;font-size:13px;width:100%}
-  th,td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
-  th{background:#f3f5fb;font-weight:600;font-size:11.5px;position:sticky;top:0}
+  table.grid{border-collapse:collapse;font-size:13px;width:100%}
+  table.grid th,table.grid td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
+  table.grid th{background:#f3f5fb;font-weight:600;font-size:11.5px;position:sticky;top:0}
   input.sz{width:100px;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 4px;font-size:13px}
   input.dt{width:60px;text-align:center;border:1px solid var(--line);border-radius:6px;padding:5px 2px;font-size:13px}
   input.dt.v1{background:#eafaf0} input.dt.v0{background:#fdecec}
   .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .tabs{display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:2px 0 6px}
+  .tab{border:0;background:transparent;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .tab.on{background:#fff;color:#41506b;box-shadow:0 1px 4px rgba(30,40,70,.12)}
 </style>
 </head>
 <body>
@@ -39,9 +45,22 @@
     </div>
   </div>
   <div id="msg"></div>
-  <div class="hint"><b>Boyut</b> = kusur büyüklüğü. <b>Tespit</b> = <b>1</b> (tespit edildi) / <b>0</b> (edilemedi).</div>
-  <div class="card"><table id="grid"></table></div>
-  <div class="hint" id="prog"></div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabGrid" type="button"><i class="bi bi-table"></i> Tablo Girişi</button>
+    <button class="tab" id="tabJasp" type="button"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+  </div>
+
+  <div id="modeGrid">
+    <div class="hint"><b>Boyut</b> = kusur büyüklüğü. <b>Tespit</b> = <b>1</b> (tespit edildi) / <b>0</b> (edilemedi).</div>
+    <div class="card"><table id="grid" class="grid"></table></div>
+    <div class="hint" id="prog"></div>
+  </div>
+
+  <div id="modeJasp" style="display:none">
+    <div class="hint"><i class="bi bi-info-circle"></i> Verileri sütunlara girin/yapıştırın ve <b>Boyut</b> (kusur büyüklüğü) ile <b>Tespit</b> (1/0) kutularına sürükleyin. Her satır bir deneme.</div>
+    <div class="card"><div id="jaspHost"></div></div>
+  </div>
 </div>
 <script>
 (async () => {
@@ -75,7 +94,29 @@
     document.getElementById('prog').textContent=f+' / '+ds.length+' sonuç girildi'; }
   prog();
 
-  async function saveAll(){
+  // ---- JASP sütun ata ----
+  const szCol=[], dtCol=[];
+  partsSorted.forEach(p=>{ const pn=p.part_number; const sz=sizeByPart[String(pn)], dt=detByPart[String(pn)];
+    if(sz==null&&dt==null) return; szCol.push(sz==null?'':Number(sz)); dtCol.push(dt==null?'':Number(dt)); });
+  const jaspCtrl = MSA.ColAssign.mount(document.getElementById('jaspHost'), {
+    roles:[
+      { key:'size',   label:'Boyut',       multi:false, numeric:true, required:true, hint:'kusur büyüklüğü' },
+      { key:'detect', label:'Tespit (1/0)',multi:false, numeric:true, required:true, hint:'1=tespit · 0=kaçtı' }
+    ],
+    minRows: Math.max(12, szCol.length+2),
+    initial: (szCol.length ? { columns:[{name:'Boyut',values:szCol},{name:'Tespit',values:dtCol}], assign:{ size:[0], detect:[1] } }
+                           : { columns:[{name:'Boyut',values:[]},{name:'Tespit',values:[]}] })
+  });
+
+  let mode='grid';
+  const tG=document.getElementById('tabGrid'), tJ=document.getElementById('tabJasp');
+  function setMode(m){ mode=m;
+    document.getElementById('modeGrid').style.display=m==='grid'?'':'none';
+    document.getElementById('modeJasp').style.display=m==='jasp'?'':'none';
+    tG.classList.toggle('on',m==='grid'); tJ.classList.toggle('on',m==='jasp'); }
+  tG.addEventListener('click',()=>setMode('grid')); tJ.addEventListener('click',()=>setMode('jasp'));
+
+  async function saveGrid(){
     for(const i of [...document.querySelectorAll('input.sz')]){
       const nv=i.value.trim()===''?null:parseFloat(i.value);
       await MSA.db.from(MSA.T.parts).update({ nominal_value:nv }).eq('study_id',studyId).eq('part_number',parseInt(i.dataset.part));
@@ -87,6 +128,23 @@
     const res=await MSA.saveMeasurements(studyId, meas);
     if(!res.success) throw new Error(res.message||'Kayıt hatası'); return res.count;
   }
+  async function saveJasp(){
+    const v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+    const S=jaspCtrl.role('size')[0], D=jaspCtrl.role('detect')[0]; const n=jaspCtrl.rowCount(), num=jaspCtrl.num;
+    const sizes=[], dets=[];
+    for(let r=0;r<n;r++){ const sv=num(S.values[r]), dv=num(D.values[r]); if(sv==null||dv==null) continue; sizes.push(sv); dets.push(dv>=0.5?1:0); }
+    if(!sizes.length) throw new Error('Boyut + Tespit dolu satır yok');
+    await MSA.db.from(MSA.T.operators).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.parts).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.operators).insert([{ study_id:studyId, operator_name:'Operatör 1', operator_number:1 }]);
+    await MSA.db.from(MSA.T.parts).insert(sizes.map((sz,i)=>({ study_id:studyId, part_number:i+1, part_name:'Numune '+(i+1), nominal_value:sz })));
+    const meas=dets.map((d,i)=>({ operator:'1', part:String(i+1), trial:1, measurement:d }));
+    const res=await MSA.saveMeasurements(studyId, meas); if(!res.success) throw new Error(res.message||'Kayıt hatası');
+    await MSA.db.from(MSA.T.studies).update({ num_operators:1, num_parts:sizes.length, num_trials:1 }).eq('id',studyId);
+    return res.count;
+  }
+  const saveAll=()=> mode==='jasp' ? saveJasp() : saveGrid();
+
   document.getElementById('save').addEventListener('click', async ()=>{
     const b=document.getElementById('save'); b.disabled=true; b.textContent='Kaydediliyor…';
     try{ const c=await saveAll(); b.innerHTML='<i class="bi bi-check2"></i> Kaydedildi ('+c+')'; setTimeout(()=>{b.disabled=false;b.innerHTML='<i class="bi bi-save"></i> Kaydet';},1500); }

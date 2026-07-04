@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <title>Tolerans Aralığı (Tolerance Interval)</title>
@@ -49,7 +50,15 @@
 
   <div class="card">
     <h2><i class="bi bi-table i"></i> Veri</h2>
-    <textarea id="data" placeholder="Ölçümleri yapıştırın (boşluk/virgül/satır ile ayrılmış)…"></textarea>
+    <div style="display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:0 0 10px">
+      <button id="tabPaste" type="button" onclick="setTolMode('paste')" style="border:0;background:#fff;padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:#41506b;cursor:pointer;box-shadow:0 1px 4px rgba(30,40,70,.12)"><i class="bi bi-clipboard"></i> Yapıştır</button>
+      <button id="tabCol" type="button" onclick="setTolMode('col')" style="border:0;background:transparent;padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:600;color:#5a6685;cursor:pointer"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+    </div>
+    <div id="tolPaste"><textarea id="data" placeholder="Ölçümleri yapıştırın (boşluk/virgül/satır ile ayrılmış)…"></textarea></div>
+    <div id="tolCol" style="display:none">
+      <p style="font-size:12px;color:#6b7280;margin:0 0 8px"><i class="bi bi-info-circle"></i> Ölçümleri sütun(lar)a girin/yapıştırın, <b>Ölçüm</b> kutusuna sürükleyin, sonra Hesapla'ya basın (birden çok sütun birleştirilir).</p>
+      <div id="jaspHost"></div>
+    </div>
     <div class="row">
       <div class="fld">İçerilecek oran %P<input type="number" id="P" value="99" min="50" max="99.99" step="0.1"></div>
       <div class="fld">Güven %C<input type="number" id="C" value="95" min="50" max="99.9" step="1"></div>
@@ -73,7 +82,30 @@ function loadExample(){ var d=[]; for(var i=0;i<50;i++){ d.push((100+Math.sin(i*
 function nf(x,d){ if(x==null||!isFinite(x))return '—'; return Number(x).toFixed(d==null?3:d); }
 function hist(vals,bins){ var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals); if(mx===mn){mx++;mn--;} var bw=(mx-mn)/bins,h=[]; for(var i=0;i<bins;i++){var a=mn+i*bw,b=a+bw;h.push({x0:a,x1:b,mid:(a+b)/2,count:vals.filter(function(v){return v>=a&&(i===bins-1?v<=b:v<b);}).length});} return {h:h,lo:mn,hi:mx,bw:bw}; }
 
+var tolMode='paste', jaspCtrl=null;
+function setTolMode(m){ tolMode=m;
+  document.getElementById('tolPaste').style.display=m==='paste'?'':'none';
+  document.getElementById('tolCol').style.display=m==='col'?'':'none';
+  var tp=document.getElementById('tabPaste'), tc=document.getElementById('tabCol');
+  tp.style.background=m==='paste'?'#fff':'transparent'; tp.style.color=m==='paste'?'#41506b':'#5a6685'; tp.style.boxShadow=m==='paste'?'0 1px 4px rgba(30,40,70,.12)':'none';
+  tc.style.background=m==='col'?'#fff':'transparent'; tc.style.color=m==='col'?'#41506b':'#5a6685'; tc.style.boxShadow=m==='col'?'0 1px 4px rgba(30,40,70,.12)':'none';
+}
+function mountJasp(preRaw){
+  if(!window.MSA||!MSA.ColAssign) return;
+  var pre=(preRaw||'').split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
+  jaspCtrl=MSA.ColAssign.mount(document.getElementById('jaspHost'),{
+    roles:[{ key:'measurement', label:'Ölçüm', multi:true, numeric:true, required:true, hint:'bir veya daha çok sütun' }],
+    minRows: Math.max(10, pre.length+2),
+    initial: (pre.length ? { columns:[{name:'Ölçüm',values:pre}], assign:{ measurement:[0] } } : { columns:[{name:'Ölçüm 1',values:[]},{name:'Ölçüm 2',values:[]}] })
+  });
+}
+function syncCol(){ if(tolMode!=='col'||!jaspCtrl) return; var v=jaspCtrl.validate(); if(!v.ok){ alert(v.msg); throw new Error(v.msg); }
+  var M=jaspCtrl.role('measurement'), n=jaspCtrl.rowCount(), num=jaspCtrl.num, out=[];
+  for(var c=0;c<M.length;c++){ for(var r=0;r<n;r++){ var x=num(M[c].values[r]); if(x!=null) out.push(x); } }
+  document.getElementById('data').value=out.join(' ');
+}
 function calc(){
+  try{ syncCol(); }catch(e){ return; }
   var raw=document.getElementById('data').value.trim();
   var vals=raw.split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
   if(vals.length<2){ alert('En az 2 ölçüm girin.'); return; }
@@ -148,8 +180,8 @@ async function renameStudy(){ if(!currentId)return; var name=(document.getElemen
   if(!window.toleranceCalculations){ await loadScript('js/tolerance-calculations.js?v='+Date.now()); }
   var id=MSA.q('id');
   if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
-    if(q.data){ var o=q.data.analysis_options||{}; document.getElementById('data').value=o.data||''; if(o.P!=null)document.getElementById('P').value=o.P; if(o.C!=null)document.getElementById('C').value=o.C; document.getElementById('studyName').value=q.data.study_name||''; calc(); return; } }
-  loadExample(); document.getElementById('studyName').value=defaultName();
+    if(q.data){ var o=q.data.analysis_options||{}; document.getElementById('data').value=o.data||''; if(o.P!=null)document.getElementById('P').value=o.P; if(o.C!=null)document.getElementById('C').value=o.C; document.getElementById('studyName').value=q.data.study_name||''; mountJasp(o.data||''); calc(); return; } }
+  loadExample(); document.getElementById('studyName').value=defaultName(); mountJasp(document.getElementById('data').value);
 })();
 </script>
 </body>
