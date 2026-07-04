@@ -117,6 +117,7 @@
           <option value="sbar"<%= sel(op.withinMethod,'sbar') %>>S-bar (s̄/c₄)</option>
           <option value="rbar"<%= sel(op.withinMethod,'rbar') %>>R-bar (R̄/d₂)</option>
           <option value="pooled"<%= sel(op.withinMethod,'pooled') %>>Pooled</option>
+          <option value="betweenwithin"<%= sel(op.withinMethod,'betweenwithin') %>>Between/Within (arası+içi)</option>
         </select></label>
       <label>Kontrol kartı
         <select id="optChart">
@@ -268,7 +269,7 @@
   <% if(!isNN){ %>
   <div class="card">
     <h2><i class="bi bi-table i"></i> Proses Yeterliliği (within)</h2>
-    <div class="exp">Kısa dönem (within) yeterlilik — σ<sub>within</sub> = <%= swLbl %> = <%= fn(si.sigmaWithin,4) %>. Yanında <b>%90 güven aralıkları</b> (Cp/Cpk için, df = <%= si.dfWithin %>).</div>
+    <div class="exp">Kısa dönem (within) yeterlilik — σ<sub>within</sub> = <%= swLbl %> = <%= fn(si.sigmaWithin,4) %>. Yanında <b>%90 güven aralıkları</b> (Cp/Cpk için, df = <%= si.dfWithin %>).<% if(op.withinMethod==='betweenwithin'){ %> <b>Between/Within</b>: σ<sub>within</sub>=<%= fn(si.sigmaWithinS,4) %>, σ<sub>between</sub>=<%= fn(si.sigmaBetween,4) %> → birleşik σ=<%= fn(si.sigmaWithinBW,4) %> (alt gruplar arası kayma dahil).<% } %></div>
     <div style="overflow-x:auto">
     <table>
       <thead>

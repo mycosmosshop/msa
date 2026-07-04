@@ -303,9 +303,14 @@
     const sigmaWithinS = n>=2 ? sbar / cbar : (mrbar>0 ? mrbar/1.128 : sdOverall);   // S-bar (s̄/c4)
     const sigmaWithinR = n>=2 ? rbar / d2n : sigmaWithinS;                            // R-bar (R̄/d₂)
     const sigmaWithinP = n>=2 ? (useUnbiasing ? sPooled / c4(dfPool+1) : sPooled) : sigmaWithinS; // Pooled
+    // Between/Within (Minitab): σ_bw = √(σ_within² + σ_between²); σ_between² = Var(altgrup ort.) − σ_within²/n
+    const xbarVar = subs.length>1 ? subs.reduce((a,s)=>a+Math.pow(s.mean-xbarbar,2),0)/(subs.length-1) : 0;
+    const sigmaBetween = (n>=2) ? Math.sqrt(Math.max(0, xbarVar - (sigmaWithinS*sigmaWithinS)/n)) : 0;
+    const sigmaWithinBW = (n>=2) ? Math.sqrt(sigmaWithinS*sigmaWithinS + sigmaBetween*sigmaBetween) : sigmaWithinS;
     const sigmaWithin = n<2 ? sigmaWithinS
                        : (withinMethod==='rbar' ? sigmaWithinR
-                       : (withinMethod==='pooled' ? sigmaWithinP : sigmaWithinS));
+                       : (withinMethod==='pooled' ? sigmaWithinP
+                       : (withinMethod==='betweenwithin' ? sigmaWithinBW : sigmaWithinS)));
     const sigmaOverall = sdOverall;
     // Serbestlik dereceleri (güven aralığı için): total = N−1 (JASP kesin); within = Σ(n_g−1)=N−k, alt grup=1 ise MR sayısı
     const dfTotal = Math.max(1, N-1);
@@ -443,11 +448,11 @@
     let verdict = { label:'—', cls:'neutral' };
     if(cpk!=null){ verdict = cpk>=1.33?{label:'Yeterli',cls:'good'} : cpk>=1.0?{label:'Marjinal',cls:'marginal'} : {label:'Yetersiz',cls:'bad'}; }
 
-    const withinLabel = withinMethod==='rbar'?'R̄/d₂':(withinMethod==='pooled'?'Pooled/c₄':'s̄/c₄');
+    const withinLabel = withinMethod==='rbar'?'R̄/d₂':(withinMethod==='pooled'?'Pooled/c₄':(withinMethod==='betweenwithin'?'Between/Within √(σ_w²+σ_b²)':'s̄/c₄'));
     return {
       studyInfo:{ N, numSubgroups:subs.length, subgroupSize:n, method:(n>=2?'subgroup':'individual'), mrbar, dfWithin, dfTotal,
         lsl, usl, target, origLsl, origUsl, origTarget, mean:grandMean, sigmaWithin, sigmaOverall, sbar, rbar, c4:c4n,
-        sigmaWithinS, sigmaWithinR, sigmaWithinP, withinLabel },
+        sigmaWithinS, sigmaWithinR, sigmaWithinP, sigmaBetween, sigmaWithinBW, withinLabel },
       options:{ withinMethod, useUnbiasing, ciLevel, sigmaMult, distribution:distReq, controlChart:chartType, bins, ctrlKind,
         nonNormalMethod, lslBoundary, uslBoundary, isNonNormal, activeTests },
       transform,
