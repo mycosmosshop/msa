@@ -109,6 +109,23 @@
   </div>
 
   <div class="card">
+    <h2><i class="bi bi-rulers i"></i> Asimptotlar (Referans Çizgileri)</h2>
+    <div class="exp">Grafiğe etiketli <b>yatay (y)</b> veya <b>dikey (x)</b> referans çizgileri ekleyin — ör. y = 0.9 (hedef POD seviyesi) ya da x = a₉₀ (kritik boyut). JASP <i>Asymptotes</i> karşılığı.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:10px">
+      <div>
+        <div style="font-weight:700;font-size:12.5px;margin-bottom:6px;color:#2563eb"><i class="bi bi-arrow-left-right"></i> Yatay asimptotlar (y)</div>
+        <div id="hasyRows"></div>
+        <button class="btn ghost" style="padding:5px 12px;font-size:12px" onclick="addAsy('h')"><i class="bi bi-plus-circle"></i> Ekle</button>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:12.5px;margin-bottom:6px;color:#7b1fa2"><i class="bi bi-arrow-down-up"></i> Dikey asimptotlar (x)</div>
+        <div id="vasyRows"></div>
+        <button class="btn ghost" style="padding:5px 12px;font-size:12px" onclick="addAsy('v')"><i class="bi bi-plus-circle"></i> Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2><i class="bi bi-graph-up-arrow i"></i> Tespit Grafiği (Detection Plot)</h2>
     <div class="exp">Siyah eğri = POD modeli (1 tespit etme olasılığı). <b>Üstteki/alttaki gri eğriler = yoğunluk</b>: üstte tespit edilen (hit), altta kaçırılan (miss) gözlemlerin boyut dağılımı — hit'ler büyük boyutta, miss'ler küçük boyutta yoğunlaşır. Üst/alt kısa çizgiler (rug) = ham gözlemler. Kesikli çizgiler a₅₀/a₉₀ boyutları. (İsterseniz seçeneklerden <b>%<%= (results.studyInfo.ciLevel*100).toFixed(0) %> güven aralığı</b> bandını açabilirsiniz.)</div>
     <div class="chartbox"><canvas id="chartPod"></canvas></div>
@@ -119,7 +136,16 @@
 
 <script>
 var POD_CH=null;
+var ASY={h:[],v:[]};   // asimptotlar: yatay (y) / dikey (x)
 function tgl(id,cb){ var el=document.getElementById(id); if(el) el.style.display=cb.checked?'':'none'; }
+function asyRowHTML(kind,i,it){ return '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+  '<input placeholder="Etiket" value="'+(it.label||'').replace(/"/g,'&quot;')+'" oninput="updAsy(\''+kind+'\','+i+',\'label\',this.value)" style="flex:1;min-width:50px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px">'+
+  '<input type="number" step="any" placeholder="'+(kind==='h'?'y':'x')+'" value="'+(it.coord!=null?it.coord:'')+'" oninput="updAsy(\''+kind+'\','+i+',\'coord\',this.value)" style="width:78px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px">'+
+  '<button title="Sil" onclick="rmAsy(\''+kind+'\','+i+')" style="border:0;background:#f4e6e6;color:#c0392b;border-radius:6px;padding:0 9px;cursor:pointer"><i class="bi bi-x-lg"></i></button></div>'; }
+function renderAsy(kind){ var el=document.getElementById(kind==='h'?'hasyRows':'vasyRows'); if(el) el.innerHTML=ASY[kind].map(function(it,i){return asyRowHTML(kind,i,it);}).join(''); }
+function addAsy(kind){ ASY[kind].push({label:'',coord:''}); renderAsy(kind); }
+function rmAsy(kind,i){ ASY[kind].splice(i,1); renderAsy(kind); if(window.POD_CH) POD_CH.update(); }
+function updAsy(kind,i,field,val){ if(ASY[kind][i]){ ASY[kind][i][field]=val; if(window.POD_CH) POD_CH.update(); } }
 function setDs(label,hidden){ if(!POD_CH)return; var d=POD_CH.data.datasets.find(function(x){return x._role===label;}); if(d){ d.hidden=hidden; POD_CH.update(); } }
 function toggleBand(cb){ if(!POD_CH)return; POD_CH.data.datasets.forEach(function(d){ if(d._role==='bandLo'||d._role==='bandHi') d.hidden=!cb.checked; }); POD_CH.update(); }
 function toggleDensity(cb){ if(!POD_CH)return; POD_CH.data.datasets.forEach(function(d){ if(d._role==='densHit'||d._role==='densMiss') d.hidden=!cb.checked; }); POD_CH.update(); }
@@ -149,6 +175,13 @@ function applyInputs(){
     if(showRug){ ctx.save(); ctx.strokeStyle='#555'; ctx.lineWidth=1; var yTop=y.getPixelForValue(1.0), yBot=y.getPixelForValue(0.0);
       g.rug.forEach(function(r){ var px=x.getPixelForValue(r.x); if(px<x.left||px>x.right)return; ctx.beginPath();
         if(r.y>=0.5){ ctx.moveTo(px,y.top); ctx.lineTo(px,y.top+9); } else { ctx.moveTo(px,y.bottom); ctx.lineTo(px,y.bottom-9); } ctx.stroke(); }); ctx.restore(); }
+    // Asimptotlar (kullanıcı referans çizgileri)
+    ASY.h.forEach(function(it){ var v=parseFloat(it.coord); if(!isFinite(v))return; var py=y.getPixelForValue(v); if(py<y.top-1||py>y.bottom+1)return;
+      ctx.save(); ctx.strokeStyle='#2563eb'; ctx.setLineDash([6,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(x.left,py); ctx.lineTo(x.right,py); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle='#2563eb'; ctx.font='11px Segoe UI'; ctx.textAlign='left'; if(it.label) ctx.fillText(it.label, x.left+5, py-4); ctx.restore(); });
+    ASY.v.forEach(function(it){ var v=parseFloat(it.coord); if(!isFinite(v))return; var px=x.getPixelForValue(v); if(px<x.left-1||px>x.right+1)return;
+      ctx.save(); ctx.strokeStyle='#7b1fa2'; ctx.setLineDash([6,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle='#7b1fa2'; ctx.font='11px Segoe UI'; ctx.textAlign='left'; if(it.label){ ctx.save(); ctx.translate(px+4,y.bottom-6); ctx.fillText(it.label,0,0); ctx.restore(); } ctx.restore(); });
   }catch(e){} }};
   window.__setRug=function(v){ showRug=v; POD_CH.update(); };
   var xmin=g.curve[0].x, xmax=g.curve[g.curve.length-1].x;
