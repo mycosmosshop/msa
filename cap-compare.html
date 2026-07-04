@@ -57,8 +57,9 @@
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
-      <input id="studyName" placeholder="Çalışma adı (panoya kaydetmek için)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-      <button class="btn primary" onclick="saveStudy()"><i class="bi bi-save"></i> Panoya Kaydet</button>
+      <label style="font-size:12px;font-weight:600;color:#4a5568;display:flex;align-items:center;gap:8px;flex:1;min-width:220px">Çalışma adı
+        <input id="studyName" onblur="renameStudy()" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></label>
+      <span id="saveState" style="color:var(--muted);font-size:12px"><i class="bi bi-cloud"></i> Karşılaştırınca otomatik panoya kaydedilir</span>
     </div>
   </div>
 
@@ -89,6 +90,7 @@ function calc(){
        ra=window.capCalculations.calculateCapability(va.map(function(v){return {value:v};}),opts); }
   catch(e){ alert('Hata: '+e.message); return; }
   draw(rb,ra,opts);
+  persist();
 }
 
 function chg(before,after,higherBetter){ if(before==null||after==null||!isFinite(before)||!isFinite(after))return '—'; var d=after-before; var cls=(higherBetter?d>0:d<0)?'up':(d===0?'':'down'); var pct=before!==0?(d/Math.abs(before)*100):0; return '<span class="'+cls+'">'+(d>0?'+':'')+nf(d,3)+' ('+(pct>0?'+':'')+nf(pct,1)+'%)</span>'; }
@@ -154,27 +156,31 @@ function draw(rb,ra,opts){
   singleHist('cmpAfter', ra, 'rgba(37,99,235,.4)');
 }
 
-async function saveStudy(){
-  var vb=parseVals('before'), va=parseVals('after'); if(vb.length<10||va.length<10){ alert('Her iki döneme de ≥10 ölçüm girin.'); return; }
-  var name=(document.getElementById('studyName').value||'').trim(); if(!name){ alert('Çalışma adı girin.'); return; }
+var currentId=null;
+function defaultName(){ try{ return 'Karşılaştırma '+new Date().toLocaleDateString('tr-TR'); }catch(e){ return 'Karşılaştırma analizi'; } }
+async function persist(){
+  var vb=parseVals('before'), va=parseVals('after'); if(vb.length<10||va.length<10) return;
+  var el=document.getElementById('studyName'); var name=(el.value||'').trim(); if(!name){ name=defaultName(); el.value=name; }
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
   var g=function(id){return document.getElementById(id).value;};
   var rec={ study_name:name, study_type:'comparison', description:'Yeterlilik karşılaştırma (önce/sonra)', status:'calculated',
     num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
     analysis_options:{ comparison:true, before:g('before'), after:g('after'), lsl:g('lsl'), usl:g('usl'), target:g('target'), sg:g('sg') } };
-  var id=MSA.q('id');
-  try{ if(id){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',id); if(u.error)throw u.error; alert('Güncellendi.'); }
-    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; location.href='cap-compare.html?id='+r.data.id; } }
-  catch(e){ alert('Kayıt hatası: '+e.message); }
+  var st=document.getElementById('saveState');
+  try{ if(currentId){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',currentId); if(u.error)throw u.error; }
+    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; currentId=r.data.id; history.replaceState(null,'','cap-compare.html?id='+currentId); }
+    if(st) st.innerHTML='<i class="bi bi-cloud-check" style="color:#1e7e4a"></i> Panoya kaydedildi';
+  }catch(e){ if(st) st.innerHTML='<i class="bi bi-cloud-slash" style="color:#c0392b"></i> Kaydedilemedi: '+e.message; }
 }
+async function renameStudy(){ if(!currentId)return; var name=(document.getElementById('studyName').value||'').trim(); if(name){ try{ await MSA.db.from(MSA.T.studies).update({study_name:name}).eq('id',currentId); }catch(e){} } }
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.capCalculations){ await loadScript('js/cap-calculations.js?v='+Date.now()); }
   var id=MSA.q('id');
-  if(id){ var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
+  if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
     if(q.data){ var o=q.data.analysis_options||{}; ['before','after','lsl','usl','target','sg'].forEach(function(k){ if(o[k]!=null)document.getElementById(k).value=o[k]; }); document.getElementById('studyName').value=q.data.study_name||''; calc(); return; } }
-  loadExample();
+  loadExample(); document.getElementById('studyName').value=defaultName();
 })();
 </script>
 </body>
