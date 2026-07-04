@@ -106,10 +106,20 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
            : '<span class="badge b-mid">⚠ Marjinal</span>';
     };
 
+    const capSubLabel = (s) => {
+      const o = s.analysis_options || {};
+      if (o.sixpack) return 'Sixpack';
+      if (o.withinMethod==='betweenwithin') return 'Between/Within';
+      const d = o.distribution;
+      if (d==='weibull'||d==='weibull3'||d==='lognormal'||d==='lognormal3') return 'Normal-Olmayan';
+      if (d==='boxcox') return 'Box-Cox';
+      if (d==='johnson') return 'Johnson';
+      return 'Normal Yeterlilik';
+    };
     body.innerHTML = '<div class="grid">' + studies.map(s => {
       const meta = TYPE_META[s.study_type] || TYPE_META.capability;
-      const chip = `<span style="display:inline-block;background:${meta.chip};color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px">${meta.label}</span>`;
-      const nmeta = (s.study_type==='capability') ? '' : `<div class="row"><span>Tür</span>${chip}</div>`;
+      const label = (s.study_type==='capability') ? capSubLabel(s) : meta.label;
+      const chip = `<span style="display:inline-block;background:${meta.chip};color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap">${label}</span>`;
       let acts;
       if (s.study_type==='capability') {
         acts = `<a class="sbtn view" href="cap-results.html?id=${s.id}"><i class="bi bi-eye"></i> Sonuçlar</a>
@@ -118,7 +128,7 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
         acts = `<a class="sbtn view" href="${meta.open(s.id)}"><i class="bi bi-box-arrow-up-right"></i> Aç</a>`;
       }
       return `<div class="cardk">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><h3 style="margin:0">${MSA.esc ? MSA.esc(s.study_name) : (s.study_name||'')}</h3>${s.study_type!=='capability'?chip:''}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px"><h3 style="margin:0">${MSA.esc ? MSA.esc(s.study_name) : (s.study_name||'')}</h3>${chip}</div>
         ${s.study_type==='capability' ? `<div class="row"><span>Durum</span>${badge(s)}</div>` : ''}
         ${s.characteristic ? `<div class="row"><span>Karakteristik</span><strong>${s.characteristic}</strong></div>` : ''}
         <div class="row"><span>Tarih</span><strong>${dt(s)}</strong></div>
