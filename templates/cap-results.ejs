@@ -49,6 +49,10 @@
 <div class="wrap">
   <% var it=results.interpretation; var si=results.studyInfo; var W=results.within; var O=results.overall; var perf=results.performance; var nm=results.normality;
      var Wci=W.ci||{}, Oci=O.ci||{}; var op=results.options||{}; var tr=results.transform||{}; var ciPct=Math.round((op.ciLevel||0.90)*100);
+     var nn=results.nonNormal; var isNN=!!(op.isNonNormal && nn && !nn.error);
+     var mainIdx=isNN?nn.ppk:it.cpk; var mainLbl=isNN?'Ppk':'Cpk';
+     var mainCls=mainIdx==null?'neutral':(mainIdx>=1.33?'good':(mainIdx>=1.0?'marginal':'bad'));
+     var mainTxt=mainCls==='good'?'Yeterli':(mainCls==='marginal'?'Marjinal':(mainCls==='bad'?'Yetersiz':'—'));
      function fn(x,d){ return x==null?'—':Number(x).toFixed(d==null?3:d); }
      function cil(o){ return (o&&o.lo!=null&&isFinite(o.lo))?Number(o.lo).toFixed(3):'—'; }
      function cih(o){ return (o&&o.hi!=null&&isFinite(o.hi))?Number(o.hi).toFixed(3):'—'; }
@@ -58,9 +62,9 @@
   <div class="hdr">
     <div><h1><i class="bi bi-graph-up"></i> Proses Yeterliliği</h1>
       <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
-    <span class="badge <%= it.acceptabilityClass %>">
-      <i class="bi bi-<%= it.acceptabilityClass==='good'?'check-circle-fill':(it.acceptabilityClass==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
-      Cpk = <%= fn(it.cpk) %> · <%= it.acceptability %>
+    <span class="badge <%= mainCls %>">
+      <i class="bi bi-<%= mainCls==='good'?'check-circle-fill':(mainCls==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
+      <%= mainLbl %> = <%= fn(mainIdx) %> · <%= mainTxt %><%= isNN?' · '+nn.dist:'' %>
     </span>
   </div>
 
@@ -76,9 +80,21 @@
     <div class="optgrid">
       <label>Veri dağılımı
         <select id="optDist">
-          <option value="normal"<%= sel(op.distribution,'normal') %>>Normal</option>
-          <option value="boxcox"<%= sel(op.distribution,'boxcox') %>>Box-Cox normalizasyon</option>
-          <option value="lognormal"<%= sel(op.distribution,'lognormal') %>>Lognormal (log dönüşüm)</option>
+          <optgroup label="Normal">
+            <option value="normal"<%= sel(op.distribution,'normal') %>>Normal dağılım</option>
+            <option value="boxcox"<%= sel(op.distribution,'boxcox') %>>Box-Cox normalizasyon</option>
+          </optgroup>
+          <optgroup label="Normal olmayan (dağılım uydur)">
+            <option value="lognormal"<%= sel(op.distribution,'lognormal') %>>Lognormal</option>
+            <option value="lognormal3"<%= sel(op.distribution,'lognormal3') %>>3-parametreli Lognormal</option>
+            <option value="weibull"<%= sel(op.distribution,'weibull') %>>Weibull</option>
+            <option value="weibull3"<%= sel(op.distribution,'weibull3') %>>3-parametreli Weibull</option>
+          </optgroup>
+        </select></label>
+      <label>Normal-olmayan yeterlilik yöntemi
+        <select id="optNNMethod">
+          <option value="percentile"<%= sel(op.nonNormalMethod,'percentile') %>>Percentile (yüzdelik)</option>
+          <option value="nonconformance"<%= sel(op.nonNormalMethod,'nonconformance') %>>Non-conformance (uyumsuzluk)</option>
         </select></label>
       <label>Alt grup boyutu
         <input type="number" id="optSg" min="1" max="25" value="<%= op.subgroupSize!=null?op.subgroupSize:(si.subgroupSize||5) %>"></label>
@@ -110,11 +126,13 @@
     <div style="font-weight:700;font-size:12px;color:#39415a;text-transform:uppercase;letter-spacing:.3px;margin:16px 2px 8px">Ölçü Spesifikasyonu (girip Uygula deyince kaydedilir)</div>
     <div class="optgrid">
       <label>Alt spesifikasyon (LSL)
-        <input type="number" id="optLsl" step="any" value="<%= si.origLsl!=null?si.origLsl:'' %>" placeholder="ör. 94"></label>
+        <input type="number" id="optLsl" step="any" value="<%= si.origLsl!=null?si.origLsl:'' %>" placeholder="ör. 94">
+        <span style="font-weight:500;font-size:11px;color:var(--muted)"><label class="chk" style="display:inline-flex;gap:5px;margin-top:3px"><input type="checkbox" id="optLslB"<%= op.lslBoundary?' checked':'' %>> Sınır (boundary — hesaba katma)</label></span></label>
       <label>Hedef (Target)
         <input type="number" id="optTarget" step="any" value="<%= si.origTarget!=null?si.origTarget:'' %>" placeholder="ör. 100"></label>
       <label>Üst spesifikasyon (USL)
-        <input type="number" id="optUsl" step="any" value="<%= si.origUsl!=null?si.origUsl:'' %>" placeholder="ör. 106"></label>
+        <input type="number" id="optUsl" step="any" value="<%= si.origUsl!=null?si.origUsl:'' %>" placeholder="ör. 106">
+        <span style="font-weight:500;font-size:11px;color:var(--muted)"><label class="chk" style="display:inline-flex;gap:5px;margin-top:3px"><input type="checkbox" id="optUslB"<%= op.uslBoundary?' checked':'' %>> Sınır (boundary — hesaba katma)</label></span></label>
     </div>
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" onclick="capReload()"><i class="bi bi-arrow-repeat"></i> Uygula ve Yeniden Hesapla</button>
@@ -147,6 +165,45 @@
     <div class="chartbox tall"><canvas id="chartHist"></canvas></div>
   </div>
 
+  <% if(isNN){ %>
+  <div class="card">
+    <h2><i class="bi bi-diagram-2 i"></i> Normal-Olmayan Yeterlilik — <%= nn.dist %> (<%= nn.method==='nonconformance'?'Non-conformance':'Percentile' %>)</h2>
+    <div class="exp">Veri normal dağılıma uymadığında <b><%= nn.dist %></b> dağılımı uydurulur ve yeterlilik <b><%= nn.method==='nonconformance'?'uyumsuzluk oranından eşdeğer Z (Ppk=Φ⁻¹(1−p)/3)':'yüzdelik yöntemiyle (P0.135 / P50 / P99.865)' %></b> hesaplanır (JASP/Minitab kuralı). Normal-olmayan analizde güven aralığı ve within/overall ayrımı raporlanmaz.</div>
+    <div class="grid2">
+      <div>
+        <div style="font-weight:600;font-size:13px">Yeterlilik İndeksleri</div>
+        <table>
+          <tbody>
+            <tr><td>Pp</td><td><%- idxPill(nn.pp) %></td></tr>
+            <tr><td>Ppk</td><td><%- idxPill(nn.ppk) %></td></tr>
+            <tr><td>Ppl (alt)</td><td class="num"><%= fn(nn.ppl) %></td></tr>
+            <tr><td>Ppu (üst)</td><td class="num"><%= fn(nn.ppu) %></td></tr>
+            <% if(nn.cpm!=null){ %><tr><td>Cpm (hedefe göre)</td><td class="num"><%= fn(nn.cpm) %></td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:13px">Uydurulan Dağılım</div>
+        <table>
+          <tbody>
+            <% Object.keys(nn.params).forEach(function(k){ %><tr><td><%= k %></td><td class="num"><%= fn(nn.params[k],4) %></td></tr><% }); %>
+            <tr><td>Anderson-Darling (fit)</td><td class="num"><%= fn(nn.ad,3) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div style="overflow-x:auto;margin-top:10px">
+    <table>
+      <thead><tr><th>Yüzdelikler</th><th>P0.135</th><th>P50 (medyan)</th><th>P99.865</th></tr></thead>
+      <tbody><tr><td><%= nn.dist %></td><td class="num"><%= fn(nn.P00135,3) %></td><td class="num"><%= fn(nn.P50,3) %></td><td class="num"><%= fn(nn.P99865,3) %></td></tr></tbody>
+    </table>
+    </div>
+    <div class="exp" style="margin-top:10px"><b>Beklenen uyumsuzluk (fit):</b> ppm&lt;LSL = <%= fn(nn.expected.below,2) %> · ppm&gt;USL = <%= fn(nn.expected.above,2) %> · <b>toplam = <%= fn(nn.expected.total,2) %> ppm</b>. Gözlenen (veride): <%= fn(perf.observed.total,2) %> ppm.
+      <% if(nn.boundary.lsl||nn.boundary.usl){ %><br><b>Sınır (boundary):</b> <%= nn.boundary.lsl?'LSL':'' %><%= nn.boundary.lsl&&nn.boundary.usl?' ve ':'' %><%= nn.boundary.usl?'USL':'' %> hesaba katılmadı (tek-yön analiz).<% } %></div>
+  </div>
+  <% } %>
+
+  <% if(!isNN){ %>
   <div class="card">
     <h2><i class="bi bi-table i"></i> Proses Yeterliliği (within)</h2>
     <div class="exp">Kısa dönem (within) yeterlilik — σ<sub>within</sub> = <%= swLbl %> = <%= fn(si.sigmaWithin,4) %>. Yanında <b>%90 güven aralıkları</b> (Cp/Cpk için, df = <%= si.dfWithin %>).</div>
@@ -200,6 +257,7 @@
       </tbody>
     </table>
   </div>
+  <% } %>
 
   <% var gl=results.graph.chartLabels; var xb=results.graph.xbarChart; var sc=results.graph.sChart;
      function testsHtml(tst){ if(!tst||!tst.length) return '<div class="testok"><i class="bi bi-check-circle-fill"></i> Test ihlali oluşmadı.</div>';
@@ -254,12 +312,17 @@
       vline(g.usl,'#c0392b','USL = '+Number(g.usl).toFixed(2));
       vline(g.target,'#1e7e4a','Hedef = '+Number(g.target).toFixed(2));
     }};
+    var histDatasets=[
+      { type:'bar', label:'Frekans', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(130,140,165,.35)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1.0, barPercentage:1.0, order:3 }
+    ];
+    if(g.isNonNormal && g.curveFit){
+      histDatasets.push({ type:'line', label:(g.distName||'Fit')+' (uydurulan)', data:g.curveFit.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#7b1fa2', backgroundColor:'rgba(123,31,162,.06)', pointRadius:0, borderWidth:2.5, tension:0.35, fill:true, order:1, xAxisID:'xLin' });
+    } else {
+      histDatasets.push({ type:'line', label:'Overall (uzun dönem)', data:g.curveOverall.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', backgroundColor:'rgba(31,42,68,.05)', pointRadius:0, borderWidth:2.4, tension:0.35, fill:true, order:1, xAxisID:'xLin' });
+      histDatasets.push({ type:'line', label:'Within (kısa dönem)', data:g.curveWithin.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#c0392b', pointRadius:0, borderWidth:2.2, borderDash:[7,4], tension:0.35, order:2, xAxisID:'xLin' });
+    }
     new Chart(hEl,{
-      data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:[
-        { type:'bar', label:'Frekans', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(130,140,165,.35)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1.0, barPercentage:1.0, order:3 },
-        { type:'line', label:'Overall (uzun dönem)', data:g.curveOverall.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', backgroundColor:'rgba(31,42,68,.05)', pointRadius:0, borderWidth:2.4, tension:0.35, fill:true, order:1, xAxisID:'xLin' },
-        { type:'line', label:'Within (kısa dönem)', data:g.curveWithin.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#c0392b', pointRadius:0, borderWidth:2.2, borderDash:[7,4], tension:0.35, order:2, xAxisID:'xLin' }
-      ]},
+      data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:histDatasets },
       options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:14}},
         scales:{ x:{ title:{display:true,text:'Ölçüm'+(R.transform&&R.transform.applied?' (dönüştürülmüş)':'')}, grid:{display:false} },
           xLin:{ type:'linear', display:false, min:xmin, max:xmax },
@@ -327,6 +390,9 @@ function capReload(){
   var ls=val('optLsl'); add('lsl', ls);
   var us=val('optUsl'); add('usl', us);
   var t=val('optTarget'); add('target', t);
+  add('nnmethod', val('optNNMethod'));
+  add('lslb', document.getElementById('optLslB') && document.getElementById('optLslB').checked ? '1':'0');
+  add('uslb', document.getElementById('optUslB') && document.getElementById('optUslB').checked ? '1':'0');
   location.href='cap-results.html?'+p.join('&');
 }
 </script>

@@ -84,6 +84,83 @@
 
   function ppm(frac){ return frac*1e6; }
 
+  // ================= Normal-olmayan dağılım fitleme (JASP/Minitab kuralları) =================
+  // Percentile yöntemi: Pp=(USL-LSL)/(P99.865-P0.135), Ppk=min((USL-P50)/(P99.865-P50),(P50-LSL)/(P50-P0.135))
+  // Non-conformance yöntemi: fit CDF'ten beklenen dışı oran → eşdeğer Z (Ppk=Φ⁻¹(1-p)/3)
+  function _sd(a){ return sampSd(a); }
+  // 2-parametreli lognormal log-olabilirliği (kaydırılmış veri >0)
+  function _llLognormal(sh){ const lg=sh.map(Math.log); const mu=mean(lg), sd=_sd(lg); if(!(sd>0))return {ll:-Infinity};
+    let ll=0; for(let i=0;i<sh.length;i++){ ll += -Math.log(sh[i]*sd*Math.sqrt(2*Math.PI)) - Math.pow(Math.log(sh[i])-mu,2)/(2*sd*sd); }
+    return { mu, sd, ll }; }
+  // 2-parametreli Weibull (şekil MLE Newton) + log-olabilirlik
+  function _fitWeibull2(sh){ const n=sh.length; const lnx=sh.map(Math.log); const meanln=mean(lnx);
+    let k=1.0;
+    for(let it=0; it<200; it++){ let A=0,B=0,C=0; for(let i=0;i<n;i++){ const xk=Math.pow(sh[i],k); A+=xk; B+=xk*lnx[i]; C+=xk*lnx[i]*lnx[i]; }
+      if(!(A>0)) break; const f=B/A-1/k-meanln; const df=(C*A-B*B)/(A*A)+1/(k*k); const kn=k-f/df;
+      if(!isFinite(kn)||kn<=0){ k=Math.max(0.05,k*0.5); continue; } if(Math.abs(kn-k)<1e-9){ k=kn; break; } k=kn; }
+    let A=0; for(let i=0;i<n;i++) A+=Math.pow(sh[i],k); const lambda=Math.pow(A/n,1/k);
+    let ll=0; for(let i=0;i<n;i++){ ll += Math.log(k/lambda) + (k-1)*Math.log(sh[i]/lambda) - Math.pow(sh[i]/lambda,k); }
+    return { k, lambda, ll }; }
+  // 3-parametreli için eşik (threshold γ) profil-olabilirlikle ızgara araması
+  function _estThreshold(data, kind){ const minV=Math.min.apply(null,data), maxV=Math.max.apply(null,data); const range=(maxV-minV)||1;
+    let best=minV-range*0.5, bestLL=-Infinity;
+    for(let i=1;i<=120;i++){ const g=minV-range*(1.0 - i/121); // (minV-range) .. (minV- küçük)
+      const sh=data.map(x=>x-g); if(sh.some(v=>v<=0))continue;
+      const r = kind==='lognormal'?_llLognormal(sh):_fitWeibull2(sh);
+      if(r.ll>bestLL){ bestLL=r.ll; best=g; } }
+    return best; }
+  function fitDistribution(data, kind){
+    const three = kind==='lognormal3' || kind==='weibull3';
+    const base = (kind==='lognormal'||kind==='lognormal3')?'lognormal':'weibull';
+    let gamma=0;
+    if(three) gamma=_estThreshold(data, base);
+    let sh=data.map(x=>x-gamma);
+    if(sh.some(v=>v<=0)){ const s=Math.min.apply(null,sh); gamma += (s-1e-6); sh=data.map(x=>x-gamma); }
+    if(base==='lognormal'){ const r=_llLognormal(sh); const mu=r.mu, sd=r.sd;
+      return { kind, name:(three?'3P Lognormal':'Lognormal'), gamma, three,
+        cdf:(x)=> x<=gamma?0:normCdf((Math.log(x-gamma)-mu)/sd),
+        inv:(p)=> gamma+Math.exp(mu+sd*normInv(p)),
+        pdf:(x)=> x<=gamma?0:Math.exp(-Math.pow(Math.log(x-gamma)-mu,2)/(2*sd*sd))/((x-gamma)*sd*Math.sqrt(2*Math.PI)),
+        params: three?{'Eşik γ':gamma,'μ (log)':mu,'σ (log)':sd}:{'μ (log)':mu,'σ (log)':sd}, ll:r.ll };
+    } else { const r=_fitWeibull2(sh); const k=r.k, lambda=r.lambda;
+      return { kind, name:(three?'3P Weibull':'Weibull'), gamma, three,
+        cdf:(x)=> x<=gamma?0:1-Math.exp(-Math.pow((x-gamma)/lambda,k)),
+        inv:(p)=> gamma+lambda*Math.pow(-Math.log(1-Math.min(Math.max(p,1e-12),1-1e-12)),1/k),
+        pdf:(x)=> x<=gamma?0:(k/lambda)*Math.pow((x-gamma)/lambda,k-1)*Math.exp(-Math.pow((x-gamma)/lambda,k)),
+        params: three?{'Eşik γ':gamma,'Şekil k':k,'Ölçek λ':lambda}:{'Şekil k':k,'Ölçek λ':lambda}, ll:r.ll };
+    }
+  }
+  // Fit edilmiş dağılıma göre Anderson-Darling (dönüşümlü: U=F(x)~Uniform → normale çevir)
+  function adAgainstDist(data, dist){ const n=data.length; const u=[...data].map(x=>Math.min(Math.max(dist.cdf(x),1e-12),1-1e-12)).sort((a,b)=>a-b);
+    let S=0; for(let i=0;i<n;i++){ S += (2*(i+1)-1)*(Math.log(u[i])+Math.log(1-u[n-1-i])); }
+    const A2=-n-S/n; return A2; }
+  // Normal-olmayan yeterlilik (percentile / non-conformance) + boundary
+  function nonNormalCapability(dist, lsl, usl, target, lslB, uslB, method){
+    const eLsl = lslB?null:lsl, eUsl = uslB?null:usl;
+    const P00135=dist.inv(0.00135), P50=dist.inv(0.5), P99865=dist.inv(0.99865);
+    let pp=null, ppu=null, ppl=null, ppk=null, cpm=null;
+    if(method==='nonconformance'){
+      const clamp=v=>Math.min(Math.max(v,1e-12),0.5-1e-12);
+      const pB = eLsl!=null?dist.cdf(eLsl):null;
+      const pA = eUsl!=null?1-dist.cdf(eUsl):null;
+      if(pB!=null) ppl = normInv(1-clamp(pB))/3;
+      if(pA!=null) ppu = normInv(1-clamp(pA))/3;
+      const tot=(pB||0)+(pA||0);
+      ppk = normInv(1-Math.min(Math.max(tot,1e-12),1-1e-12))/3;
+      if(eLsl!=null&&eUsl!=null) pp=ppk;
+      else ppk = (ppl!=null?ppl:ppu);
+    } else { // percentile (varsayılan)
+      if(eLsl!=null&&eUsl!=null) pp=(eUsl-eLsl)/(P99865-P00135);
+      if(eUsl!=null&&(P99865-P50)>0) ppu=(eUsl-P50)/(P99865-P50);
+      if(eLsl!=null&&(P50-P00135)>0) ppl=(P50-eLsl)/(P50-P00135);
+      const cand=[ppu,ppl].filter(v=>v!=null); ppk=cand.length?Math.min.apply(null,cand):null;
+      if(target!=null&&eLsl!=null&&eUsl!=null){ const spread=(P99865-P00135); cpm = spread>0?(eUsl-eLsl)/(6*Math.sqrt(Math.pow(spread/6,2)+Math.pow(P50-target,2))):null; }
+    }
+    const below = eLsl!=null?dist.cdf(eLsl)*1e6:null;
+    const above = eUsl!=null?(1-dist.cdf(eUsl))*1e6:null;
+    return { pp, ppu, ppl, ppk, cpm, P00135, P50, P99865, expected:{ below, above, total:(below||0)+(above||0) } };
+  }
+
   function calculateCapability(measurements, options){
     options=options||{};
     if(!measurements||!measurements.length) throw new Error('Ölçüm verisi bulunamadı');
@@ -99,23 +176,27 @@
     let ciLevel = options.ciLevel!=null ? parseFloat(options.ciLevel) : 90; if(ciLevel>1) ciLevel=ciLevel/100; if(!(ciLevel>0&&ciLevel<1)) ciLevel=0.90;
     const ALPHA = 1 - ciLevel;
     const sigmaMult = options.sigmaMult!=null ? (parseFloat(options.sigmaMult)||3) : 3;
-    const distReq = String(options.distribution||'normal').toLowerCase();         // normal | boxcox | lognormal
+    const distReq = String(options.distribution||'normal').toLowerCase();         // normal | boxcox | lognormal(3) | weibull(3)
     const chartType = String(options.controlChart||'auto').toLowerCase();         // xbars | xbarr | imr | auto
     const binsOpt = options.bins!=null ? parseInt(options.bins,10) : null;
+    const nonNormalMethod = String(options.nonNormalMethod||'percentile').toLowerCase(); // percentile | nonconformance
+    const lslBoundary = options.lslBoundary===true || options.lslBoundary==='true' || options.lslBoundary==='1';
+    const uslBoundary = options.uslBoundary===true || options.uslBoundary==='true' || options.uslBoundary==='1';
+    const NONNORMAL_KINDS = ['lognormal','lognormal3','weibull','weibull3'];
+    const isNonNormal = NONNORMAL_KINDS.indexOf(distReq) !== -1;   // dağılım fitleme (dönüşüm değil)
 
-    // ---- Normalizasyon (Box-Cox / Lognormal) — veri + spesifikasyon aynı dönüşümden geçer ----
+    // ---- Normalizasyon (Box-Cox) — yalnız transform yöntemi; dağılım-fit (lognormal/weibull) ayrı ele alınır ----
     let transform = { applied:false, method:'normal', lambda:null, shift:0 };
     let TF = function(x){ return x; };   // spesifikasyon dönüştürücü (varsayılan: kimlik)
     (function(){
-      if(distReq!=='boxcox' && distReq!=='lognormal') return;
+      if(distReq!=='boxcox') return;
       const orig = rows.map(r=>r.value);
       const specVals=['lsl','usl','target'].map(k=>options[k]).filter(v=>v!=null&&isFinite(parseFloat(v))).map(parseFloat);
       const minAll = Math.min.apply(null, orig.concat(specVals.length?specVals:[Infinity]));
       const shift = minAll<=0 ? (1-minAll) : 0;             // tüm değerleri pozitife kaydır
       const pos = orig.map(v=>v+shift);
       let lam;
-      if(distReq==='lognormal'){ lam=0; }
-      else {
+      {
         const sumLog = pos.reduce((a,v)=>a+Math.log(v),0);
         function ll(l){ const y=pos.map(x=> l===0?Math.log(x):(Math.pow(x,l)-1)/l); const m=mean(y); const s2=y.reduce((a,v)=>a+(v-m)*(v-m),0)/y.length; if(!(s2>0))return -1e18; return -pos.length/2*Math.log(s2)+(l-1)*sumLog; }
         let best=1,bl=-1e18;
@@ -168,11 +249,14 @@
     const lsl = origLsl!=null ? TF(origLsl) : null;
     const usl = origUsl!=null ? TF(origUsl) : null;
     const target = origTarget!=null ? TF(origTarget) : null;
+    // Boundary (sınır) işaretli spesifikasyon yeterlilik hesabına GİRMEZ (tek-yön analiz) — Minitab/JASP kuralı
+    const eLsl = lslBoundary ? null : lsl;
+    const eUsl = uslBoundary ? null : usl;
 
     function indices(sigma){
-      const cp = (lsl!=null&&usl!=null&&sigma>0)? (usl-lsl)/(6*sigma):null;
-      const cpu = (usl!=null&&sigma>0)? (usl-grandMean)/(3*sigma):null;
-      const cpl = (lsl!=null&&sigma>0)? (grandMean-lsl)/(3*sigma):null;
+      const cp = (eLsl!=null&&eUsl!=null&&sigma>0)? (eUsl-eLsl)/(6*sigma):null;
+      const cpu = (eUsl!=null&&sigma>0)? (eUsl-grandMean)/(3*sigma):null;
+      const cpl = (eLsl!=null&&sigma>0)? (grandMean-eLsl)/(3*sigma):null;
       let cpk=null;
       if(cpu!=null&&cpl!=null) cpk=Math.min(cpu,cpl);
       else if(cpu!=null) cpk=cpu; else if(cpl!=null) cpk=cpl;
@@ -185,17 +269,17 @@
     overall.ci = { cp:cpCI(overall.cp, dfTotal, ALPHA),  cpk:cpkCI(overall.cpk, dfTotal, N, ALPHA) };
     // Cpm (hedefe göre, overall sigma)
     let cpm=null;
-    if(lsl!=null&&usl!=null&&target!=null){ const denom=6*Math.sqrt(sigmaOverall*sigmaOverall+Math.pow(grandMean-target,2)); cpm= denom>0?(usl-lsl)/denom:null; }
+    if(eLsl!=null&&eUsl!=null&&target!=null){ const denom=6*Math.sqrt(sigmaOverall*sigmaOverall+Math.pow(grandMean-target,2)); cpm= denom>0?(eUsl-eLsl)/denom:null; }
 
-    // Performans (PPM)
+    // Performans (PPM) — boundary tarafı sayılmaz
     let obsBelow=0, obsAbove=0;
-    all.forEach(v=>{ if(lsl!=null&&v<lsl)obsBelow++; if(usl!=null&&v>usl)obsAbove++; });
-    const observed={ below:lsl!=null?ppm(obsBelow/N):null, above:usl!=null?ppm(obsAbove/N):null, total:ppm((obsBelow+obsAbove)/N) };
+    all.forEach(v=>{ if(eLsl!=null&&v<eLsl)obsBelow++; if(eUsl!=null&&v>eUsl)obsAbove++; });
+    const observed={ below:eLsl!=null?ppm(obsBelow/N):null, above:eUsl!=null?ppm(obsAbove/N):null, total:ppm((obsBelow+obsAbove)/N) };
     function expected(sigma){
-      const below=lsl!=null?ppm(normCdf((lsl-grandMean)/sigma)):null;
-      const above=usl!=null?ppm(1-normCdf((usl-grandMean)/sigma)):null;
+      const below=eLsl!=null?ppm(normCdf((eLsl-grandMean)/sigma)):null;
+      const above=eUsl!=null?ppm(1-normCdf((eUsl-grandMean)/sigma)):null;
       const total=(below||0)+(above||0);
-      return { below, above, total:(lsl!=null||usl!=null)?total:null };
+      return { below, above, total:(eLsl!=null||eUsl!=null)?total:null };
     }
     const expWithin=expected(sigmaWithin), expOverall=expected(sigmaOverall);
 
@@ -218,6 +302,27 @@
       const pw=(sigmaWithin>0)?Math.exp(-0.5*Math.pow((x-grandMean)/sigmaWithin,2))/(sigmaWithin*Math.sqrt(2*Math.PI)):0;
       curveOverall.push({x, y:po*N*bw}); curveWithin.push({x, y:pw*N*bw}); }
     const curve=curveOverall;   // geriye dönük uyum
+
+    // ---- Normal-olmayan dağılım fitleme (JASP/Minitab: percentile/non-conformance + boundary) ----
+    let nonNormal = null, fittedDist = null, curveFit = null, fitAD = null;
+    if(isNonNormal){
+      try{
+        fittedDist = fitDistribution(all, distReq);
+        // Fit değerlendirmesi (Anderson-Darling, dağılıma karşı)
+        fitAD = adAgainstDist(all, fittedDist);
+        const nc = nonNormalCapability(fittedDist, lsl, usl, target, lslBoundary, uslBoundary, nonNormalMethod);
+        nonNormal = {
+          dist: fittedDist.name, kind: distReq, method: nonNormalMethod, params: fittedDist.params,
+          pp: nc.pp, ppu: nc.ppu, ppl: nc.ppl, ppk: nc.ppk, cpm: nc.cpm,
+          P00135: nc.P00135, P50: nc.P50, P99865: nc.P99865,
+          expected: { below: nc.expected.below, above: nc.expected.above, total: nc.expected.total },
+          ad: fitAD, boundary: { lsl: lslBoundary, usl: uslBoundary }
+        };
+        // Fit eğrisi (histogram üstüne)
+        curveFit = [];
+        for(let i=0;i<=steps;i++){ const x=lo+(hi-lo)*i/steps; curveFit.push({ x, y: fittedDist.pdf(x)*N*bw }); }
+      } catch(e){ nonNormal = { error: 'Dağılım uydurulamadı: '+e.message, kind: distReq }; }
+    }
 
     // Kontrol kartı — tip seçilebilir: X̄&S / X̄&R / I-MR (auto: alt grup 1 → I-MR)
     const B3={2:0,3:0,4:0,5:0,6:0.030,7:0.118,8:0.185,9:0.239,10:0.284}[n]||0;
@@ -274,12 +379,14 @@
       studyInfo:{ N, numSubgroups:subs.length, subgroupSize:n, method:(n>=2?'subgroup':'individual'), mrbar, dfWithin, dfTotal,
         lsl, usl, target, origLsl, origUsl, origTarget, mean:grandMean, sigmaWithin, sigmaOverall, sbar, rbar, c4:c4n,
         sigmaWithinS, sigmaWithinR, sigmaWithinP, withinLabel },
-      options:{ withinMethod, useUnbiasing, ciLevel, sigmaMult, distribution:distReq, controlChart:chartType, bins, ctrlKind },
+      options:{ withinMethod, useUnbiasing, ciLevel, sigmaMult, distribution:distReq, controlChart:chartType, bins, ctrlKind,
+        nonNormalMethod, lslBoundary, uslBoundary, isNonNormal },
       transform,
+      nonNormal,
       within, overall, cpm,
       performance:{ observed, expectedWithin:expWithin, expectedOverall:expOverall },
       normality:{ ad:ad.A2star, adRaw:ad.A2, p:ad.p, mean:grandMean, sd:sigmaOverall, N },
-      graph:{ hist, curve, curveOverall, curveWithin, xbarChart, sChart, chartLabels, qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall, sigmaWithin },
+      graph:{ hist, curve, curveOverall, curveWithin, curveFit, xbarChart, sChart, chartLabels, qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall, sigmaWithin, isNonNormal, distName:(fittedDist?fittedDist.name:null) },
       interpretation:{ verdict, cpk, acceptability:verdict.label, acceptabilityClass:verdict.cls }
     };
   }

@@ -51,7 +51,10 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       sigmaMult: parseFloat(qp('sigma', 3)),
       distribution: qp('dist', 'normal'),
       controlChart: qp('chart', 'auto'),
-      bins: qp('bins', null)
+      bins: qp('bins', null),
+      nonNormalMethod: qp('nnmethod', 'percentile'),
+      lslBoundary: qp('lslb', '0') === '1',
+      uslBoundary: qp('uslb', '0') === '1'
     };
     let results;
     try {
