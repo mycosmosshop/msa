@@ -80,9 +80,10 @@
     <div class="optgrid">
       <label>Veri dağılımı
         <select id="optDist">
-          <optgroup label="Normal">
+          <optgroup label="Normal / Dönüşüm">
             <option value="normal"<%= sel(op.distribution,'normal') %>>Normal dağılım</option>
-            <option value="boxcox"<%= sel(op.distribution,'boxcox') %>>Box-Cox normalizasyon</option>
+            <option value="boxcox"<%= sel(op.distribution,'boxcox') %>>Box-Cox dönüşümü (yalnız pozitif)</option>
+            <option value="johnson"<%= sel(op.distribution,'johnson') %>>Johnson dönüşümü (her veri)</option>
           </optgroup>
           <optgroup label="Normal olmayan (dağılım uydur)">
             <option value="lognormal"<%= sel(op.distribution,'lognormal') %>>Lognormal</option>
@@ -138,11 +139,14 @@
       <button class="btn primary" onclick="capReload()"><i class="bi bi-arrow-repeat"></i> Uygula ve Yeniden Hesapla</button>
       <button class="btn ghost" onclick="location.href='cap-results.html?id=<%= study.id %>'"><i class="bi bi-x-circle"></i> Varsayılana Dön</button>
     </div>
-    <% if(tr.applied){ %><div class="exp" style="border-left-color:#b7791f;margin-top:10px"><b>Box-Cox dönüşümü uygulandı</b> — optimal <b>λ = <%= fn(tr.lambda,3) %></b><% if(tr.ciLo!=null){ %> (%95 GA: <%= fn(tr.ciLo,2) %> … <%= fn(tr.ciHi,2) %>)<% } %>, yuvarlanmış λ = <b><%= fn(tr.lambdaRounded,1) %></b><%= tr.shift?(', kaydırma = '+fn(tr.shift,3)):'' %>.
+    <% if(tr.applied && tr.method==='johnson'){ %><div class="exp" style="border-left-color:#7b1fa2;margin-top:10px"><b>Johnson dönüşümü uygulandı</b> — aile <b><%= tr.family %></b> (<%= tr.family==='SU'?'sınırsız':(tr.family==='SB'?'çift-sınırlı':'lognormal-tipi') %>).
+      Parametreler: γ = <%= fn(tr.gamma,3) %>, η = <%= fn(tr.eta,3) %>, ε = <%= fn(tr.epsilon,3) %><%= tr.lambda!=null?(', λ = '+fn(tr.lambda,3)):'' %>. Dönüşüm sonrası Anderson-Darling = <b><%= fn(tr.ad,3) %></b>.
+      Tüm indeksler, spesifikasyon sınırları ve grafikler <b>dönüştürülmüş ölçekte</b> hesaplanır. Johnson <b>sıfır/negatif ve her tür çarpıklıkla</b> çalışır (Box-Cox'un aksine).</div>
+    <% } else if(tr.applied){ %><div class="exp" style="border-left-color:#b7791f;margin-top:10px"><b>Box-Cox dönüşümü uygulandı</b> — optimal <b>λ = <%= fn(tr.lambda,3) %></b><% if(tr.ciLo!=null){ %> (%95 GA: <%= fn(tr.ciLo,2) %> … <%= fn(tr.ciHi,2) %>)<% } %>, yuvarlanmış λ = <b><%= fn(tr.lambdaRounded,1) %></b><%= tr.shift?(', kaydırma = '+fn(tr.shift,3)):'' %>.
       <%= tr.lambda===0?'(λ≈0 → doğal logaritma)':(Math.abs(tr.lambda-0.5)<0.06?'(λ≈0.5 → karekök)':'') %>
       Tüm indeksler, spesifikasyon sınırları ve grafikler <b>dönüştürülmüş ölçekte</b> hesaplanır.
       <% if(tr.includesOne){ %><br><b style="color:#8c3a2e">⚠ λ güven aralığı 1'i içeriyor → verinin istatistiksel olarak dönüşüme İHTİYACI YOK</b> (normal dağılım yeterli; dönüşümü kapatabilirsiniz).<% } %>
-      <br><span style="color:var(--muted)">Not: Box-Cox yalnız pozitif veriyle çalışır; sıfır/negatif değer varsa Johnson dönüşümü gerekir (modülde otomatik +kaydırma uygulanır).</span></div><% } %>
+      <br><span style="color:var(--muted)">Not: Box-Cox yalnız pozitif veriyle çalışır; sıfır/negatif değer varsa <b>Johnson dönüşümü</b>nü seçin.</span></div><% } %>
   </div>
 
   <div class="card">

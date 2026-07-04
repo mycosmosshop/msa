@@ -161,6 +161,48 @@
     return { pp, ppu, ppl, ppk, cpm, P00135, P50, P99865, expected:{ below, above, total:(below||0)+(above||0) } };
   }
 
+  // ================= Johnson dönüşümü (Slifker-Shapiro kantil yöntemi; SB/SL/SU) =================
+  // Box-Cox'un aksine sıfır/negatif veri ve her tür çarpıklıkla çalışır. En iyi normalleştiren aileyi/parametreyi seçer.
+  function fitJohnson(data){
+    const sorted=[...data].sort((a,b)=>a-b); const nD=sorted.length;
+    const Q=(q)=>{ const h=(nD-1)*Math.min(Math.max(q,0),1); const lo=Math.floor(h), hi=Math.min(lo+1,nD-1); return sorted[lo]+(h-lo)*(sorted[hi]-sorted[lo]); };
+    let best=null;
+    for(let z=0.25; z<=1.5001; z+=0.05){
+      const xm3=Q(normCdf(-3*z)), xm1=Q(normCdf(-z)), x1=Q(normCdf(z)), x3=Q(normCdf(3*z));
+      const m=x3-x1, nn=xm1-xm3, p=x1-xm1;
+      if(!(m>0 && nn>0 && p>0)) continue;
+      const d=(m*nn)/(p*p);
+      let fam, fit;
+      try{
+        if(d>1.02){ const mp=m/p, np=nn/p; const eta=2*z/Math.acosh(0.5*(mp+np));
+          const gamma=eta*Math.asinh((np-mp)/(2*Math.sqrt(mp*np-1)));
+          const lambda=(2*p*Math.sqrt(mp*np-1))/((mp+np-2)*Math.sqrt(mp+np+2));
+          const eps=(x1+xm1)/2 + p*(np-mp)/(2*(mp+np-2));
+          fam='SU'; fit={eta,gamma,lambda,eps, T:(x)=>gamma+eta*Math.asinh((x-eps)/lambda), I:(y)=>eps+lambda*Math.sinh((y-gamma)/eta)};
+        } else if(d<0.98){ const pm=p/m, pn=p/nn; const q=p*p/(m*nn)-1;
+          const eta=z/Math.acosh(0.5*Math.sqrt((1+pm)*(1+pn)));
+          const gamma=eta*Math.asinh(((pn-pm)*Math.sqrt((1+pm)*(1+pn)-4))/(2*q));
+          const lambda=(p*Math.sqrt(Math.pow((1+pm)*(1+pn)-2,2)-4))/q;
+          const eps=(x1+xm1)/2 - lambda/2 + p*(pn-pm)/(2*q);
+          fam='SB'; fit={eta,gamma,lambda,eps, T:(x)=>{ const r=(x-eps)/(eps+lambda-x); return r>0?gamma+eta*Math.log(r):(x<=eps?-8.5:8.5); }, I:(y)=>{ const u=Math.exp((y-gamma)/eta); return eps+lambda*u/(1+u); }};
+        } else { const mp=m/p; const eta=2*z/Math.log(mp);
+          const gamma=eta*Math.log((mp-1)/(p*Math.sqrt(mp)));
+          const eps=(x1+xm1)/2 - (p/2)*((mp+1)/(mp-1));
+          fam='SL'; fit={eta,gamma,lambda:null,eps, T:(x)=>x>eps?gamma+eta*Math.log(x-eps):-8.5, I:(y)=>eps+Math.exp((y-gamma)/eta)};
+        }
+      }catch(e){ continue; }
+      if(!fit || !isFinite(fit.eta) || !isFinite(fit.gamma) || fit.eta<=0) continue;
+      // Fit TÜM veriyi kapsamalı (sınıra takılan/taşan değer varsa bu aile/z reddedilir → genelde SU seçilir)
+      let outOfDomain=false;
+      const ty=data.map(x=>{ const v=fit.T(x); if(!isFinite(v)||Math.abs(v)>=8.4) outOfDomain=true; return v; });
+      if(outOfDomain) continue;
+      const mu=mean(ty), sd=sampSd(ty); if(!(sd>0)) continue;
+      const ad=andersonDarling(ty, mu, sd).A2star;
+      if(!best || ad<best.ad) best={ family:fam, z, eta:fit.eta, gamma:fit.gamma, lambda:fit.lambda, eps:fit.eps, T:fit.T, I:fit.I, ad };
+    }
+    return best;
+  }
+
   function calculateCapability(measurements, options){
     options=options||{};
     if(!measurements||!measurements.length) throw new Error('Ölçüm verisi bulunamadı');
@@ -189,6 +231,15 @@
     let transform = { applied:false, method:'normal', lambda:null, shift:0 };
     let TF = function(x){ return x; };   // spesifikasyon dönüştürücü (varsayılan: kimlik)
     (function(){
+      if(distReq==='johnson'){
+        const orig = rows.map(r=>r.value);
+        const jf = fitJohnson(orig);
+        if(!jf) return;   // fit başarısız → dönüşüm uygulanmaz
+        TF = function(x){ const t=jf.T(x); return isFinite(t)?t:null; };
+        rows.forEach(r=>{ const t=jf.T(r.value); if(isFinite(t)&&Math.abs(t)<1e5) r.value=t; });
+        transform = { applied:true, method:'johnson', family:jf.family, gamma:jf.gamma, eta:jf.eta, epsilon:jf.eps, lambda:jf.lambda, z:jf.z, ad:jf.ad, shift:0 };
+        return;
+      }
       if(distReq!=='boxcox') return;
       const orig = rows.map(r=>r.value);
       const specVals=['lsl','usl','target'].map(k=>options[k]).filter(v=>v!=null&&isFinite(parseFloat(v))).map(parseFloat);
