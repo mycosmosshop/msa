@@ -425,10 +425,17 @@
         </div>
       </div>
 
-      <a href="index.html" class="btn btn-secondary">
+      <a href="#" onclick="msaCikis();return false;" class="btn btn-secondary" title="Oturumu kapat ve ERP Portalına dön">
         <i class="bi bi-box-arrow-right"></i>
         Çıkış
       </a>
+      <script>
+        async function msaCikis(){
+          try{ if(window.MSA && MSA.erp && MSA.erp.auth) await MSA.erp.auth.signOut(); }catch(e){}
+          var portal='https://mycosmosshop.github.io/erp-portal/';
+          try{ (window.top||window).location.href=portal; }catch(e){ location.href=portal; }
+        }
+      </script>
     </div>
   </nav>
 
