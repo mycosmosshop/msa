@@ -96,10 +96,11 @@
     // ---- Gauge linearity ----
     const pctLinearity = Math.abs(slope) * 100;             // = |eğim| × 100 (JASP)
 
-    // Proses varyasyonu: verilmezse 6 × SD(tüm bias)
+    // Proses varyasyonu: JASP/Minitab — belirtilmezse 1 alınır (o zaman %Bias = |ort.bias|×100).
+    // Kullanıcı gerçek 6σ proses varyasyonunu girerse %Bias ona göre ölçeklenir.
     const pvGiven = (options.processVariation != null && isFinite(parseFloat(options.processVariation)) && parseFloat(options.processVariation) > 0)
       ? parseFloat(options.processVariation) : null;
-    const processVariation = pvGiven != null ? pvGiven : 6 * sd(allBias);
+    const processVariation = pvGiven != null ? pvGiven : 1;
     const pctBias = processVariation > 0 ? Math.abs(totalBias) / processVariation * 100 : null;
 
     // Kabul yorumu (AIAG): %Linearity düşükse ve bias anlamsızsa iyi

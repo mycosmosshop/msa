@@ -115,8 +115,15 @@
           <td><%- pill(it.linVerdict.cls, it.linVerdict.label) %></td></tr>
       </tbody>
     </table>
-    <div class="exp" style="border-left-color:#9aa4bf"><b>%Doğrusallık = |eğim| × 100.</b> %Bias = |ortalama bias| / proses varyasyonu (6σ = <%= si.processVariation.toFixed(3) %>) × 100.
+    <div class="exp" style="border-left-color:#9aa4bf"><b>%Doğrusallık = |eğim| × 100</b> (proses varyasyonundan bağımsız). <b>%Bias = |ortalama bias| / proses varyasyonu × 100.</b>
+      Proses varyasyonu <b><%= si.processVariationGiven ? Number(si.processVariation).toFixed(3) : '1 (varsayılan)' %></b> alındı<%= si.processVariationGiven ? '' : ' (JASP/Minitab varsayılanı — bu durumda %Bias = |ort.bias|×100)' %>.
       <%= it.biasSignificant ? 'Ortalama bias istatistiksel olarak <b>anlamlıdır</b> — kalibrasyon önerilir.' : 'Ortalama bias istatistiksel olarak anlamlı değildir.' %></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <label style="font-size:12.5px;font-weight:600;color:#4a5568;display:flex;align-items:center;gap:8px">Proses varyasyonu (6σ, opsiyonel)
+        <input type="number" id="pvInput" step="any" value="<%= si.processVariationGiven ? si.processVariation : '' %>" placeholder="1" style="width:120px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px"></label>
+      <button class="btn primary" onclick="applyPV()" style="padding:7px 14px;font-size:13px"><i class="bi bi-arrow-repeat"></i> Uygula</button>
+      <span style="color:var(--muted);font-size:12px">Gerçek proses 6σ'nızı girerseniz %Bias ona göre hesaplanır (girmezseniz JASP varsayılanı 1).</span>
+    </div>
   </div>
 
   <div class="card">
@@ -135,6 +142,11 @@
 </div>
 
 <script>
+function applyPV(){
+  var v=document.getElementById('pvInput').value.trim();
+  var id=<%= study.id %>;
+  location.href='lin-results.html?id='+id+(v!==''?('&pv='+encodeURIComponent(v)):'');
+}
 (function(){
   var R = <%- JSON.stringify(results) %>;
   var g = R.graph;
