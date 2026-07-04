@@ -165,6 +165,11 @@ function applyInputs(){
   var g=R.graph; var pod=R.pod;
   var el=document.getElementById('chartPod'); if(!el) return;
   var showRug=true;
+  // eğri üzerinde interpolasyon (curve x'e göre artan, y monotarik artan)
+  function curveYat(xv){ var cv=g.curve; if(xv<=cv[0].x) return cv[0].y; if(xv>=cv[cv.length-1].x) return cv[cv.length-1].y;
+    for(var i=0;i<cv.length-1;i++){ if(cv[i].x<=xv&&xv<=cv[i+1].x){ var t=(xv-cv[i].x)/((cv[i+1].x-cv[i].x)||1); return cv[i].y+t*(cv[i+1].y-cv[i].y); } } return cv[cv.length-1].y; }
+  function curveXat(yv){ var cv=g.curve; if(yv<=cv[0].y) return cv[0].x; if(yv>=cv[cv.length-1].y) return cv[cv.length-1].x;
+    for(var i=0;i<cv.length-1;i++){ if(cv[i].y<=yv&&yv<=cv[i+1].y){ var t=(yv-cv[i].y)/((cv[i+1].y-cv[i].y)||1); return cv[i].x+t*(cv[i+1].x-cv[i].x); } } return cv[cv.length-1].x; }
   var refPlugin={ id:'refs', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx, x=c.scales.x, y=c.scales.y; if(!x||!y)return;
     // a50/a90 dikey referanslar
     function vline(val,col,lbl){ if(val==null||!isFinite(val))return; var px=x.getPixelForValue(val); if(px<x.left||px>x.right)return;
@@ -175,13 +180,18 @@ function applyInputs(){
     if(showRug){ ctx.save(); ctx.strokeStyle='#555'; ctx.lineWidth=1; var yTop=y.getPixelForValue(1.0), yBot=y.getPixelForValue(0.0);
       g.rug.forEach(function(r){ var px=x.getPixelForValue(r.x); if(px<x.left||px>x.right)return; ctx.beginPath();
         if(r.y>=0.5){ ctx.moveTo(px,y.top); ctx.lineTo(px,y.top+9); } else { ctx.moveTo(px,y.bottom); ctx.lineTo(px,y.bottom-9); } ctx.stroke(); }); ctx.restore(); }
-    // Asimptotlar (kullanıcı referans çizgileri)
-    ASY.h.forEach(function(it){ var v=parseFloat(it.coord); if(!isFinite(v))return; var py=y.getPixelForValue(v); if(py<y.top-1||py>y.bottom+1)return;
-      ctx.save(); ctx.strokeStyle='#2563eb'; ctx.setLineDash([6,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(x.left,py); ctx.lineTo(x.right,py); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle='#2563eb'; ctx.font='11px Segoe UI'; ctx.textAlign='left'; if(it.label) ctx.fillText(it.label, x.left+5, py-4); ctx.restore(); });
-    ASY.v.forEach(function(it){ var v=parseFloat(it.coord); if(!isFinite(v))return; var px=x.getPixelForValue(v); if(px<x.left-1||px>x.right+1)return;
-      ctx.save(); ctx.strokeStyle='#7b1fa2'; ctx.setLineDash([6,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle='#7b1fa2'; ctx.font='11px Segoe UI'; ctx.textAlign='left'; if(it.label){ ctx.save(); ctx.translate(px+4,y.bottom-6); ctx.fillText(it.label,0,0); ctx.restore(); } ctx.restore(); });
+    // Asimptotlar (JASP tarzı: eksenden eğriye kadar + dirsek diğer eksene)
+    var y0=y.getPixelForValue(0);
+    // Yatay (y=c): sol eksenden eğriye kadar yatay, sonra x-eksenine dik iner
+    ASY.h.forEach(function(it){ var v=parseFloat(it.coord); if(!isFinite(v))return; var xhit=curveXat(v);
+      var py=y.getPixelForValue(v), pxHit=x.getPixelForValue(xhit);
+      ctx.save(); ctx.strokeStyle='#e8952f'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(x.left,py); ctx.lineTo(pxHit,py); ctx.lineTo(pxHit,y0); ctx.stroke();
+      ctx.fillStyle='#c47a1a'; ctx.font='11px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='bottom'; if(it.label) ctx.fillText(it.label, x.left+5, py-3); ctx.restore(); });
+    // Dikey (x=c): x-ekseninden eğriye kadar dik, sonra y-eksenine yatay gider
+    ASY.v.forEach(function(it){ var v=parseFloat(it.coord); if(!isFinite(v))return; var yhit=curveYat(v);
+      var px=x.getPixelForValue(v), pyHit=y.getPixelForValue(yhit);
+      ctx.save(); ctx.strokeStyle='#3aa655'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(px,y0); ctx.lineTo(px,pyHit); ctx.lineTo(x.left,pyHit); ctx.stroke();
+      ctx.fillStyle='#2c7d41'; ctx.font='11px Segoe UI'; ctx.textAlign='left'; ctx.textBaseline='bottom'; if(it.label) ctx.fillText(it.label, px+4, pyHit-3); ctx.restore(); });
   }catch(e){} }};
   window.__setRug=function(v){ showRug=v; POD_CH.update(); };
   var xmin=g.curve[0].x, xmax=g.curve[g.curve.length-1].x;
