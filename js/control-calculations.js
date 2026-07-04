@@ -146,6 +146,11 @@
     let xTests;
     if(varying){ const b=[]; gmeans.forEach((p,i)=>{ if(p>xbar.UCLarr[i]+1e-12||p<xbar.LCLarr[i]-1e-12) b.push(i+1); }); xTests = b.length?{1:b}:{}; }
     else xTests = runTests(gmeans, xbar.CL, xbar.UCL, xbar.LCL);
+    // seçili testlere göre süz (varsayılan: hepsi)
+    if(options.activeTests && options.activeTests.length){
+      const set={}; options.activeTests.forEach(t=>{ set[String(t)]=1; });
+      const f={}; Object.keys(xTests).forEach(k=>{ if(set[k]) f[k]=xTests[k]; }); xTests=f;
+    }
     const sBeyond=[];
     spread.points.forEach((p,i)=>{ const u=spread.varying?spread.UCLarr[i]:spread.UCL, l=spread.varying?spread.LCLarr[i]:spread.LCL; if(p>u+1e-12||p<l-1e-12) sBeyond.push(i+1); });
 

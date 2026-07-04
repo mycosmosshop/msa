@@ -77,6 +77,10 @@
       <label class="optlbl"><input type="radio" name="uneq" value="fixed"> Sabit boyut (yukarıdaki)</label>
     </div>
     <div class="exp" style="margin:2px 0"><b>Gruplama yöntemi</b> yalnızca <i>Sütun Ata</i> modunda Alt Grup sütunu atanınca geçerlidir. <b>Eşit olmayan boyut</b>: gruplar farklı sayıda ölçüm içerdiğinde — <i>Gerçek boyutlar</i> her alt gruba göre <b>değişken (basamaklı) limit</b> çizer; <i>Sabit boyut</i> tek limit kümesi kullanır.</div>
+    <details id="testDetails" style="margin-top:6px;border:1px solid var(--line);border-radius:9px;padding:8px 12px">
+      <summary style="cursor:pointer;font-weight:700;font-size:12.5px;color:#41506b"><i class="bi bi-check2-square"></i> İstatistiksel testler (X̄ grafiği) — seç/kaldır</summary>
+      <div id="testList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+    </details>
     <div class="opts">
       <label class="optlbl"><input type="checkbox" id="useKnown"> Bilinen parametreler</label>
       <label class="optlbl">Ortalama (μ) <input type="number" id="kMean" step="any" disabled></label>
@@ -147,15 +151,17 @@ function calc(doSave){
     groupingMethod:document.getElementById('gmethod').value,
     unequalSizes:(document.querySelector('input[name="uneq"]:checked')||{}).value||'actual',
     fixedSize:parseInt(document.getElementById('sg').value,10)||5,
+    activeTests:activeTests(),
     groups:d.groups };
   if(document.getElementById('useKnown').checked){ var m=document.getElementById('kMean').value, sdv=document.getElementById('kSd').value;
     opts.known={ mean:(m!==''?parseFloat(m):null), sd:(sdv!==''?parseFloat(sdv):null) }; }
   var R;
   try{ R=window.controlCalculations.calculateSubgroupChart(d.values,opts); }catch(e){ if(doSave) alert('Hata: '+e.message); return; }
-  draw(R); if(doSave) persist(R);
+  draw(R); window.__hasResult=true; if(doSave) persist(R);
 }
 
-function ctrlChart(canvasId, title, ch, warn){
+function ctrlChart(canvasId, title, ch, warn, flagged){
+  flagged=flagged||{};
   var pts=ch.points.map(function(v,i){return {x:i+1,y:v};});
   var n=pts.length;
   function hl(v){ return [{x:1,y:v},{x:n,y:v}]; }
@@ -170,7 +176,7 @@ function ctrlChart(canvasId, title, ch, warn){
     { type:'line', data:uclData, borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0, stepped:stepOpt },
     { type:'line', data:lclData, borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0, stepped:stepOpt },
     { type:'line', data:clData, borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.5, tension:0, stepped:stepOpt },
-    { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p,i){return (p.y>uclAt(i)||p.y<lclAt(i))?'#c0392b':'#2563eb';}), pointRadius:3.5, borderWidth:1.7, tension:0 }
+    { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p,i){return flagged[i+1]?'#c0392b':'#2563eb';}), pointRadius:3.5, borderWidth:1.7, tension:0 }
   ];
   if(warn && ch.warnUCL!=null){ ds.unshift({ type:'line', data:hl(ch.warnLCL), borderColor:'#e0a020', borderDash:[3,3], pointRadius:0, borderWidth:1, tension:0 });
     ds.unshift({ type:'line', data:hl(ch.warnUCL), borderColor:'#e0a020', borderDash:[3,3], pointRadius:0, borderWidth:1, tension:0 }); }
@@ -185,6 +191,12 @@ function ctrlChart(canvasId, title, ch, warn){
 }
 
 var TESTLBL={1:'1: Limit dışı (>3σ)',2:'2: 9 nokta aynı tarafta',3:'3: 6 nokta sürekli artıyor/azalıyor',4:'4: 14 nokta zikzak',5:'5: 3’te 2 nokta >2σ',6:'6: 5’te 4 nokta >1σ',7:'7: 15 nokta ±1σ içinde',8:'8: 8 nokta ±1σ dışında'};
+function buildTests(active){
+  var set={}; (active||[1,2,3,4,5,6,7,8]).forEach(function(t){ set[t]=1; });
+  var el=document.getElementById('testList'); if(!el) return;
+  el.innerHTML=Object.keys(TESTLBL).map(function(k){ return '<label class="optlbl" style="font-weight:500"><input type="checkbox" value="'+k+'" '+(set[k]?'checked':'')+' onchange="if(window.__hasResult)calc()"> '+TESTLBL[k]+'</label>'; }).join('');
+}
+function activeTests(){ return [].slice.call(document.querySelectorAll('#testList input:checked')).map(function(c){return parseInt(c.value,10);}); }
 function draw(R){
   charts.forEach(function(c){try{c.destroy();}catch(e){}}); charts=[];
   var si=R.studyInfo;
@@ -208,8 +220,10 @@ function draw(R){
       (R.tests.spreadBeyond.length?('<div class="exp" style="border-left-color:#c0392b">Limit dışı alt grup(lar): '+R.tests.spreadBeyond.join(', ')+'.</div>'):'<div class="exp" style="border-left-color:#1e7e4a">'+R.spread.kind+' grafiğinde limit dışı nokta yok.</div>')+
     '</div>';
   document.getElementById('report').innerHTML=html;
-  ctrlChart('cX','Alt grup ortalaması', R.xbar, R.warning);
-  ctrlChart('cS', R.spread.label, R.spread, false);
+  var xFlag={}; Object.keys(R.tests.xbar).forEach(function(k){ R.tests.xbar[k].forEach(function(s){ xFlag[s]=1; }); });
+  var sFlag={}; R.tests.spreadBeyond.forEach(function(s){ sFlag[s]=1; });
+  ctrlChart('cX','Alt grup ortalaması', R.xbar, R.warning, xFlag);
+  ctrlChart('cS', R.spread.label, R.spread, false, sFlag);
   if(typeof requestAnimationFrame==='function') requestAnimationFrame(function(){ charts.forEach(function(c){ try{c.resize();}catch(e){} }); });
 }
 
@@ -222,6 +236,7 @@ async function persist(R){
     is_acceptable: R.interpretation.inControl?'acceptable':'unacceptable',
     analysis_options:{ control:true, chartType:R.chartType, subgroupSize:document.getElementById('sg').value,
       groupingMethod:document.getElementById('gmethod').value, unequalSizes:(document.querySelector('input[name="uneq"]:checked')||{}).value||'actual',
+      activeTests:activeTests(),
       warning:document.getElementById('warn').checked, useKnown:document.getElementById('useKnown').checked,
       kMean:document.getElementById('kMean').value, kSd:document.getElementById('kSd').value,
       mode:dmode, data:document.getElementById('data').value,
@@ -246,6 +261,7 @@ function mountJasp(initial){
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.controlCalculations){ await loadScript('js/control-calculations.js?v='+Date.now()); }
+  buildTests();
   var id=MSA.q('id');
   if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
     if(q.data){ var o=q.data.analysis_options||{};
@@ -254,6 +270,7 @@ function mountJasp(initial){
       document.getElementById('warn').checked=!!o.warning;
       if(o.groupingMethod) document.getElementById('gmethod').value=o.groupingMethod;
       if(o.unequalSizes){ var ur=document.querySelector('input[name="uneq"][value="'+o.unequalSizes+'"]'); if(ur)ur.checked=true; }
+      if(o.activeTests && o.activeTests.length) buildTests(o.activeTests);
       if(o.useKnown){ document.getElementById('useKnown').checked=true; document.getElementById('kMean').disabled=false; document.getElementById('kSd').disabled=false; document.getElementById('kMean').value=o.kMean||''; document.getElementById('kSd').value=o.kSd||''; }
       document.getElementById('data').value=o.data||'';
       document.getElementById('studyName').value=q.data.study_name||'';
