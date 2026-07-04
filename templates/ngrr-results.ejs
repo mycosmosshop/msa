@@ -32,6 +32,13 @@
   .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
   .info .kv span{font-size:15px;font-weight:700}
   .chartbox{position:relative;height:320px}
+  .chartbox.sm{height:260px}
+  .optlbl{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:#41506b;font-weight:600;cursor:pointer}
+  .optlbl input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+  .smgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:10px}
+  .smgrid .smp{border:1px solid var(--line);border-radius:10px;padding:8px}
+  .smgrid .smp .t{font-weight:700;font-size:12.5px;text-align:center;color:#39415a;margin-bottom:4px}
+  .smgrid .smbox{position:relative;height:190px}
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
   @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
 </style>
@@ -57,6 +64,28 @@
   </div>
 
   <div class="card">
+    <h2><i class="bi bi-sliders i"></i> Analiz Seçenekleri</h2>
+    <div class="exp">JASP <i>Analysis options</i> karşılığı. Tolerans genişliği / çalışma varyasyonu çarpanı girip <b>Uygula</b> deyin. Grafik ve tabloları aç/kapatın.</div>
+    <% var inp = results._inputs || {tol:'',mult:6}; %>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin:8px 0 4px">
+      <label class="optlbl" style="flex-direction:column;align-items:flex-start;gap:3px">Tolerans genişliği (USL−LSL)
+        <input id="inTol" type="number" step="any" value="<%= inp.tol %>" placeholder="ör. 1" style="width:130px;padding:6px 8px;border:1px solid var(--line);border-radius:7px"></label>
+      <label class="optlbl" style="flex-direction:column;align-items:flex-start;gap:3px">Çalışma var. çarpanı
+        <input id="inMult" type="number" step="any" value="<%= inp.mult %>" placeholder="6" style="width:110px;padding:6px 8px;border:1px solid var(--line);border-radius:7px"></label>
+      <button class="btn primary" onclick="applyInputs()"><i class="bi bi-arrow-repeat"></i> Uygula</button>
+    </div>
+    <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;display:flex;flex-wrap:wrap;gap:12px 20px">
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secANOVA',this)"> r&R ANOVA tablosu</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secComp',this)"> Değişkenlik bileşenleri grafiği</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secRange',this)"> Operatöre göre Menzil grafiği</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secXbar',this)"> Operatöre göre Ortalama grafiği</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secByPart',this)"> Parça×Operatör ölçümleri</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secByOp',this)"> Operatöre göre ölçümler (kutu)</label>
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secTraffic',this)"> Trafik ışığı</label>
+    </div>
+  </div>
+
+  <div class="card">
     <h2><i class="bi bi-info-circle i"></i> Özet</h2>
     <div class="info">
       <div class="kv"><b>%GRR (Study Var)</b><span><%= it.grrPercentage.toFixed(2) %>%</span></div>
@@ -69,7 +98,7 @@
       <b>%GRR &lt; %10 iyi</b>, %10–30 marjinal, &gt;%30 kabul edilemez. NDC ≥ 5 olmalıdır.</div>
   </div>
 
-  <div class="card">
+  <div class="card" id="secANOVA">
     <h2><i class="bi bi-table i"></i> Nested ANOVA</h2>
     <table>
       <thead><tr><th>Kaynak</th><th>df</th><th>Kareler Top. (SS)</th><th>Ort. Kare (MS)</th><th>F</th><th>p</th></tr></thead>
@@ -114,32 +143,180 @@
     <div class="exp" style="border-left-color:#9aa4bf">Ayırt Edilebilir Kategori Sayısı (NDC) = <b><%= it.ndc %></b>. NDC &lt; 5 ise ölçüm sistemi parçaları güvenilir biçimde ayırt edemiyor. Çalışma varyasyonu = std. sapma × 6.</div>
   </div>
 
-  <div class="card">
+  <div class="card" id="secComp">
     <h2><i class="bi bi-bar-chart i"></i> Değişkenlik Bileşenleri</h2>
     <div class="exp">Her bileşenin toplam değişkenliğe katkısı. Gage R&R çubukları yüksekse ölçüm sistemi çok gürültülüdür.</div>
     <div class="chartbox"><canvas id="chartComp"></canvas></div>
+  </div>
+
+  <div class="card" id="secRange">
+    <h2><i class="bi bi-distribute-vertical i"></i> Operatöre Göre Menzil Grafiği (R Chart)</h2>
+    <div class="exp">Her parçanın tekrarları arasındaki menzil, operatör bloklarına ayrılmış. <b>ÜKS = D₄·R̄</b>, <b>AKS = D₃·R̄</b>. Noktalar limitler içindeyse ölçüm tekrarı <b>kararlıdır</b>. Bu grafik esas olarak <b>tekrarlanabilirliği</b> gösterir.</div>
+    <div class="chartbox sm"><canvas id="chartRange"></canvas></div>
+    <table style="max-width:560px;margin:12px auto 0"><thead><tr><th>Menzil grafiği testleri</th></tr></thead>
+      <tbody><tr><td style="text-align:left;<%= results.charts.rangeChart.violations.length?'color:#c0392b':'color:#1e7e4a' %>">
+        <% if(results.charts.rangeChart.violations.length){ %>Kontrol dışı örnek(ler): <%= results.charts.rangeChart.violations.join(', ') %>.
+        <% } else { %>Test ihlali yok — tüm menziller kontrol limitleri içinde.<% } %></td></tr></tbody></table>
+  </div>
+
+  <div class="card" id="secXbar">
+    <h2><i class="bi bi-graph-up i"></i> Operatöre Göre Ortalama Grafiği (X̄ Chart)</h2>
+    <div class="exp">Parça ortalamaları, operatör bloklarına ayrılmış. <b>MÇ = X̄̄</b>, <b>ÜKS/AKS = X̄̄ ± A₂·R̄</b>. Gage R&R'da noktaların <b>çoğunun limit dışında olması istenir</b> — bu, ölçüm sisteminin parçalar arası farkı (parça-parça değişimini) rahatça ayırt ettiğini gösterir.</div>
+    <div class="chartbox sm"><canvas id="chartXbar"></canvas></div>
+    <table style="max-width:560px;margin:12px auto 0"><thead><tr><th>Ortalama grafiği testleri (Test 1: limit dışı)</th></tr></thead>
+      <tbody><tr><td style="text-align:left">
+        <% var xv=results.charts.xbarChart.violations; if(xv.length){ %><b><%= xv.length %></b> nokta limit dışında (beklenen — parça-parça değişimi ölçüm hatasından çok büyük): <%= xv.map(function(v){return v.operator+'/P'+v.part;}).join(', ') %>.
+        <% } else { %>Limit dışı nokta yok — bu durumda ölçüm sistemi parçaları ayırt etmekte zorlanıyor olabilir.<% } %></td></tr></tbody></table>
+  </div>
+
+  <div class="card" id="secByPart">
+    <h2><i class="bi bi-grid-3x3-gap i"></i> Parça × Operatör Ölçümleri</h2>
+    <div class="exp">Her operatörün kendi parçaları için ölçümleri. Nested tasarımda parçalar operatörlere özeldir; artan eğim parça-parça gerçek farkı yansıtır.</div>
+    <div class="smgrid" id="byPartGrid"></div>
+  </div>
+
+  <div class="card" id="secByOp">
+    <h2><i class="bi bi-box i"></i> Operatöre Göre Ölçümler</h2>
+    <div class="exp">Her operatörün tüm ölçümlerinin dağılımı (kutu grafiği). Nested tasarımda operatörler farklı parçaları ölçtüğü için kutuların farklı seviyede olması normaldir (parça farkı + operatör).</div>
+    <div class="chartbox sm"><canvas id="chartBox"></canvas></div>
+  </div>
+
+  <div class="card" id="secTraffic">
+    <h2><i class="bi bi-stoplights i"></i> Trafik Işığı</h2>
+    <div class="exp"><span style="color:var(--good);font-weight:700">Yeşil &lt;%10</span> · <span style="color:var(--mar);font-weight:700">Sarı %10–30</span> · <span style="color:var(--bad);font-weight:700">Kırmızı &gt;%30</span> (AIAG).</div>
+    <div style="font-size:12.5px;font-weight:600;color:#4a5568;margin-top:8px">Ölçüm sisteminin <b>proses (çalışma) varyasyonuna</b> oranı: %<%= results.traffic.process.toFixed(2) %></div>
+    <div class="chartbox" style="height:110px"><canvas id="chartTP"></canvas></div>
+    <% if(results.traffic.tolerance!=null){ %>
+    <div style="font-size:12.5px;font-weight:600;color:#4a5568;margin-top:10px">Ölçüm sisteminin <b>toleransa</b> oranı: %<%= results.traffic.tolerance.toFixed(2) %></div>
+    <div class="chartbox" style="height:110px"><canvas id="chartTT"></canvas></div>
+    <% } %>
   </div>
 
   <div class="foot">GageAI · Nested Gage R&R (Non-replicable) — AIAG MSA 4. Baskı / JASP metodolojisi ile doğrulanmıştır.</div>
 </div>
 
 <script>
+var CH={};
+function tgl(id,cb){ var el=document.getElementById(id); if(el) el.style.display=cb.checked?'':'none'; }
+function applyInputs(){
+  var tol=document.getElementById('inTol').value, mult=document.getElementById('inMult').value;
+  var u=new URL(location.href); u.searchParams.set('id','<%= study.id %>');
+  if(tol!=='') u.searchParams.set('tol',tol); else u.searchParams.delete('tol');
+  if(mult!=='') u.searchParams.set('mult',mult); else u.searchParams.delete('mult');
+  location.href=u.toString();
+}
 (function(){
   var R = <%- JSON.stringify(results) %>;
-  var G = R.gaugeEvaluation;
-  var el=document.getElementById('chartComp'); if(!el) return;
-  var labels=['Gage R&R','Tekrarlanabilirlik','Yeniden üretilebilirlik','Parçadan parçaya'];
-  var keys=['totalGRR','repeatability','reproducibility','partToPart'];
-  var contrib=keys.map(function(k){return R.varianceComponents[k].contribution;});
-  var studyv=keys.map(function(k){return G[k].pctStudyVar;});
-  var ds=[{label:'% Katkı', data:contrib, backgroundColor:'#667eea'},{label:'% Çalışma Var.', data:studyv, backgroundColor:'#764ba2'}];
-  if(G.toleranceWidth) ds.push({label:'% Tolerans', data:keys.map(function(k){return G[k].pctTolerance||0;}), backgroundColor:'#1e7e4a'});
-  new Chart(el,{ type:'bar', data:{ labels:labels, datasets:ds },
-    options:{ responsive:true, maintainAspectRatio:false,
-      scales:{ y:{ beginAtZero:true, title:{display:true,text:'Yüzde (%)'} } },
-      plugins:{ legend:{position:'top'}, tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+': %'+c.raw.toFixed(2); } } } }
-    }
-  });
+  var G = R.gaugeEvaluation, C = R.charts;
+  var OPCOL=['#667eea','#c0392b','#1e7e4a','#b7791f','#7b1fa2','#0d9488'];
+
+  // Operatör bölücü + etiket plugin (kontrol grafikleri için)
+  function opDivider(bounds){ return { id:'opdiv', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return; ctx.save();
+    bounds.forEach(function(b,i){ if(i>0){ var px=x.getPixelForValue(b.start-0.5); ctx.strokeStyle='#333'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke(); }
+      var cx=x.getPixelForValue((b.start+b.end)/2); ctx.fillStyle='#39415a'; ctx.font='bold 12px Segoe UI'; ctx.textAlign='center'; ctx.fillText(b.operator, cx, y.top+13); });
+    ctx.restore(); }catch(e){} } }; }
+  function limLabels(lims){ return { id:'lim', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return;
+    function lab(v,txt,col){ if(v==null||!isFinite(v))return; var py=y.getPixelForValue(v); if(py<y.top||py>y.bottom)return; ctx.save(); ctx.fillStyle='#fff'; ctx.strokeStyle=col; ctx.font='11px Segoe UI';
+      var w=ctx.measureText(txt).width+8; ctx.fillRect(x.right-w-2,py-9,w,16); ctx.strokeRect(x.right-w-2,py-9,w,16); ctx.fillStyle=col; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(txt,x.right-w+2,py); ctx.restore(); }
+    lab(lims.UCL,'ÜKS = '+lims.UCL.toFixed(3),'#c0392b'); lab(lims.CL,'MÇ = '+lims.CL.toFixed(3),'#1e7e4a'); lab(lims.LCL,'AKS = '+lims.LCL.toFixed(3),'#c0392b'); }catch(e){} } }; }
+  function hline(v,n){ return [{x:1,y:v},{x:n,y:v}]; }
+
+  // --- Değişkenlik bileşenleri ---
+  (function(){
+    var el=document.getElementById('chartComp'); if(!el) return;
+    var labels=['Gage R&R','Tekrarlanabilirlik','Yeniden üretilebilirlik','Parçadan parçaya'];
+    var keys=['totalGRR','repeatability','reproducibility','partToPart'];
+    var ds=[{label:'% Katkı', data:keys.map(function(k){return R.varianceComponents[k].contribution;}), backgroundColor:'#f2776f'},
+            {label:'% Çalışma Var.', data:keys.map(function(k){return G[k].pctStudyVar;}), backgroundColor:'#3aa655'}];
+    if(G.toleranceWidth) ds.push({label:'% Tolerans', data:keys.map(function(k){return G[k].pctTolerance||0;}), backgroundColor:'#5b9bd5'});
+    CH.comp=new Chart(el,{ type:'bar', data:{ labels:labels, datasets:ds },
+      options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, title:{display:true,text:'Yüzde (%)'} } },
+        plugins:{ legend:{position:'top'}, tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+': %'+c.raw.toFixed(2); } } } } } });
+  })();
+
+  // --- Range chart by operator ---
+  (function(){
+    var el=document.getElementById('chartRange'); if(!el) return;
+    var rc=C.rangeChart, n=rc.points.length;
+    var pts=rc.points.map(function(p){return {x:p.sample,y:p.range};});
+    CH.range=new Chart(el,{ data:{ datasets:[
+      { type:'line', data:hline(rc.UCL,n), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', data:hline(rc.LCL,n), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', data:hline(rc.CL,n), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p){return (p.y>rc.UCL||p.y<rc.LCL)?'#c0392b':'#2563eb';}), pointRadius:4, borderWidth:1.8, tension:0 }
+    ]}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:18}},
+      scales:{ x:{ type:'linear', min:0.5, max:n+0.5, title:{display:true,text:'Örnek (parça)'}, ticks:{stepSize:1} }, y:{ title:{display:true,text:'Örnek menzili'}, beginAtZero:true } },
+      plugins:{ legend:{display:false} } }, plugins:[opDivider(C.opBounds), limLabels(rc)] });
+  })();
+
+  // --- Xbar chart by operator ---
+  (function(){
+    var el=document.getElementById('chartXbar'); if(!el) return;
+    var xc=C.xbarChart, n=xc.points.length;
+    var pts=xc.points.map(function(p){return {x:p.sample,y:p.mean};});
+    CH.xbar=new Chart(el,{ data:{ datasets:[
+      { type:'line', data:hline(xc.UCL,n), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', data:hline(xc.LCL,n), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', data:hline(xc.CL,n), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.6, tension:0 },
+      { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p){return (p.y>xc.UCL||p.y<xc.LCL)?'#c0392b':'#2563eb';}), pointRadius:4, borderWidth:1.8, tension:0 }
+    ]}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:18}},
+      scales:{ x:{ type:'linear', min:0.5, max:n+0.5, title:{display:true,text:'Örnek (parça)'}, ticks:{stepSize:1} }, y:{ title:{display:true,text:'Örnek ortalaması'} } },
+      plugins:{ legend:{display:false} } }, plugins:[opDivider(C.opBounds), limLabels(xc)] });
+  })();
+
+  // --- Measurements by part x operator (küçük çoklu) ---
+  (function(){
+    var grid=document.getElementById('byPartGrid'); if(!grid) return;
+    C.measByPart.forEach(function(op,gi){
+      var d=document.createElement('div'); d.className='smp'; d.innerHTML='<div class="t">Operatör '+op.operator+'</div><div class="smbox"><canvas></canvas></div>'; grid.appendChild(d);
+      var pts=[]; op.points.forEach(function(pp){ pp.values.forEach(function(v){ pts.push({x:parseFloat(pp.part),y:v}); }); });
+      var meanPts=op.points.map(function(pp){return {x:parseFloat(pp.part),y:pp.mean};});
+      CH['bp'+gi]=new Chart(d.querySelector('canvas'),{ data:{ datasets:[
+        { type:'scatter', data:pts, backgroundColor:'rgba(90,110,150,.55)', pointRadius:3.5 },
+        { type:'line', data:meanPts, borderColor:OPCOL[gi%OPCOL.length], borderWidth:1.6, pointRadius:0, tension:0 }
+      ]}, options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ type:'linear', title:{display:true,text:'Parça'}, ticks:{stepSize:1} }, y:{ title:{display:true,text:'Ölçüm'} } },
+        plugins:{ legend:{display:false} } } });
+    });
+  })();
+
+  // --- Measurements by operator (kutu grafiği; bar+whisker manuel) ---
+  (function(){
+    var el=document.getElementById('chartBox'); if(!el) return;
+    var ops=C.measByOperator;
+    var boxPlugin={ id:'box', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return;
+      ops.forEach(function(o,i){ var b=o.box; var cx=x.getPixelForValue(i); var bw=Math.min(46, x.width/(ops.length*1.6));
+        function py(v){return y.getPixelForValue(v);}
+        ctx.save(); ctx.strokeStyle='#39415a'; ctx.lineWidth=1.3; ctx.fillStyle='rgba(102,126,234,.10)';
+        ctx.fillRect(cx-bw/2,py(b.q3),bw,py(b.q1)-py(b.q3)); ctx.strokeRect(cx-bw/2,py(b.q3),bw,py(b.q1)-py(b.q3));
+        ctx.beginPath(); ctx.moveTo(cx-bw/2,py(b.median)); ctx.lineTo(cx+bw/2,py(b.median)); ctx.stroke();       // medyan
+        ctx.beginPath(); ctx.moveTo(cx,py(b.q3)); ctx.lineTo(cx,py(b.max)); ctx.moveTo(cx,py(b.q1)); ctx.lineTo(cx,py(b.min)); ctx.stroke(); // bıyıklar
+        ctx.beginPath(); ctx.moveTo(cx-bw/4,py(b.max)); ctx.lineTo(cx+bw/4,py(b.max)); ctx.moveTo(cx-bw/4,py(b.min)); ctx.lineTo(cx+bw/4,py(b.min)); ctx.stroke();
+        ctx.restore(); }); }catch(e){} } };
+    var allv=[]; ops.forEach(function(o){ allv.push(o.box.min,o.box.max); });
+    var lo=Math.min.apply(null,allv), hi=Math.max.apply(null,allv), pad=(hi-lo)*0.1||1;
+    CH.box=new Chart(el,{ type:'scatter', data:{ datasets:[{ data:ops.map(function(o,i){return {x:i,y:o.box.median};}), pointRadius:0 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ type:'linear', min:-0.5, max:ops.length-0.5, title:{display:true,text:'Operatör'}, ticks:{ stepSize:1, callback:function(v){ return ops[v]?ops[v].operator:''; } } },
+                 y:{ min:lo-pad, max:hi+pad, title:{display:true,text:'Ölçüm'} } },
+        plugins:{ legend:{display:false}, tooltip:{enabled:false} } }, plugins:[boxPlugin] });
+  })();
+
+  // --- Trafik ışıkları ---
+  function traffic(elId,pct){ var el=document.getElementById(elId); if(!el) return null;
+    var mark={ id:'m', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return; var px=x.getPixelForValue(Math.min(pct,100));
+      ctx.save(); ctx.strokeStyle='#111'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+      ctx.fillStyle='#111'; ctx.font='bold 12px Segoe UI'; ctx.fillText(pct.toFixed(2)+'%', Math.min(px+4,x.right-52), y.top+12); ctx.restore(); }catch(e){} } };
+    return new Chart(el,{ type:'bar', data:{ labels:[''], datasets:[
+      {label:'İyi',data:[10],backgroundColor:'#1e7e4a',barPercentage:1,categoryPercentage:1},
+      {label:'Marjinal',data:[20],backgroundColor:'#e0a020',barPercentage:1,categoryPercentage:1},
+      {label:'Zayıf',data:[70],backgroundColor:'#c0392b',barPercentage:1,categoryPercentage:1}
+    ]}, options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ stacked:true, min:0, max:100, ticks:{callback:function(v){return v+'%';}} }, y:{ stacked:true } },
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} } }, plugins:[mark] });
+  }
+  CH.tp=traffic('chartTP', R.traffic.process);
+  if(R.traffic.tolerance!=null) CH.tt=traffic('chartTT', R.traffic.tolerance);
 })();
 </script>
 </body>

@@ -13,6 +13,15 @@
   function fmtP(p){ if(p==null)return '—'; return p<0.001?'< .001':p.toFixed(3); }
   function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
 
+  // Kontrol grafiği sabitleri (alt grup boyutu n = tekrar sayısı r)
+  const D3D4 = {2:[0,3.267],3:[0,2.574],4:[0,2.282],5:[0,2.114],6:[0,2.004],
+    7:[0.076,1.924],8:[0.136,1.864],9:[0.184,1.816],10:[0.223,1.777]};
+  const A2 = {2:1.880,3:1.023,4:0.729,5:0.577,6:0.483,7:0.419,8:0.373,9:0.337,10:0.308};
+  function quantile(sorted, q){ if(!sorted.length) return null; const pos=(sorted.length-1)*q, base=Math.floor(pos), rest=pos-base;
+    return sorted[base+1]!==undefined ? sorted[base]+rest*(sorted[base+1]-sorted[base]) : sorted[base]; }
+  function boxStats(vals){ const s=vals.slice().sort((a,b)=>a-b);
+    return { min:s[0], q1:quantile(s,0.25), median:quantile(s,0.5), q3:quantile(s,0.75), max:s[s.length-1], mean:mean(s), n:s.length }; }
+
   function calculateNestedGaugeRR(measurements, options){
     options = options || {};
     const mult = options.studyVarMultiplier || 6;
@@ -80,6 +89,29 @@
     const tol = (options.toleranceWidth!=null&&isFinite(parseFloat(options.toleranceWidth))&&parseFloat(options.toleranceWidth)>0)?parseFloat(options.toleranceWidth):null;
     if(tol){ [totalGRR,rep,repro,part].forEach(o=>{ o.pctTolerance=o.studyVar/tol*100; }); }
 
+    // ---- Kontrol grafiği verileri (operatöre göre) ----
+    const seq = []; let sIdx = 0;
+    operators.forEach(o => { partsByOp[o].forEach(p => { sIdx++;
+      const vals = rows.filter(x => x.operator===o && x.part===p).map(x => x.measurement);
+      seq.push({ sample: sIdx, operator: o, part: p, values: vals, range: Math.max.apply(null,vals)-Math.min.apply(null,vals), mean: mean(vals) }); }); });
+    const Rbar = mean(seq.map(s => s.range));
+    const Xbarbar = mean(seq.map(s => s.mean));
+    const dd = D3D4[r] || D3D4[2]; const a2 = A2[r] || A2[2];
+    const rangeChart = { UCL: dd[1]*Rbar, CL: Rbar, LCL: dd[0]*Rbar,
+      points: seq.map(s => ({ sample:s.sample, operator:s.operator, part:s.part, range:s.range })),
+      violations: seq.filter(s => s.range>dd[1]*Rbar+1e-12 || s.range<dd[0]*Rbar-1e-12).map(s => s.sample) };
+    const xbarChart = { UCL: Xbarbar+a2*Rbar, CL: Xbarbar, LCL: Xbarbar-a2*Rbar,
+      points: seq.map(s => ({ sample:s.sample, operator:s.operator, part:s.part, mean:s.mean })),
+      violations: seq.filter(s => s.mean>Xbarbar+a2*Rbar || s.mean<Xbarbar-a2*Rbar).map(s => ({ operator:s.operator, sample:s.sample, part:s.part })) };
+    const opBounds = operators.map(o => { const ss=seq.filter(x=>x.operator===o); return { operator:o, start:ss[0].sample, end:ss[ss.length-1].sample }; });
+    // ölçüm dağılımları
+    const measByPart = operators.map(o => ({ operator:o, points: partsByOp[o].map(p => ({ part:p, values: rows.filter(x=>x.operator===o&&x.part===p).map(x=>x.measurement), mean: partMean[o+'|'+p] })) }));
+    const measByOperator = operators.map(o => ({ operator:o, box: boxStats(rows.filter(x=>x.operator===o).map(x=>x.measurement)) }));
+    const charts = { seq, opBounds, rangeChart, xbarChart, measByPart, measByOperator, Rbar, Xbarbar };
+
+    // Trafik ışığı: GRR'nin proses (çalışma) varyasyonu ve tolerans yüzdeleri
+    const traffic = { process: totalGRR.pctStudyVar, tolerance: (totalGRR.pctTolerance!=null ? totalGRR.pctTolerance : null) };
+
     const ndc = Math.max(1, Math.floor(1.41*(part.stdDev/(totalGRR.stdDev||1e-9))));
     const grrSV = totalGRR.pctStudyVar;
     let acceptability = grrSV<10?'Acceptable':(grrSV<=30?'Marginal':'Unacceptable');
@@ -96,6 +128,7 @@
       },
       varianceComponents:{ totalGRR, repeatability:rep, reproducibility:repro, partToPart:part, totalVariation:total },
       gaugeEvaluation:{ totalGRR, repeatability:rep, reproducibility:repro, partToPart:part, totalVariation:total, toleranceWidth:tol },
+      charts, traffic,
       interpretation:{ ndc, acceptability, acceptabilityLabel:label, acceptabilityClass:cls, grrPercentage:grrSV },
       fmtP
     };

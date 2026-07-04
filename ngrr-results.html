@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
 <script src="js/msa-common.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
-<script src="js/ngrr-calculations.js?v=1"></script>
+<script src="js/ngrr-calculations.js?v=2"></script>
 <title>Nested Gage R&R</title>
 </head>
 <body>
@@ -35,10 +35,14 @@
     }));
 
     const opts = MSA.parseJson(study.analysis_options, {}) || {};
+    const qTol = MSA.q('tol'), qMult = MSA.q('mult');
+    const tolW = qTol != null && qTol !== '' ? parseFloat(qTol) : ((opts.tolerance && opts.tolerance.width) || opts.tolerance_width || null);
+    const mult = qMult != null && qMult !== '' ? parseFloat(qMult) : (opts.study_var_multiplier || 6);
     let results;
     try {
-      results = window.ngrrCalculations.calculateNestedGaugeRR(data, { toleranceWidth: (opts.tolerance && opts.tolerance.width) || opts.tolerance_width || null });
+      results = window.ngrrCalculations.calculateNestedGaugeRR(data, { toleranceWidth: tolW, studyVarMultiplier: mult });
     } catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+    results._inputs = { tol: (tolW!=null?tolW:''), mult: (mult!=null?mult:6) };
 
     try {
       await MSA.db.from(MSA.T.studies).update({
