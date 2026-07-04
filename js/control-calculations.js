@@ -65,11 +65,21 @@
     const known = (options.known && (options.known.mean!=null || options.known.sd!=null)) ? options.known : null;
 
     // alt gruplara ayır
+    const groupMethod = options.groupingMethod==='change' ? 'change' : (options.groupingMethod==='same' ? 'same' : null);
     let groups=[];
     if(options.groups && options.groups.length===values.length){
-      const order=[], map={};
-      for(let i=0;i<values.length;i++){ const g=String(options.groups[i]); if(!map[g]){map[g]=[];order.push(g);} map[g].push(values[i]); }
-      groups=order.map(g=>({label:g, values:map[g]}));
+      if(groupMethod==='change'){
+        // ardışık değer değiştiğinde yeni alt grup
+        let cur=null, lab=null;
+        for(let i=0;i<values.length;i++){ const g=String(options.groups[i]);
+          if(cur===null || g!==lab){ cur={label:g, values:[]}; groups.push(cur); lab=g; }
+          cur.values.push(values[i]); }
+      } else {
+        // aynı değer = aynı alt grup (varsayılan gruplama değişkeni)
+        const order=[], map={};
+        for(let i=0;i<values.length;i++){ const g=String(options.groups[i]); if(!map[g]){map[g]=[];order.push(g);} map[g].push(values[i]); }
+        groups=order.map(g=>({label:g, values:map[g]}));
+      }
     } else {
       const sz=Math.max(2, parseInt(options.subgroupSize,10)||5);
       for(let i=0;i<values.length;i+=sz){ const v=values.slice(i,i+sz); if(v.length>=1) groups.push({label:String(groups.length+1), values:v}); }
@@ -78,56 +88,72 @@
     if(groups.length<2) throw new Error('En az 2 alt grup gerekli');
 
     const sizes=groups.map(g=>g.values.length);
-    const nConst=Math.round(mean(sizes));                       // sabitler için ort. alt grup boyutu
+    const nConst=Math.round(mean(sizes));
     const equal=sizes.every(s=>s===sizes[0]);
     const n=sizes[0];
-    const [A2,A3,d2,d3,D3,D4,c4,B3,B4]=konst(equal?n:nConst);
+    // Eşit olmayan boyut: 'fixed' → tek limit (sabit n), 'actual' → noktasal değişken limit
+    const unequalMode = options.unequalSizes==='fixed' ? 'fixed' : 'actual';
+    const fixedN = Math.max(2, parseInt(options.fixedSize||options.subgroupSize,10) || nConst);
+    const nUse = equal ? n : (unequalMode==='fixed' ? fixedN : nConst);
+    const kU = konst(nUse), c4U=kU[6], d2U=kU[2];
 
     const gmeans=groups.map(g=>mean(g.values));
     const granges=groups.map(g=>Math.max.apply(null,g.values)-Math.min.apply(null,g.values));
     const gsds=groups.map(g=>sd(g.values));
     const totalN=sizes.reduce((a,b)=>a+b,0);
-    const Xbarbar = groups.reduce((s,g)=>s+mean(g.values)*g.values.length,0)/totalN;   // ağırlıklı grand ort
+    const Xbarbar = groups.reduce((s,g)=>s+mean(g.values)*g.values.length,0)/totalN;
     const Rbar=mean(granges), sbar=mean(gsds);
+
+    const varying = !equal && unequalMode==='actual';   // noktasal değişken limit
 
     // sigma tahmini
     let sigma;
     if(known && known.sd!=null && isFinite(parseFloat(known.sd))) sigma=parseFloat(known.sd);
-    else sigma = chartType==='xbar-r' ? Rbar/d2 : sbar/c4;
+    else if(!varying) sigma = chartType==='xbar-r' ? Rbar/d2U : sbar/c4U;
+    else { // eşit olmayan (actual) → havuzlanmış
+      if(chartType==='xbar-r'){ let s=0; for(let i=0;i<groups.length;i++) s+=granges[i]/konst(sizes[i])[2]; sigma=s/groups.length; }
+      else { let num=0,den=0; for(let i=0;i<groups.length;i++){ num+=(sizes[i]-1)*gsds[i]*gsds[i]; den+=(sizes[i]-1); } const sp=Math.sqrt(num/den); sigma=sp/konst(Math.max(2,Math.round(den/groups.length)+1))[6]; }
+    }
     const center = (known && known.mean!=null && isFinite(parseFloat(known.mean))) ? parseFloat(known.mean) : Xbarbar;
 
-    // X̄ grafiği limitleri
-    const nn = equal?n:nConst;
-    const xUCL = center + 3*sigma/Math.sqrt(nn);
-    const xLCL = center - 3*sigma/Math.sqrt(nn);
-    const xbar = { points:gmeans, CL:center, UCL:xUCL, LCL:xLCL,
-      warnUCL: warning? center+2*sigma/Math.sqrt(nn):null, warnLCL: warning? center-2*sigma/Math.sqrt(nn):null };
-
-    // Yayılım grafiği (R veya s)
-    let spread;
-    if(chartType==='xbar-r'){
-      const cl = known? d2*sigma : Rbar;
-      const ucl = known? (d2+3*d3)*sigma : D4*Rbar;
-      const lcl = known? Math.max(0,(d2-3*d3)*sigma) : D3*Rbar;
-      spread = { kind:'R', label:'Menzil (R)', points:granges, CL:cl, UCL:ucl, LCL:lcl };
+    // X̄ grafiği limitleri (skaler ya da noktasal dizi)
+    var xbar;
+    if(varying){
+      const UCLa=sizes.map(ni=>center+3*sigma/Math.sqrt(ni)), LCLa=sizes.map(ni=>center-3*sigma/Math.sqrt(ni));
+      xbar={ points:gmeans, CL:center, UCL:Math.max.apply(null,UCLa), LCL:Math.min.apply(null,LCLa), UCLarr:UCLa, LCLarr:LCLa, varying:true,
+        warnUCL:null, warnLCL:null };
     } else {
-      const cl = known? c4*sigma : sbar;
-      const ucl = known? (c4+3*Math.sqrt(1-c4*c4))*sigma : B4*sbar;
-      const lcl = known? Math.max(0,(c4-3*Math.sqrt(1-c4*c4))*sigma) : B3*sbar;
-      spread = { kind:'s', label:'Std. Sapma (s)', points:gsds, CL:cl, UCL:ucl, LCL:lcl };
+      const xUCL=center+3*sigma/Math.sqrt(nUse), xLCL=center-3*sigma/Math.sqrt(nUse);
+      xbar={ points:gmeans, CL:center, UCL:xUCL, LCL:xLCL, varying:false,
+        warnUCL: warning? center+2*sigma/Math.sqrt(nUse):null, warnLCL: warning? center-2*sigma/Math.sqrt(nUse):null };
     }
 
-    const xTests = runTests(gmeans, xbar.CL, xbar.UCL, xbar.LCL);
-    // yayılım için sadece limit-dışı (Test 1)
-    const sSig=(spread.UCL-spread.CL)/3; const sBeyond=[];
-    spread.points.forEach((p,i)=>{ if(p>spread.UCL+1e-12||p<spread.LCL-1e-12) sBeyond.push(i+1); });
+    // Yayılım grafiği (R / s)
+    var spread;
+    if(chartType==='xbar-r'){
+      if(varying){ const CLa=sizes.map(ni=>konst(ni)[2]*sigma), UCLa=sizes.map(ni=>(konst(ni)[2]+3*konst(ni)[3])*sigma), LCLa=sizes.map(ni=>Math.max(0,(konst(ni)[2]-3*konst(ni)[3])*sigma));
+        spread={ kind:'R', label:'Menzil (R)', points:granges, CL:Rbar, UCL:Math.max.apply(null,UCLa), LCL:Math.min.apply(null,LCLa), CLarr:CLa, UCLarr:UCLa, LCLarr:LCLa, varying:true }; }
+      else { const kk=kU; const cl=known? kk[2]*sigma : Rbar; const ucl=known? (kk[2]+3*kk[3])*sigma : kk[5]*Rbar; const lcl=known? Math.max(0,(kk[2]-3*kk[3])*sigma) : kk[4]*Rbar;
+        spread={ kind:'R', label:'Menzil (R)', points:granges, CL:cl, UCL:ucl, LCL:lcl, varying:false }; }
+    } else {
+      if(varying){ const CLa=sizes.map(ni=>konst(ni)[6]*sigma), UCLa=sizes.map(ni=>{const c=konst(ni)[6];return (c+3*Math.sqrt(1-c*c))*sigma;}), LCLa=sizes.map(ni=>{const c=konst(ni)[6];return Math.max(0,(c-3*Math.sqrt(1-c*c))*sigma);});
+        spread={ kind:'s', label:'Std. Sapma (s)', points:gsds, CL:sbar, UCL:Math.max.apply(null,UCLa), LCL:Math.min.apply(null,LCLa), CLarr:CLa, UCLarr:UCLa, LCLarr:LCLa, varying:true }; }
+      else { const kk=kU; const cl=known? kk[6]*sigma : sbar; const ucl=known? (kk[6]+3*Math.sqrt(1-kk[6]*kk[6]))*sigma : kk[8]*sbar; const lcl=known? Math.max(0,(kk[6]-3*Math.sqrt(1-kk[6]*kk[6]))*sigma) : kk[7]*sbar;
+        spread={ kind:'s', label:'Std. Sapma (s)', points:gsds, CL:cl, UCL:ucl, LCL:lcl, varying:false }; }
+    }
 
-    const anyOut = (xTests[1]&&xTests[1].length) || sBeyond.length;
-    const inControl = !anyOut;
+    // Testler: değişken limitte sadece noktasal limit-dışı (zone testleri sabit limit ister)
+    let xTests;
+    if(varying){ const b=[]; gmeans.forEach((p,i)=>{ if(p>xbar.UCLarr[i]+1e-12||p<xbar.LCLarr[i]-1e-12) b.push(i+1); }); xTests = b.length?{1:b}:{}; }
+    else xTests = runTests(gmeans, xbar.CL, xbar.UCL, xbar.LCL);
+    const sBeyond=[];
+    spread.points.forEach((p,i)=>{ const u=spread.varying?spread.UCLarr[i]:spread.UCL, l=spread.varying?spread.LCLarr[i]:spread.LCL; if(p>u+1e-12||p<l-1e-12) sBeyond.push(i+1); });
+
+    const inControl = !((xTests[1]&&xTests[1].length) || sBeyond.length);
 
     return {
-      chartType, warning, known: known||null, equal,
-      studyInfo:{ numSubgroups:groups.length, subgroupSize: equal?n:('~'+nConst+' (eşit değil)'), totalN, sigma, Xbarbar, Rbar, sbar, c4, d2 },
+      chartType, warning, known: known||null, equal, varying, groupMethod:(options.groups?(groupMethod||'same'):null), unequalMode:(!equal?unequalMode:null),
+      studyInfo:{ numSubgroups:groups.length, subgroupSize: equal?n:(unequalMode==='fixed'?(fixedN+' (sabit)'):('değişken '+Math.min.apply(null,sizes)+'–'+Math.max.apply(null,sizes))), totalN, sigma, Xbarbar, Rbar, sbar, c4:c4U, d2:d2U },
       groups: groups.map((g,i)=>({ label:g.label, n:g.values.length, mean:gmeans[i], range:granges[i], sd:gsds[i] })),
       xbar, spread,
       tests:{ xbar:xTests, spreadBeyond:sBeyond },

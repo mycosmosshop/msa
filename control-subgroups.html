@@ -71,6 +71,13 @@
       <label class="optlbl"><input type="checkbox" id="warn"> Uyarı limitleri (2σ)</label>
     </div>
     <div class="opts">
+      <label class="optlbl">Gruplama yöntemi <select id="gmethod" style="padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-weight:400"><option value="same">Aynı değer = aynı grup</option><option value="change">Değer değişince yeni grup</option></select></label>
+      <span style="font-weight:700;color:#39415a;font-size:12.5px">Eşit olmayan boyut:</span>
+      <label class="optlbl"><input type="radio" name="uneq" value="actual" checked> Gerçek boyutlar</label>
+      <label class="optlbl"><input type="radio" name="uneq" value="fixed"> Sabit boyut (yukarıdaki)</label>
+    </div>
+    <div class="exp" style="margin:2px 0"><b>Gruplama yöntemi</b> yalnızca <i>Sütun Ata</i> modunda Alt Grup sütunu atanınca geçerlidir. <b>Eşit olmayan boyut</b>: gruplar farklı sayıda ölçüm içerdiğinde — <i>Gerçek boyutlar</i> her alt gruba göre <b>değişken (basamaklı) limit</b> çizer; <i>Sabit boyut</i> tek limit kümesi kullanır.</div>
+    <div class="opts">
       <label class="optlbl"><input type="checkbox" id="useKnown"> Bilinen parametreler</label>
       <label class="optlbl">Ortalama (μ) <input type="number" id="kMean" step="any" disabled></label>
       <label class="optlbl">Std. sapma (σ) <input type="number" id="kSd" step="any" disabled></label>
@@ -137,6 +144,9 @@ function calc(doSave){
   var opts={ chartType:(document.querySelector('input[name="ct"]:checked')||{}).value||'xbar-s',
     subgroupSize:parseInt(document.getElementById('sg').value,10)||5,
     warningLimits:document.getElementById('warn').checked,
+    groupingMethod:document.getElementById('gmethod').value,
+    unequalSizes:(document.querySelector('input[name="uneq"]:checked')||{}).value||'actual',
+    fixedSize:parseInt(document.getElementById('sg').value,10)||5,
     groups:d.groups };
   if(document.getElementById('useKnown').checked){ var m=document.getElementById('kMean').value, sdv=document.getElementById('kSd').value;
     opts.known={ mean:(m!==''?parseFloat(m):null), sd:(sdv!==''?parseFloat(sdv):null) }; }
@@ -149,15 +159,23 @@ function ctrlChart(canvasId, title, ch, warn){
   var pts=ch.points.map(function(v,i){return {x:i+1,y:v};});
   var n=pts.length;
   function hl(v){ return [{x:1,y:v},{x:n,y:v}]; }
+  function arr(a){ return a.map(function(v,i){return {x:i+1,y:v};}); }
+  var uclData = ch.varying? arr(ch.UCLarr) : hl(ch.UCL);
+  var lclData = ch.varying? arr(ch.LCLarr) : hl(ch.LCL);
+  var clData  = (ch.varying && ch.CLarr)? arr(ch.CLarr) : hl(ch.CL);
+  var uclAt = function(i){ return ch.varying? ch.UCLarr[i] : ch.UCL; };
+  var lclAt = function(i){ return ch.varying? ch.LCLarr[i] : ch.LCL; };
+  var stepOpt = ch.varying? 'after' : false;
   var ds=[
-    { type:'line', data:hl(ch.UCL), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0 },
-    { type:'line', data:hl(ch.LCL), borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0 },
-    { type:'line', data:hl(ch.CL), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.5, tension:0 },
-    { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p){return (p.y>ch.UCL||p.y<ch.LCL)?'#c0392b':'#2563eb';}), pointRadius:3.5, borderWidth:1.7, tension:0 }
+    { type:'line', data:uclData, borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0, stepped:stepOpt },
+    { type:'line', data:lclData, borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0, stepped:stepOpt },
+    { type:'line', data:clData, borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.5, tension:0, stepped:stepOpt },
+    { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p,i){return (p.y>uclAt(i)||p.y<lclAt(i))?'#c0392b':'#2563eb';}), pointRadius:3.5, borderWidth:1.7, tension:0 }
   ];
   if(warn && ch.warnUCL!=null){ ds.unshift({ type:'line', data:hl(ch.warnLCL), borderColor:'#e0a020', borderDash:[3,3], pointRadius:0, borderWidth:1, tension:0 });
     ds.unshift({ type:'line', data:hl(ch.warnUCL), borderColor:'#e0a020', borderDash:[3,3], pointRadius:0, borderWidth:1, tension:0 }); }
   var lim={ id:'lim', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return;
+    if(ch.varying) return; // değişken limitte kutu etiketi çakışır
     function lab(v,txt,col){ if(v==null||!isFinite(v))return; var py=y.getPixelForValue(v); if(py<y.top-1||py>y.bottom+1)return; ctx.save(); ctx.fillStyle='#fff'; ctx.strokeStyle=col; ctx.font='11px Segoe UI';
       var w=ctx.measureText(txt).width+8; ctx.fillRect(x.right-w-2,py-9,w,16); ctx.strokeRect(x.right-w-2,py-9,w,16); ctx.fillStyle=col; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(txt,x.right-w+2,py); ctx.restore(); }
     lab(ch.UCL,'ÜKS = '+nf(ch.UCL),'#c0392b'); lab(ch.CL,'MÇ = '+nf(ch.CL),'#1e7e4a'); lab(ch.LCL,'AKS = '+nf(ch.LCL),'#c0392b'); }catch(e){} } };
@@ -203,6 +221,7 @@ async function persist(R){
     num_operators:1, num_parts:1, num_trials:1, owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
     is_acceptable: R.interpretation.inControl?'acceptable':'unacceptable',
     analysis_options:{ control:true, chartType:R.chartType, subgroupSize:document.getElementById('sg').value,
+      groupingMethod:document.getElementById('gmethod').value, unequalSizes:(document.querySelector('input[name="uneq"]:checked')||{}).value||'actual',
       warning:document.getElementById('warn').checked, useKnown:document.getElementById('useKnown').checked,
       kMean:document.getElementById('kMean').value, kSd:document.getElementById('kSd').value,
       mode:dmode, data:document.getElementById('data').value,
@@ -233,6 +252,8 @@ function mountJasp(initial){
       if(o.chartType){ var rb=document.querySelector('input[name="ct"][value="'+o.chartType+'"]'); if(rb)rb.checked=true; }
       if(o.subgroupSize){ document.getElementById('sg').value=o.subgroupSize; lastSg=parseInt(o.subgroupSize,10)||5; }
       document.getElementById('warn').checked=!!o.warning;
+      if(o.groupingMethod) document.getElementById('gmethod').value=o.groupingMethod;
+      if(o.unequalSizes){ var ur=document.querySelector('input[name="uneq"][value="'+o.unequalSizes+'"]'); if(ur)ur.checked=true; }
       if(o.useKnown){ document.getElementById('useKnown').checked=true; document.getElementById('kMean').disabled=false; document.getElementById('kSd').disabled=false; document.getElementById('kMean').value=o.kMean||''; document.getElementById('kSd').value=o.kSd||''; }
       document.getElementById('data').value=o.data||'';
       document.getElementById('studyName').value=q.data.study_name||'';
