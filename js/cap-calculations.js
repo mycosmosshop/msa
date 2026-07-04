@@ -38,12 +38,21 @@
   function cpCI(cp,df,alpha){ if(cp==null||df<=0)return null; return { lo:cp*Math.sqrt(chi2Inv(alpha/2,df)/df), hi:cp*Math.sqrt(chi2Inv(1-alpha/2,df)/df) }; }
   function cpkCI(cpk,df,N,alpha){ if(cpk==null||df<=0)return null; const z=normInv(1-alpha/2); const hw=z*Math.sqrt(1/(9*N)+cpk*cpk/(2*df)); return { lo:cpk-hw, hi:cpk+hw }; }
   // Kontrol kartı testleri (Nelson kuralları — yaygın alt küme: 1,2,3,5)
-  function controlTests(pts, cl, ucl, lcl){
-    const y=pts.map(p=>p.y); const n=y.length; const sig=(ucl-cl)/3; const viol=[];
-    let t1=[]; y.forEach((v,i)=>{ if(v>ucl||v<lcl) t1.push(i+1); }); if(t1.length) viol.push({rule:1,desc:'Kontrol sınırları dışında nokta (3σ)',pts:t1});
-    { let run=0,side=0,hit=[]; for(let i=0;i<n;i++){ const s=y[i]>cl?1:(y[i]<cl?-1:0); if(s!==0&&s===side)run++; else {run=(s!==0?1:0);side=s;} if(run>=9)hit.push(i+1); } if(hit.length) viol.push({rule:2,desc:'9 ardışık nokta merkez çizgisinin aynı tarafında',pts:hit}); }
-    { let inc=1,dec=1,hit=[]; for(let i=1;i<n;i++){ if(y[i]>y[i-1]){inc++;dec=1;} else if(y[i]<y[i-1]){dec++;inc=1;} else {inc=1;dec=1;} if(inc>=6||dec>=6)hit.push(i+1); } if(hit.length) viol.push({rule:3,desc:'6 ardışık nokta sürekli artan/azalan',pts:hit}); }
-    { const u2=cl+2*sig,l2=cl-2*sig; let hit=[]; for(let i=2;i<n;i++){ const w=[i-2,i-1,i]; const au=w.filter(j=>y[j]>u2).length, al=w.filter(j=>y[j]<l2).length; if(au>=2||al>=2)hit.push(i+1); } if(hit.length) viol.push({rule:5,desc:'3 noktadan 2si 2σ ötesinde (aynı taraf)',pts:hit}); }
+  // 8 Nelson kuralı; active = uygulanacak test numaraları (varsayılan hepsi)
+  const NELSON_DESC={1:'1 nokta kontrol sınırları dışında (>3σ)',2:'9 ardışık nokta CL’nin aynı tarafında',3:'6 ardışık nokta sürekli artan/azalan',4:'14 ardışık nokta zıt yönlü (testere dişi)',5:'3 noktadan 2’si 2σ ötesinde (aynı taraf)',6:'5 noktadan 4’ü 1σ ötesinde (aynı taraf)',7:'15 ardışık nokta 1σ içinde (aşırı az değişkenlik)',8:'8 ardışık nokta 1σ dışında (iki taraf)'};
+  function controlTests(pts, cl, ucl, lcl, active){
+    const A = (active && active.length) ? active : [1,2,3,4,5,6,7,8];
+    const has=(t)=>A.indexOf(t)!==-1;
+    const y=pts.map(p=>p.y); const n=y.length; const sig=(ucl-cl)/3; const u1=cl+sig,l1=cl-sig,u2=cl+2*sig,l2=cl-2*sig; const viol=[];
+    const push=(r,hit)=>{ if(hit.length) viol.push({rule:r,desc:NELSON_DESC[r],pts:hit}); };
+    if(has(1)){ let hit=[]; y.forEach((v,i)=>{ if(v>ucl||v<lcl)hit.push(i+1); }); push(1,hit); }
+    if(has(2)){ let run=0,side=0,hit=[]; for(let i=0;i<n;i++){ const s=y[i]>cl?1:(y[i]<cl?-1:0); if(s!==0&&s===side)run++; else {run=(s!==0?1:0);side=s;} if(run>=9)hit.push(i+1); } push(2,hit); }
+    if(has(3)){ let inc=1,dec=1,hit=[]; for(let i=1;i<n;i++){ if(y[i]>y[i-1]){inc++;dec=1;} else if(y[i]<y[i-1]){dec++;inc=1;} else {inc=1;dec=1;} if(inc>=6||dec>=6)hit.push(i+1); } push(3,hit); }
+    if(has(4)){ let alt=1,hit=[]; for(let i=2;i<n;i++){ const d=y[i]-y[i-1], dp=y[i-1]-y[i-2]; if(d!==0&&dp!==0&&((d>0)!==(dp>0))) alt++; else alt=1; if(alt>=13)hit.push(i+1); } push(4,hit); }
+    if(has(5)){ let hit=[]; for(let i=2;i<n;i++){ const w=[i-2,i-1,i]; const au=w.filter(j=>y[j]>u2).length, al=w.filter(j=>y[j]<l2).length; if(au>=2||al>=2)hit.push(i+1); } push(5,hit); }
+    if(has(6)){ let hit=[]; for(let i=4;i<n;i++){ const w=[i-4,i-3,i-2,i-1,i]; const au=w.filter(j=>y[j]>u1).length, al=w.filter(j=>y[j]<l1).length; if(au>=4||al>=4)hit.push(i+1); } push(6,hit); }
+    if(has(7)){ let run=0,hit=[]; for(let i=0;i<n;i++){ if(y[i]<u1&&y[i]>l1)run++; else run=0; if(run>=15)hit.push(i+1); } push(7,hit); }
+    if(has(8)){ let run=0,hit=[]; for(let i=0;i<n;i++){ if(y[i]>u1||y[i]<l1)run++; else run=0; if(run>=8)hit.push(i+1); } push(8,hit); }
     return viol;
   }
   // c4 sabiti (alt grup boyutu n)
@@ -222,6 +231,7 @@
     const chartType = String(options.controlChart||'auto').toLowerCase();         // xbars | xbarr | imr | auto
     const binsOpt = options.bins!=null ? parseInt(options.bins,10) : null;
     const nonNormalMethod = String(options.nonNormalMethod||'percentile').toLowerCase(); // percentile | nonconformance
+    const activeTests = options.controlTests!=null ? String(options.controlTests).split(',').map(s=>parseInt(s,10)).filter(v=>v>=1&&v<=8) : [1,2,3,4,5,6,7,8];
     const lslBoundary = options.lslBoundary===true || options.lslBoundary==='true' || options.lslBoundary==='1';
     const uslBoundary = options.uslBoundary===true || options.uslBoundary==='true' || options.uslBoundary==='1';
     const NONNORMAL_KINDS = ['lognormal','lognormal3','weibull','weibull3'];
@@ -418,8 +428,8 @@
       chartLabels={ top:'X̄ Kartı (alt grup ortalaması)', bottom:'S Kartı (alt grup std sapması)', topAxis:'X̄', bottomAxis:'S', xAxis:'Alt grup', kind:'X̄ & S' };
     }
     // Kontrol kartı testleri (her iki kart için)
-    xbarChart.tests = controlTests(xbarChart.points, xbarChart.cl, xbarChart.ucl, xbarChart.lcl);
-    sChart.tests    = controlTests(sChart.points,    sChart.cl,    sChart.ucl,    sChart.lcl);
+    xbarChart.tests = controlTests(xbarChart.points, xbarChart.cl, xbarChart.ucl, xbarChart.lcl, activeTests);
+    sChart.tests    = controlTests(sChart.points,    sChart.cl,    sChart.ucl,    sChart.lcl, activeTests);
 
     // Q-Q normal olasılık grafiği (Benard medyan rank) + %95 pointwise bant
     const sortedQ=[...all].sort((a,b)=>a-b);
@@ -439,7 +449,7 @@
         lsl, usl, target, origLsl, origUsl, origTarget, mean:grandMean, sigmaWithin, sigmaOverall, sbar, rbar, c4:c4n,
         sigmaWithinS, sigmaWithinR, sigmaWithinP, withinLabel },
       options:{ withinMethod, useUnbiasing, ciLevel, sigmaMult, distribution:distReq, controlChart:chartType, bins, ctrlKind,
-        nonNormalMethod, lslBoundary, uslBoundary, isNonNormal },
+        nonNormalMethod, lslBoundary, uslBoundary, isNonNormal, activeTests },
       transform,
       nonNormal,
       within, overall, cpm,

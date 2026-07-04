@@ -54,7 +54,8 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       bins: qp('bins', null),
       nonNormalMethod: qp('nnmethod', 'percentile'),
       lslBoundary: qp('lslb', '0') === '1',
-      uslBoundary: qp('uslb', '0') === '1'
+      uslBoundary: qp('uslb', '0') === '1',
+      controlTests: qp('tests', null)
     };
     let results;
     try {
