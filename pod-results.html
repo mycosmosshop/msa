@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/ejs@3.1.10/ejs.min.js"></script>
 <script src="js/msa-common.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
-<script src="js/pod-calculations.js?v=1"></script>
+<script src="js/pod-calculations.js?v=2"></script>
 <title>Tespit Olasılığı (POD)</title>
 </head>
 <body>
@@ -33,9 +33,13 @@
       .filter(d => d.size != null && isFinite(d.size));
     if (data.length < 4) return MSA.renderError('Yetersiz Veri', 'Boyut değerleri eksik ya da yetersiz gözlem var.');
 
+    const link = MSA.q('link')==='probit' ? 'probit' : 'logit';
+    const logCov = MSA.q('logcov')==='1';
+    const ciQ = MSA.q('ci'); const ci = (ciQ!=null && ciQ!=='') ? parseFloat(ciQ)/100 : 0.95;
     let results;
-    try { results = window.podCalculations.calculatePOD(data); }
+    try { results = window.podCalculations.calculatePOD(data, { link, logTransform: logCov, ci }); }
     catch (e) { return MSA.renderError('Hesaplama Hatası', e.message); }
+    results._inputs = { link, logcov: logCov, ci: Math.round(ci*100) };
 
     try {
       await MSA.db.from(MSA.T.studies).update({

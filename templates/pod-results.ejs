@@ -29,7 +29,9 @@
   .info .kv b{display:block;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
   .info .kv span{font-size:16px;font-weight:700}
   .eq{background:#eef1f8;border-radius:9px;padding:10px 14px;font-size:14px;font-weight:700;text-align:center;color:#3a4a7a;margin-top:8px}
-  .chartbox{position:relative;height:360px}
+  .chartbox{position:relative;height:420px}
+  .optlbl{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:#41506b;font-weight:600;cursor:pointer}
+  .optlbl input[type=checkbox],.optlbl input[type=radio]{width:16px;height:16px;cursor:pointer}
   .foot{color:var(--muted);font-size:11.5px;text-align:center;margin:18px 0 8px}
   @media print{.acts{display:none}body{background:#fff}.card{box-shadow:none;border:1px solid var(--line)}}
 </style>
@@ -49,6 +51,27 @@
     <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
     <a class="btn ghost" href="pod-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
     <a class="btn ghost" href="index.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-sliders i"></i> Analiz Seçenekleri</h2>
+    <div class="exp">JASP <i>Analysis options</i> karşılığı. Bağ fonksiyonu / dönüşüm seçince model yeniden kurulur (<b>Uygula</b>). Grafik öğelerini aç/kapatın.</div>
+    <% var inp = results._inputs || {link:'logit',logcov:false,ci:95}; %>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:8px 0 4px">
+      <span style="font-size:12.5px;font-weight:700;color:#39415a">Bağ (link):</span>
+      <label class="optlbl"><input type="radio" name="link" value="logit" <%= inp.link!=='probit'?'checked':'' %>> Logit</label>
+      <label class="optlbl"><input type="radio" name="link" value="probit" <%= inp.link==='probit'?'checked':'' %>> Probit</label>
+      <label class="optlbl" style="margin-left:10px"><input type="checkbox" id="inLog" <%= inp.logcov?'checked':'' %>> Kovaryatı log-dönüştür</label>
+      <label class="optlbl">Güven %<input type="number" id="inCi" value="<%= inp.ci %>" min="50" max="99.9" step="1" style="width:64px;padding:5px 7px;border:1px solid var(--line);border-radius:7px"></label>
+      <button class="btn primary" onclick="applyInputs()"><i class="bi bi-arrow-repeat"></i> Uygula</button>
+    </div>
+    <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;display:flex;flex-wrap:wrap;gap:12px 20px">
+      <label class="optlbl"><input type="checkbox" checked onchange="tgl('secFit',this)"> Model uyum tablosu</label>
+      <label class="optlbl"><input id="cbBand" type="checkbox" checked onchange="toggleBand(this)"> Güven aralığı (%<%= inp.ci %>)</label>
+      <label class="optlbl"><input id="cbRug" type="checkbox" checked onchange="toggleRug(this)"> Veriyi göster (rug)</label>
+      <label class="optlbl"><input id="cbObs" type="checkbox" checked onchange="toggleObs(this)"> Gözlenen oranlar</label>
+      <label class="optlbl"><input id="cbLogX" type="checkbox" onchange="toggleLogX(this)"> Logaritmik x-ekseni</label>
+    </div>
   </div>
 
   <div class="card">
@@ -76,7 +99,7 @@
     <div class="eq"><%= results.equation %></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="secFit">
     <h2><i class="bi bi-clipboard-data i"></i> Model Uyumu</h2>
     <table>
       <thead><tr><th>AIC</th><th>BIC</th><th>Sapma (Deviance)</th><th>Log-olabilirlik</th></tr></thead>
@@ -86,38 +109,55 @@
 
   <div class="card">
     <h2><i class="bi bi-graph-up-arrow i"></i> Tespit Grafiği (Detection Plot)</h2>
-    <div class="exp">Mavi eğri = lojistik POD modeli. Gri noktalar = her boyuttaki gözlenen tespit oranı. Alttaki/üstteki çizgiler (rug) = ham hit(1)/miss(0) gözlemleri. Kesikli çizgiler a₅₀ ve a₉₀ boyutlarını gösterir.</div>
+    <div class="exp">Mavi eğri = POD modeli (1 tespit etme olasılığı). Gri bant = %<%= (results.studyInfo.ciLevel*100).toFixed(0) %> güven aralığı. Gri noktalar = her boyuttaki gözlenen tespit oranı. Üst/alt kısa çizgiler (rug) = ham hit(1)/miss(0) gözlemleri. Kesikli çizgiler a₅₀ ve a₉₀ boyutlarını gösterir.</div>
     <div class="chartbox"><canvas id="chartPod"></canvas></div>
   </div>
 
-  <div class="foot">GageAI · Tespit Olasılığı (POD) — lojistik regresyon / JASP metodolojisi ile doğrulanmıştır.</div>
+  <div class="foot">GageAI · Tespit Olasılığı (POD) — <%= results.studyInfo.link==='probit'?'probit':'lojistik' %> regresyon / JASP metodolojisi ile doğrulanmıştır.</div>
 </div>
 
 <script>
+var POD_CH=null;
+function tgl(id,cb){ var el=document.getElementById(id); if(el) el.style.display=cb.checked?'':'none'; }
+function setDs(label,hidden){ if(!POD_CH)return; var d=POD_CH.data.datasets.find(function(x){return x._role===label;}); if(d){ d.hidden=hidden; POD_CH.update(); } }
+function toggleBand(cb){ if(!POD_CH)return; POD_CH.data.datasets.forEach(function(d){ if(d._role==='bandLo'||d._role==='bandHi') d.hidden=!cb.checked; }); POD_CH.update(); }
+function toggleRug(cb){ setDs('rug',!cb.checked); }
+function toggleObs(cb){ setDs('obs',!cb.checked); }
+function toggleLogX(cb){ if(!POD_CH)return; POD_CH.options.scales.x.type = cb.checked?'logarithmic':'linear'; POD_CH.update(); }
+function applyInputs(){
+  var link=(document.querySelector('input[name="link"]:checked')||{}).value||'logit';
+  var log=document.getElementById('inLog').checked, ci=document.getElementById('inCi').value;
+  var u=new URL(location.href); u.searchParams.set('id','<%= study.id %>');
+  u.searchParams.set('link',link); if(log) u.searchParams.set('logcov','1'); else u.searchParams.delete('logcov');
+  if(ci!=='') u.searchParams.set('ci',ci); else u.searchParams.delete('ci');
+  location.href=u.toString();
+}
 (function(){
   var R = <%- JSON.stringify(results) %>;
   var g=R.graph; var pod=R.pod;
   var el=document.getElementById('chartPod'); if(!el) return;
-  // referans çizgileri eklentisi (a50, a90)
-  var refPlugin={ id:'refs', afterDatasetsDraw:function(c){ var ctx=c.ctx, x=c.scales.x, y=c.scales.y;
+  var refPlugin={ id:'refs', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx, x=c.scales.x, y=c.scales.y; if(!x||!y)return;
     function vline(val,col,lbl){ if(val==null||!isFinite(val))return; var px=x.getPixelForValue(val); if(px<x.left||px>x.right)return;
       ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
       ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='11px Segoe UI'; ctx.fillText(lbl,px+3,y.top+12); ctx.restore(); }
-    vline(pod.a50,'#b7791f','a50'); vline(pod.a90,'#c0392b','a90');
-  }};
-  new Chart(el,{
+    vline(pod.a50,'#b7791f','a50'); vline(pod.a90,'#c0392b','a90'); }catch(e){} }};
+  var xmin=g.curve[0].x, xmax=g.curve[g.curve.length-1].x;
+  POD_CH=new Chart(el,{
     data:{ datasets:[
-      { type:'line', label:'POD eğrisi', data:g.curve, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', pointRadius:0, borderWidth:2.5, tension:0.25, fill:true },
-      { type:'scatter', label:'Gözlenen oran', data:g.observed, backgroundColor:'#555', pointRadius:5, pointHoverRadius:7 },
-      { type:'scatter', label:'Ham (hit/miss)', data:g.rug, backgroundColor:'rgba(102,126,234,.35)', pointStyle:'line', pointRadius:6, rotation:90 }
+      { type:'line', _role:'bandLo', label:'CI alt', data:g.curve.map(function(p){return {x:p.x,y:p.yLo};}), borderColor:'#aab2c8', borderWidth:1, pointRadius:0, tension:0.25, fill:false },
+      { type:'line', _role:'bandHi', label:'CI üst', data:g.curve.map(function(p){return {x:p.x,y:p.yHi};}), borderColor:'#aab2c8', backgroundColor:'rgba(150,160,190,.16)', borderWidth:1, pointRadius:0, tension:0.25, fill:'-1' },
+      { type:'line', _role:'curve', label:'POD eğrisi', data:g.curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#111', borderWidth:2.4, pointRadius:0, tension:0.25, fill:false },
+      { type:'scatter', _role:'obs', label:'Gözlenen oran', data:g.observed, backgroundColor:'#888', pointRadius:5, pointHoverRadius:7 },
+      { type:'scatter', _role:'rug', label:'Ham (hit/miss)', data:g.rug, backgroundColor:'rgba(80,90,120,.5)', pointStyle:'line', pointRadius:7, borderWidth:1.4, rotation:90 }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
-      scales:{ x:{ title:{display:true,text:'Boyut'} }, y:{ min:-0.05, max:1.05, title:{display:true,text:'Tespit Olasılığı'} } },
-      plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8} },
-        tooltip:{ callbacks:{ label:function(c){ return c.dataset.label==='Gözlenen oran' ? ('Boyut '+c.parsed.x+': '+(g.observed[c.dataIndex]?g.observed[c.dataIndex].hits+'/'+g.observed[c.dataIndex].n:'')+' (%'+(c.parsed.y*100).toFixed(0)+')') : (c.dataset.label+': %'+(c.parsed.y*100).toFixed(1)); } } } },
+      scales:{ x:{ type:'linear', min:xmin, max:xmax, title:{display:true,text:'Boyut'} }, y:{ min:-0.08, max:1.12, title:{display:true,text:'1 tespit etme olasılığı'} } },
+      plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8, filter:function(it){ return ['POD eğrisi','Gözlenen oran','Ham (hit/miss)'].indexOf(it.text)!==-1; } } },
+        tooltip:{ callbacks:{ label:function(c){ return c.dataset._role==='obs' ? ('Boyut '+c.parsed.x+': '+(g.observed[c.dataIndex]?g.observed[c.dataIndex].hits+'/'+g.observed[c.dataIndex].n:'')+' (%'+(c.parsed.y*100).toFixed(0)+')') : (c.dataset.label+': %'+(c.parsed.y*100).toFixed(1)); } } } },
     },
     plugins:[refPlugin]
   });
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(function(){ try{ POD_CH.resize(); }catch(e){} });
 })();
 </script>
 </body>
