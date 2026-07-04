@@ -138,7 +138,11 @@
       <button class="btn primary" onclick="capReload()"><i class="bi bi-arrow-repeat"></i> Uygula ve Yeniden Hesapla</button>
       <button class="btn ghost" onclick="location.href='cap-results.html?id=<%= study.id %>'"><i class="bi bi-x-circle"></i> Varsayılana Dön</button>
     </div>
-    <% if(tr.applied){ %><div class="exp" style="border-left-color:#b7791f;margin-top:10px"><b><%= tr.method==='lognormal'?'Lognormal':'Box-Cox' %> dönüşümü uygulandı</b> (λ = <%= fn(tr.lambda,3) %><%= tr.shift?(', kaydırma = '+fn(tr.shift,3)):'' %>). Tüm indeksler, spesifikasyon sınırları ve grafikler <b>dönüştürülmüş ölçekte</b> hesaplanır; bu, normal olmayan veriyi normalize ederek Cp/Cpk'yı geçerli kılar.</div><% } %>
+    <% if(tr.applied){ %><div class="exp" style="border-left-color:#b7791f;margin-top:10px"><b>Box-Cox dönüşümü uygulandı</b> — optimal <b>λ = <%= fn(tr.lambda,3) %></b><% if(tr.ciLo!=null){ %> (%95 GA: <%= fn(tr.ciLo,2) %> … <%= fn(tr.ciHi,2) %>)<% } %>, yuvarlanmış λ = <b><%= fn(tr.lambdaRounded,1) %></b><%= tr.shift?(', kaydırma = '+fn(tr.shift,3)):'' %>.
+      <%= tr.lambda===0?'(λ≈0 → doğal logaritma)':(Math.abs(tr.lambda-0.5)<0.06?'(λ≈0.5 → karekök)':'') %>
+      Tüm indeksler, spesifikasyon sınırları ve grafikler <b>dönüştürülmüş ölçekte</b> hesaplanır.
+      <% if(tr.includesOne){ %><br><b style="color:#8c3a2e">⚠ λ güven aralığı 1'i içeriyor → verinin istatistiksel olarak dönüşüme İHTİYACI YOK</b> (normal dağılım yeterli; dönüşümü kapatabilirsiniz).<% } %>
+      <br><span style="color:var(--muted)">Not: Box-Cox yalnız pozitif veriyle çalışır; sıfır/negatif değer varsa Johnson dönüşümü gerekir (modülde otomatik +kaydırma uygulanır).</span></div><% } %>
   </div>
 
   <div class="card">

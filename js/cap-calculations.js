@@ -203,10 +203,18 @@
         for(let l=-5;l<=5.0001;l+=0.01){ const v=ll(l); if(v>bl){bl=v;best=l;} }
         for(let l=best-0.01;l<=best+0.01;l+=0.001){ const v=ll(l); if(v>bl){bl=v;best=l;} }
         lam=Math.round(best*1000)/1000 || 0;
+        // λ için %95 güven aralığı (profil-olabilirlik: 2(ℓmax−ℓ(λ)) ≤ χ²₁,₀.₉₅ = 3.841)
+        const thr = bl - 1.92073;
+        let ciLo=null, ciHi=null;
+        for(let l=-5; l<=5.0001; l+=0.01){ if(ll(l) >= thr){ if(ciLo===null) ciLo=Math.round(l*100)/100; ciHi=Math.round(l*100)/100; } }
+        // Yuvarlanmış λ (standart set: -2,-1,-0.5,0,0.5,1,2) — Minitab tarzı
+        const rset=[-2,-1,-0.5,0,0.5,1,2]; let lamR=rset[0];
+        rset.forEach(function(r){ if(Math.abs(r-lam)<Math.abs(lamR-lam)) lamR=r; });
+        const includesOne = (ciLo!=null && ciHi!=null && ciLo<=1 && ciHi>=1);
+        TF = function(x){ const p=x+shift; if(!(p>0)) return null; return lam===0?Math.log(p):(Math.pow(p,lam)-1)/lam; };
+        rows.forEach(r=>{ const t=TF(r.value); if(t!=null) r.value=t; });
+        transform = { applied:true, method:distReq, lambda:lam, lambdaRounded:lamR, ciLo:ciLo, ciHi:ciHi, includesOne:includesOne, shift:shift };
       }
-      TF = function(x){ const p=x+shift; if(!(p>0)) return null; return lam===0?Math.log(p):(Math.pow(p,lam)-1)/lam; };
-      rows.forEach(r=>{ const t=TF(r.value); if(t!=null) r.value=t; });
-      transform = { applied:true, method:distReq, lambda:lam, shift };
     })();
 
     const all=rows.map(r=>r.value);
