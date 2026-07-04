@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
 <script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <title>Yeterlilik Veri Girişi</title>
 <style>
@@ -30,6 +31,9 @@
   input.m:focus{background:#eaf1ff;box-shadow:inset 0 0 0 2px var(--p)}
   .xltbl td.filled input.m{background:#f2fbf5}
   .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .tabs{display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:2px 0 6px}
+  .tab{border:0;background:transparent;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .tab.on{background:#fff;color:#41506b;box-shadow:0 1px 4px rgba(30,40,70,.12)}
 </style>
 </head>
 <body>
@@ -43,14 +47,29 @@
     </div>
   </div>
   <div id="msg"></div>
-  <div class="card">
-    <div style="font-weight:600;font-size:13px;margin-bottom:6px"><i class="bi bi-clipboard"></i> Toplu Yapıştır (Excel'den)</div>
-    <textarea id="bulk" placeholder="Ölçümleri buraya yapıştırın — her satıra bir değer ya da boşluk/virgülle ayrılmış. Sıra korunur (alt gruplar sırayla oluşur)."></textarea>
-    <button class="btn primary sm" id="fill" style="margin-top:8px"><i class="bi bi-arrow-down-square"></i> Tabloya Doldur</button>
+
+  <div class="tabs">
+    <button class="tab on" id="tabGrid" type="button"><i class="bi bi-table"></i> Tablo Girişi</button>
+    <button class="tab" id="tabJasp" type="button"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
   </div>
-  <div class="hint" style="margin-top:0"><i class="bi bi-info-circle"></i> Her satır bir <b>alt grup</b>, her sütun o gruptaki bir <b>ölçüm</b>. Excel gibi: <b>Tab</b> = sağa, <b>Enter / ↓</b> = alta (sütun boyu giriş), ok tuşları = gezinme.</div>
-  <div class="card"><div id="grid" style="overflow:auto"></div></div>
-  <div class="hint" id="prog"></div>
+
+  <div id="modeGrid">
+    <div class="card">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px"><i class="bi bi-clipboard"></i> Toplu Yapıştır (Excel'den)</div>
+      <textarea id="bulk" placeholder="Ölçümleri buraya yapıştırın — her satıra bir değer ya da boşluk/virgülle ayrılmış. Sıra korunur (alt gruplar sırayla oluşur)."></textarea>
+      <button class="btn primary sm" id="fill" style="margin-top:8px"><i class="bi bi-arrow-down-square"></i> Tabloya Doldur</button>
+    </div>
+    <div class="hint" style="margin-top:0"><i class="bi bi-info-circle"></i> Her satır bir <b>alt grup</b>, her sütun o gruptaki bir <b>ölçüm</b>. Excel gibi: <b>Tab</b> = sağa, <b>Enter / ↓</b> = alta (sütun boyu giriş), ok tuşları = gezinme.</div>
+    <div class="card"><div id="grid" style="overflow:auto"></div></div>
+    <div class="hint" id="prog"></div>
+  </div>
+
+  <div id="modeJasp" style="display:none">
+    <div class="hint"><i class="bi bi-info-circle"></i> Ölçüm verilerini sütun(lar)a girin/yapıştırın ve <b>Ölçüm</b> kutusuna sürükleyin.
+      <b>Tek sütun</b> atarsanız değerler sırayla alınır, alt grup boyutu çalışmanın ayarından (<span id="sgNote"></span>) gelir.
+      <b>Birden çok sütun</b> atarsanız her satır bir <b>alt grup</b>, her sütun o gruptaki bir ölçüm olur.</div>
+    <div class="card"><div id="jaspHost"></div></div>
+  </div>
 </div>
 <script>
 (async () => {
@@ -68,6 +87,7 @@
 
   const grid=document.getElementById('grid');
   const sg=Math.max(1, parseInt(study.num_trials,10)||5);
+  const sgn=document.getElementById('sgNote'); if(sgn) sgn.textContent='alt grup boyutu '+sg;
   const nRows=Math.ceil(partsSorted.length/sg) || 1;
   let html='<table class="xltbl"><thead><tr><th>Alt Grup</th>';
   for(let c=0;c<sg;c++) html+='<th>Ölçüm '+(c+1)+'</th>';
@@ -111,14 +131,54 @@
     if(vals.length>inputs.length){ alert('Uyarı: '+vals.length+' değer yapıştırdınız ama tabloda '+inputs.length+' hücre var. Fazlası atlandı. Çalışma ölçüm sayısını artırmak için yeniden oluşturun.'); }
   });
 
-  async function saveAll(){
-    const meas=[]; [...document.querySelectorAll('input.m')].forEach(i=>{
+  // ---------- JASP sütun ata ----------
+  const preVals=partsSorted.map(pn=>existing[String(pn)]).filter(v=>v!=null&&v!=='').map(Number);
+  const jaspCtrl = MSA.ColAssign.mount(document.getElementById('jaspHost'), {
+    roles:[ { key:'measurement', label:'Ölçüm', multi:true, numeric:true, required:true, hint:'tek sütun=sıralı · çok sütun=alt grup satırları' } ],
+    minRows: Math.max(10, preVals.length+2),
+    initial: (preVals.length ? { columns:[{name:'Ölçüm', values:preVals}], assign:{ measurement:[0] } }
+                             : { columns:[{name:'Ölçüm 1',values:[]},{name:'Ölçüm 2',values:[]},{name:'Ölçüm 3',values:[]}] })
+  });
+
+  let mode='grid';
+  const tG=document.getElementById('tabGrid'), tJ=document.getElementById('tabJasp');
+  function setMode(m){ mode=m;
+    document.getElementById('modeGrid').style.display=m==='grid'?'':'none';
+    document.getElementById('modeJasp').style.display=m==='jasp'?'':'none';
+    tG.classList.toggle('on',m==='grid'); tJ.classList.toggle('on',m==='jasp'); }
+  tG.addEventListener('click',()=>setMode('grid')); tJ.addEventListener('click',()=>setMode('jasp'));
+
+  async function saveGrid(){
+    const meas=[]; [...document.querySelectorAll('#grid input.m')].forEach(i=>{
       const v=i.value.trim(); if(v==='') return;
       meas.push({ operator:'1', part:String(i.dataset.part), trial:1, measurement:parseFloat(v) });
     });
     const res=await MSA.saveMeasurements(studyId, meas);
     if(!res.success) throw new Error(res.message||'Kayıt hatası'); return res.count;
   }
+
+  async function saveJasp(){
+    const v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+    const M=jaspCtrl.role('measurement'); const n=jaspCtrl.rowCount(); const num=jaspCtrl.num;
+    let vals=[], newTrials, skipped=0;
+    if(M.length<=1){ const col=M[0]; for(let r=0;r<n;r++){ const x=num(col.values[r]); if(x!=null) vals.push(x); } newTrials=sg; }
+    else { newTrials=M.length;
+      for(let r=0;r<n;r++){ const rowv=M.map(c=>num(c.values[r])); if(rowv.every(x=>x==null)) continue;
+        if(rowv.some(x=>x==null)){ skipped++; continue; } rowv.forEach(x=>vals.push(x)); } }
+    if(!vals.length) throw new Error('Geçerli ölçüm bulunamadı');
+    await MSA.db.from(MSA.T.operators).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.parts).delete().eq('study_id',studyId);
+    await MSA.db.from(MSA.T.operators).insert([{ study_id:studyId, operator_name:'Operatör 1', operator_number:1 }]);
+    const partRows=vals.map((_,i)=>({ study_id:studyId, part_number:i+1, part_name:'Ölçüm '+(i+1) }));
+    await MSA.db.from(MSA.T.parts).insert(partRows);
+    const meas=vals.map((x,i)=>({ operator:'1', part:String(i+1), trial:1, measurement:x }));
+    const res=await MSA.saveMeasurements(studyId, meas); if(!res.success) throw new Error(res.message||'Kayıt hatası');
+    await MSA.db.from(MSA.T.studies).update({ num_operators:1, num_parts:vals.length, num_trials:newTrials }).eq('id',studyId);
+    if(skipped) console.warn(skipped+' eksik alt grup atlandı');
+    return res.count;
+  }
+
+  const saveAll=()=> mode==='jasp' ? saveJasp() : saveGrid();
   document.getElementById('save').addEventListener('click', async ()=>{
     const b=document.getElementById('save'); b.disabled=true; b.textContent='Kaydediliyor…';
     try{ const c=await saveAll(); b.innerHTML='<i class="bi bi-check2"></i> Kaydedildi ('+c+')'; setTimeout(()=>{b.disabled=false;b.innerHTML='<i class="bi bi-save"></i> Kaydet';},1500); }

@@ -379,6 +379,12 @@
       <% } %>
     <% } %>
 
+    <div style="display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:0 0 16px">
+      <button class="ca-tab on" id="tabGrid" type="button" style="border:0;background:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#41506b;cursor:pointer;box-shadow:0 1px 4px rgba(30,40,70,.12)"><i class="bi bi-table"></i> Tablo Girişi</button>
+      <button class="ca-tab" id="tabJasp" type="button" style="border:0;background:transparent;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+    </div>
+
+    <div id="modeGrid">
     <div class="progress-text">
       <strong>İlerleme:</strong> <span id="progress-count">0</span> / <%= study.num_operators * study.num_parts * study.num_trials %> ölçüm girildi
     </div>
@@ -418,6 +424,18 @@
       <button class="btn btn-secondary" id="calculate-btn" onclick="handleCalculate(event)" style="display: none;">
         🧮 DEBUG: Old Button
       </button>
+    </div>
+    </div><!-- /modeGrid -->
+
+    <div id="modeJasp" style="display:none">
+      <p style="font-size:13px;color:#6b7280;margin-bottom:12px"><i class="bi bi-info-circle"></i>
+        Verileri sütunlara girin/yapıştırın, başlıkları adlandırın ve <b>Operatör</b>, <b>Parça</b>, <b>Ölçüm</b> kutularına sürükleyin.
+        <b>Ölçüm</b> için tek sütun atarsanız uzun format (aynı operatör-parça satırları tekrarlanır = tekrarlar), birden çok sütun atarsanız her sütun bir tekrardır.</p>
+      <div id="jaspHost"></div>
+      <div class="action-buttons" style="margin-top:16px">
+        <button class="btn btn-success" id="jasp-save-btn">💾 Kaydet</button>
+        <button class="btn btn-primary" id="jasp-calc-btn">🧮 Hesapla ve Sonuçları Gör</button>
+      </div>
     </div>
   </div>
 
@@ -659,7 +677,81 @@
 
     // Sayfa yüklendiğinde tabloyu doldur
     populateTable();
-    
+
+    // ---------- JASP Sütun Ata modu ----------
+    var jaspCtrl = null, dmode = 'grid';
+    (function initJasp(){
+      if (!window.MSA || !MSA.ColAssign) return;
+      // mevcut veriyi uzun formata çevir
+      var opCol=[], ptCol=[], meCol=[];
+      operators.forEach(function(op){ parts.forEach(function(pt){ for(var t=1;t<=study.num_trials;t++){
+        var val=measurements[op.operator_number+'-'+pt.part_number+'-'+t];
+        if(val==null||val==='') continue;
+        opCol.push(op.operator_name); ptCol.push(pt.part_name); meCol.push(Number(val));
+      }});});
+      jaspCtrl = MSA.ColAssign.mount(document.getElementById('jaspHost'), {
+        roles:[
+          { key:'operator',    label:'Operatör', multi:false, numeric:false, required:true },
+          { key:'part',        label:'Parça',    multi:false, numeric:false, required:true },
+          { key:'measurement', label:'Ölçüm',    multi:true,  numeric:true,  required:true, hint:'tek sütun=uzun · çok sütun=tekrarlar' }
+        ],
+        minRows: Math.max(12, opCol.length+2),
+        initial: (opCol.length ? { columns:[{name:'Operatör',values:opCol},{name:'Parça',values:ptCol},{name:'Ölçüm',values:meCol}], assign:{ operator:[0], part:[1], measurement:[2] } }
+                               : { columns:[{name:'Operatör',values:[]},{name:'Parça',values:[]},{name:'Ölçüm',values:[]}] })
+      });
+      var tG=document.getElementById('tabGrid'), tJ=document.getElementById('tabJasp');
+      function setMode(m){ dmode=m;
+        document.getElementById('modeGrid').style.display=m==='grid'?'':'none';
+        document.getElementById('modeJasp').style.display=m==='jasp'?'':'none';
+        tG.style.background=m==='grid'?'#fff':'transparent'; tG.style.color=m==='grid'?'#41506b':'#5a6685'; tG.style.boxShadow=m==='grid'?'0 1px 4px rgba(30,40,70,.12)':'none';
+        tJ.style.background=m==='jasp'?'#fff':'transparent'; tJ.style.color=m==='jasp'?'#41506b':'#5a6685'; tJ.style.boxShadow=m==='jasp'?'0 1px 4px rgba(30,40,70,.12)':'none';
+      }
+      tG.addEventListener('click',function(){setMode('grid');}); tJ.addEventListener('click',function(){setMode('jasp');});
+
+      async function saveJasp(){
+        var v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+        var O=jaspCtrl.role('operator')[0], P=jaspCtrl.role('part')[0], M=jaspCtrl.role('measurement');
+        var n=jaspCtrl.rowCount(), num=jaspCtrl.num;
+        var opOrder=[], ptOrder=[], cell={}, maxT=0;
+        function reg(arr,v){ if(arr.indexOf(v)===-1) arr.push(v); }
+        if(M.length<=1){
+          var mc=M[0];
+          for(var r=0;r<n;r++){ var ol=String(O.values[r]==null?'':O.values[r]).trim(), pl=String(P.values[r]==null?'':P.values[r]).trim(), mv=num(mc.values[r]);
+            if(!ol||!pl||mv==null) continue; reg(opOrder,ol); reg(ptOrder,pl);
+            var k=ol+''+pl; (cell[k]=cell[k]||[]).push(mv); }
+        } else {
+          for(var r2=0;r2<n;r2++){ var ol2=String(O.values[r2]==null?'':O.values[r2]).trim(), pl2=String(P.values[r2]==null?'':P.values[r2]).trim();
+            if(!ol2||!pl2) continue; var vals=M.map(function(c){return num(c.values[r2]);}); if(vals.every(function(x){return x==null;})) continue;
+            reg(opOrder,ol2); reg(ptOrder,pl2); var k2=ol2+''+pl2; cell[k2]=cell[k2]||[];
+            vals.forEach(function(x){ if(x!=null) cell[k2].push(x); }); }
+        }
+        if(!opOrder.length||!ptOrder.length) throw new Error('Operatör/Parça/Ölçüm dolu satır yok');
+        var opNum={}; opOrder.forEach(function(o,i){opNum[o]=i+1;});
+        var ptNum={}; ptOrder.forEach(function(p,i){ptNum[p]=i+1;});
+        var meas=[];
+        opOrder.forEach(function(o){ ptOrder.forEach(function(p){ var arr=cell[o+''+p]||[]; maxT=Math.max(maxT,arr.length);
+          arr.forEach(function(mv,t){ meas.push({operator:String(opNum[o]), part:String(ptNum[p]), trial:t+1, measurement:mv}); }); }); });
+        // operatör/parça tablolarını yeniden kur
+        await MSA.db.from(MSA.T.operators).delete().eq('study_id', study.id);
+        await MSA.db.from(MSA.T.parts).delete().eq('study_id', study.id);
+        await MSA.db.from(MSA.T.operators).insert(opOrder.map(function(o,i){return {study_id:study.id, operator_name:o, operator_number:i+1};}));
+        await MSA.db.from(MSA.T.parts).insert(ptOrder.map(function(p,i){return {study_id:study.id, part_number:i+1, part_name:p};}));
+        var res=await MSA.saveMeasurements(study.id, meas); if(!res.success) throw new Error(res.message||'Kayıt hatası');
+        await MSA.db.from(MSA.T.studies).update({ num_operators:opOrder.length, num_parts:ptOrder.length, num_trials:Math.max(1,maxT) }).eq('id', study.id);
+        return res.count;
+      }
+      document.getElementById('jasp-save-btn').addEventListener('click', async function(){
+        var b=this; b.disabled=true; var old=b.textContent; b.textContent='Kaydediliyor…';
+        try{ var c=await saveJasp(); showMessage(c+' ölçüm kaydedildi!','success'); b.textContent='✓ Kaydedildi'; setTimeout(function(){b.disabled=false;b.textContent=old;},1500); }
+        catch(e){ alert('Hata: '+e.message); b.disabled=false; b.textContent=old; }
+      });
+      document.getElementById('jasp-calc-btn').addEventListener('click', async function(){
+        var b=this; b.disabled=true; b.textContent='⏳ Hesaplanıyor...';
+        try{ await saveJasp(); window.location.href='calculate.html?id='+study.id; }
+        catch(e){ alert('Hata: '+e.message); b.disabled=false; b.textContent='🧮 Hesapla ve Sonuçları Gör'; }
+      });
+    })();
+
     // Edit study settings (for draft studies from schedule)
     async function editStudySettings() {
       const currentOperators = <%= study.num_operators %>;
