@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="js/col-assign.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Öznitelik Kontrol Grafikleri (p/np/c/u)</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2;--good:#1e7e4a;--bad:#c0392b;--gbg:#eaf6ef;--bbg:#fdecea}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .hdr h1{margin:0;font-size:19px} .hdr p{margin:3px 0 0;opacity:.9;font-size:12.5px}
+  .btn{border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:rgba(255,255,255,.2);color:#fff} .btn.sm{padding:6px 12px;font-size:12.5px}
+  .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:16px 18px;margin:14px 0}
+  .card h2{margin:0 0 4px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.6px;color:#4a5568;margin:8px 0;line-height:1.5}
+  .tabs{display:inline-flex;background:#eef1f8;border-radius:10px;padding:4px;gap:4px;margin:0 0 8px}
+  .tab{border:0;background:transparent;padding:8px 15px;border-radius:8px;font-size:13px;font-weight:600;color:#5a6685;cursor:pointer}
+  .tab.on{background:#fff;color:#41506b;box-shadow:0 1px 4px rgba(30,40,70,.12)}
+  textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .opts{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin-top:6px}
+  .optlbl{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:#41506b;font-weight:600;cursor:pointer}
+  .ctgrp{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:6px}
+  .ctgrp .h{font-weight:700;font-size:12.5px;color:#39415a;grid-column:1/-1;margin-top:4px}
+  .chartbox{position:relative;height:320px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:center} th{background:#f3f5fb;color:#39415a;font-size:12px} td:first-child,th:first-child{text-align:left}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:6px}
+  .kv .b{background:#f8f9fd;border-radius:9px;padding:9px 12px} .kv .b b{display:block;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase} .kv .b span{font-size:15px;font-weight:700}
+  .verdict{padding:8px 13px;border-radius:9px;font-weight:700;font-size:13px;display:inline-flex;gap:7px;align-items:center;margin-top:6px}
+  .verdict.good{background:var(--gbg);color:var(--good)} .verdict.bad{background:var(--bbg);color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-check2-square"></i> Öznitelik Kontrol Grafikleri</h1><p>Control Charts for Attributes — p / np / c / u (+ Laney p′/u′), JASP uyumlu</p></div>
+    <a class="btn ghost" href="control-charts.html"><i class="bi bi-arrow-left"></i> Pano</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-table i"></i> Veri</h2>
+    <div class="tabs">
+      <button class="tab on" id="tabPaste" onclick="setMode('paste')"><i class="bi bi-clipboard"></i> Yapıştır</button>
+      <button class="tab" id="tabCol" onclick="setMode('col')"><i class="bi bi-diagram-3"></i> Sütun Ata (JASP)</button>
+    </div>
+    <div id="mPaste">
+      <div class="exp"><b>Kusurlu/Hata</b> = her alt gruptaki kusurlu birim (p/np) ya da hata sayısı (c/u). <b>Örneklem/Birim (Total)</b> = alt grup boyutu; p/u/np için gerekli, c için boş bırakılabilir (sabit birim).</div>
+      <div class="grid2">
+        <div><div style="font-weight:700;font-size:12.5px;margin-bottom:3px">Kusurlu / Hata (d)</div><textarea id="dData" placeholder="ör. 3 2 4 5 2 3 ..."></textarea></div>
+        <div><div style="font-weight:700;font-size:12.5px;margin-bottom:3px">Örneklem / Birim (n) — opsiyonel</div><textarea id="nData" placeholder="ör. 100 100 100 ..."></textarea></div>
+      </div>
+    </div>
+    <div id="mCol" style="display:none">
+      <div class="exp">Verileri sütunlara girin/yapıştırın; <b>Kusurlu/Hata</b> (zorunlu) ve <b>Örneklem/Birim</b> (opsiyonel) kutularına sürükleyin.</div>
+      <div id="jaspHost"></div>
+    </div>
+
+    <div class="ctgrp">
+      <div class="h">Kusurlu (Defectives) — binom</div><div class="h" style="margin-top:4px">Hata (Defects) — poisson</div>
+      <label class="optlbl"><input type="radio" name="ct" value="np" checked> np grafiği (sabit n)</label>
+      <label class="optlbl"><input type="radio" name="ct" value="c"> c grafiği (sabit birim)</label>
+      <label class="optlbl"><input type="radio" name="ct" value="p"> p grafiği (oran)</label>
+      <label class="optlbl"><input type="radio" name="ct" value="u"> u grafiği (birim başına)</label>
+      <label class="optlbl"><input type="radio" name="ct" value="pprime"> Laney p′ (aşırı dağılım)</label>
+      <label class="optlbl"><input type="radio" name="ct" value="uprime"> Laney u′ (aşırı dağılım)</label>
+    </div>
+    <details id="testDetails" style="margin-top:10px;border:1px solid var(--line);border-radius:9px;padding:8px 12px">
+      <summary style="cursor:pointer;font-weight:700;font-size:12.5px;color:#41506b"><i class="bi bi-check2-square"></i> İstatistiksel testler — seç/kaldır</summary>
+      <div id="testList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+    </details>
+    <div class="opts" style="margin-top:10px">
+      <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
+      <button class="btn primary sm" style="background:#1e7e4a" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veri</button>
+      <label class="optlbl" style="margin-left:auto">Çalışma adı <input id="studyName" onblur="renameStudy()" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-weight:400;min-width:150px"></label>
+      <span id="saveState" style="color:var(--muted);font-size:12px"><i class="bi bi-cloud"></i> Hesaplayınca otomatik kaydedilir</span>
+    </div>
+  </div>
+
+  <div id="report"></div>
+</div>
+
+<script>
+var charts=[], jaspCtrl=null, dmode='paste', currentId=null;
+document.querySelectorAll('.hdr a[href$=".html"]').forEach(function(a){ a.setAttribute('href', a.getAttribute('href')+'?v='+Date.now()); });
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error(src));};document.head.appendChild(s);});}
+function nf(x,d){ if(x==null||!isFinite(x))return '—'; return Number(x).toFixed(d==null?3:d); }
+function setMode(m){ dmode=m; document.getElementById('mPaste').style.display=m==='paste'?'':'none'; document.getElementById('mCol').style.display=m==='col'?'':'none';
+  document.getElementById('tabPaste').classList.toggle('on',m==='paste'); document.getElementById('tabCol').classList.toggle('on',m==='col'); }
+
+function loadExample(){
+  var ct=(document.querySelector('input[name="ct"]:checked')||{}).value||'np';
+  if(ct==='c'){ document.getElementById('dData').value='5 3 4 7 2 6 4 5 3 8 4 6 3 5 4 7 2 5 6 4'; document.getElementById('nData').value=''; }
+  else if(ct==='u'||ct==='uprime'){ document.getElementById('dData').value='5 3 8 7 2 6 9 4 5 7 3 6 8 4 5'; document.getElementById('nData').value='10 10 20 20 10 15 20 10 10 15 10 15 20 10 10'; }
+  else { document.getElementById('dData').value='3 2 4 5 2 3 6 2 4 3 5 2 4 3 7 2 4 3 5 2'; document.getElementById('nData').value=Array(20).fill(100).join(' '); }
+  setMode('paste');
+}
+function readData(){
+  if(dmode==='col' && jaspCtrl){ var v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
+    var D=jaspCtrl.role('defect')[0], N=jaspCtrl.role('total')[0], n=jaspCtrl.rowCount(), num=jaspCtrl.num, d=[], nn=[];
+    for(var r=0;r<n;r++){ var x=num(D.values[r]); if(x==null) continue; d.push(x); if(N) nn.push(num(N.values[r])); }
+    return { d:d, n: N?nn:null };
+  }
+  var d=document.getElementById('dData').value.trim().split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
+  var nRaw=document.getElementById('nData').value.trim();
+  var n=nRaw?nRaw.split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);}):null;
+  return { d:d, n:n };
+}
+
+var TESTLBL={1:'1: Limit dışı (>3σ)',2:'2: 9 nokta aynı tarafta',3:'3: 6 nokta sürekli artıyor/azalıyor',4:'4: 14 nokta zikzak',5:'5: 3’te 2 nokta >2σ',6:'6: 5’te 4 nokta >1σ',7:'7: 15 nokta ±1σ içinde',8:'8: 8 nokta ±1σ dışında'};
+function buildTests(active){ var set={}; (active||[1,2,3,4,5,6,7,8]).forEach(function(t){set[t]=1;}); var el=document.getElementById('testList'); if(!el)return;
+  el.innerHTML=Object.keys(TESTLBL).map(function(k){return '<label class="optlbl" style="font-weight:500"><input type="checkbox" value="'+k+'" '+(set[k]?'checked':'')+' onchange="if(window.__hasResult)calc()"> '+TESTLBL[k]+'</label>';}).join(''); }
+function activeTests(){ return [].slice.call(document.querySelectorAll('#testList input:checked')).map(function(c){return parseInt(c.value,10);}); }
+
+function calc(doSave){
+  if(doSave===undefined) doSave=true;
+  var dd; try{ dd=readData(); }catch(e){ if(doSave) alert(e.message); return; }
+  if(dd.d.length<2){ if(doSave) alert('En az 2 alt grup girin.'); return; }
+  var opts={ chartType:(document.querySelector('input[name="ct"]:checked')||{}).value||'np', activeTests:activeTests() };
+  var R; try{ R=window.controlCalculations.calculateAttributeChart(dd.d,dd.n,opts); }catch(e){ if(doSave) alert('Hata: '+e.message); return; }
+  draw(R); window.__hasResult=true; if(doSave) persist(R);
+}
+
+function attrChart(canvasId, ch, flagged){
+  flagged=flagged||{};
+  var pts=ch.points.map(function(v,i){return {x:ch.index?ch.index[i]:i+1,y:v};});
+  var n=pts.length;
+  function hl(v){ return [{x:1,y:v},{x:n,y:v}]; }
+  function arr(a){ return a.map(function(v,i){return {x:i+1,y:v};}); }
+  var uclData=ch.varying?arr(ch.UCLarr):hl(ch.UCL), lclData=ch.varying?arr(ch.LCLarr):hl(ch.LCL);
+  var uclAt=function(i){return ch.varying?ch.UCLarr[i]:ch.UCL;}, lclAt=function(i){return ch.varying?ch.LCLarr[i]:ch.LCL;};
+  var step=ch.varying?'after':false;
+  var ds=[
+    { type:'line', data:uclData, borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0, stepped:step },
+    { type:'line', data:lclData, borderColor:'#c0392b', borderDash:[7,5], pointRadius:0, borderWidth:1.5, tension:0, stepped:step },
+    { type:'line', data:hl(ch.CL), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.5, tension:0 },
+    { type:'line', data:pts, borderColor:'#2563eb', pointBackgroundColor:pts.map(function(p,i){return flagged[i+1]?'#c0392b':'#2563eb';}), pointRadius:3.5, borderWidth:1.7, tension:0 }
+  ];
+  var lim={ id:'lim', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx,x=c.scales.x,y=c.scales.y; if(!x||!y)return; if(ch.varying){ // sadece MÇ
+      var py=y.getPixelForValue(ch.CL); ctx.save(); ctx.fillStyle='#fff'; ctx.strokeStyle='#1e7e4a'; ctx.font='11px Segoe UI'; var t='MÇ = '+nf(ch.CL); var w=ctx.measureText(t).width+8; ctx.fillRect(x.right-w-2,py-9,w,16); ctx.strokeRect(x.right-w-2,py-9,w,16); ctx.fillStyle='#1e7e4a'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(t,x.right-w+2,py); ctx.restore(); return; }
+    function lab(v,txt,col){ if(v==null||!isFinite(v))return; var py=y.getPixelForValue(v); if(py<y.top-1||py>y.bottom+1)return; ctx.save(); ctx.fillStyle='#fff'; ctx.strokeStyle=col; ctx.font='11px Segoe UI'; var w=ctx.measureText(txt).width+8; ctx.fillRect(x.right-w-2,py-9,w,16); ctx.strokeRect(x.right-w-2,py-9,w,16); ctx.fillStyle=col; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(txt,x.right-w+2,py); ctx.restore(); }
+    lab(ch.UCL,'ÜKS = '+nf(ch.UCL),'#c0392b'); lab(ch.CL,'MÇ = '+nf(ch.CL),'#1e7e4a'); lab(ch.LCL,'AKS = '+nf(ch.LCL),'#c0392b'); }catch(e){} } };
+  charts.push(new Chart(document.getElementById(canvasId),{ data:{datasets:ds}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:8,right:8}},
+    scales:{ x:{ type:'linear', min:0.5, max:n+0.5, title:{display:true,text:'Alt grup'}, ticks:{stepSize:Math.ceil(n/15)} }, y:{ title:{display:true,text:ch.ylabel}, beginAtZero:true } },
+    plugins:{ legend:{display:false} } }, plugins:[lim] }));
+}
+
+function draw(R){
+  charts.forEach(function(c){try{c.destroy();}catch(e){}}); charts=[];
+  var si=R.studyInfo, ch=R.chart;
+  var flag={}; Object.keys(R.tests).forEach(function(k){ R.tests[k].forEach(function(s){flag[s]=1;}); });
+  var testRows=Object.keys(R.tests).map(function(k){return '<tr><td style="text-align:left">'+TESTLBL[k]+'</td><td>'+R.tests[k].join(', ')+'</td></tr>';}).join('');
+  var stat = R.chartType[0]==='p'?('p̄ = '+nf(si.pbar,4)) : (R.chartType==='c'?('c̄ = '+nf(si.cbar,3)) : ('ū = '+nf(si.ubar,4)));
+  var html=''+
+    '<div class="card"><h2><i class="bi bi-clipboard-data i"></i> Özet — '+ch.label+'</h2>'+
+      '<div class="verdict '+(R.interpretation.inControl?'good':'bad')+'"><i class="bi bi-'+(R.interpretation.inControl?'check-circle-fill':'exclamation-triangle-fill')+'"></i> '+(R.interpretation.inControl?'Süreç kontrol altında':(R.interpretation.nOut+' nokta limit dışı — kontrol dışı'))+'</div>'+
+      '<div class="kv"><div class="b"><b>Alt grup</b><span>'+si.numSubgroups+'</span></div>'+
+        '<div class="b"><b>Toplam d</b><span>'+si.totalDefects+'</span></div>'+
+        '<div class="b"><b>Toplam n</b><span>'+si.totalN+'</span></div>'+
+        '<div class="b"><b>Merkez</b><span>'+stat+'</span></div></div>'+
+      '<div class="exp">'+ch.label+' — '+(R.kind==='defectives'?'kusurlu <b>oranı/sayısı</b> (binom)':'birim başına <b>hata</b> (poisson)')+'.'+(R.varying?' Örneklem boyutu değiştiği için <b>değişken (basamaklı) limitler</b>.':'')+(R.note?' '+R.note+'.':'')+'</div>'+
+    '</div>'+
+    '<div class="card"><h2><i class="bi bi-graph-up i"></i> '+ch.label+'</h2><div class="chartbox"><canvas id="cA"></canvas></div>'+
+      (testRows?('<table><thead><tr><th>Kontrol testi ihlali</th><th>Alt grup(lar)</th></tr></thead><tbody>'+testRows+'</tbody></table>'):'<div class="exp" style="border-left-color:#1e7e4a">Test ihlali yok — tüm noktalar kontrol limitleri içinde.</div>')+
+    '</div>';
+  document.getElementById('report').innerHTML=html;
+  attrChart('cA', ch, flag);
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(function(){ charts.forEach(function(c){try{c.resize();}catch(e){}}); });
+}
+
+function defaultName(){ try{ return 'Öznitelik Grafiği '+new Date().toLocaleDateString('tr-TR'); }catch(e){ return 'Öznitelik Grafiği'; } }
+async function persist(R){
+  var el=document.getElementById('studyName'); var name=(el.value||'').trim(); if(!name){ name=defaultName(); el.value=name; }
+  var user={}; try{ user=await MSA.currentUser(); }catch(e){}
+  var rec={ study_name:name, study_type:'controlattr', description:'Öznitelik kontrol grafiği ('+R.chartType+')', status:'calculated',
+    num_operators:1, num_parts:1, num_trials:1, owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
+    is_acceptable:R.interpretation.inControl?'acceptable':'unacceptable',
+    analysis_options:{ controlattr:true, chartType:R.chartType, activeTests:activeTests(), mode:dmode,
+      dData:document.getElementById('dData').value, nData:document.getElementById('nData').value } };
+  var st=document.getElementById('saveState');
+  try{ if(currentId){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',currentId); if(u.error)throw u.error; }
+    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; currentId=r.data.id; history.replaceState(null,'','control-attributes.html?id='+currentId); }
+    if(st) st.innerHTML='<i class="bi bi-cloud-check" style="color:#1e7e4a"></i> Panoya kaydedildi';
+  }catch(e){ if(st) st.innerHTML='<i class="bi bi-cloud-slash" style="color:#c0392b"></i> Kaydedilemedi: '+e.message; }
+}
+async function renameStudy(){ if(!currentId)return; var name=(document.getElementById('studyName').value||'').trim(); if(name){ try{ await MSA.db.from(MSA.T.studies).update({study_name:name}).eq('id',currentId); }catch(e){} } }
+
+function mountJasp(initial){ if(!window.MSA||!MSA.ColAssign) return;
+  jaspCtrl=MSA.ColAssign.mount(document.getElementById('jaspHost'),{
+    roles:[ { key:'defect', label:'Kusurlu / Hata (d)', multi:false, numeric:true, required:true },
+            { key:'total', label:'Örneklem / Birim (n)', multi:false, numeric:true, required:false, hint:'p/np/u için' } ],
+    minRows:15, initial: initial||{ columns:[{name:'Kusurlu',values:[]},{name:'Örneklem',values:[]}] } });
+}
+(async function(){
+  try{ await MSA.currentUser(); }catch(e){}
+  if(!window.controlCalculations){ await loadScript('js/control-calculations.js?v='+Date.now()); }
+  buildTests();
+  var id=MSA.q('id');
+  if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
+    if(q.data){ var o=q.data.analysis_options||{};
+      if(o.chartType){ var rb=document.querySelector('input[name="ct"][value="'+o.chartType+'"]'); if(rb)rb.checked=true; }
+      if(o.activeTests&&o.activeTests.length) buildTests(o.activeTests);
+      document.getElementById('dData').value=o.dData||''; document.getElementById('nData').value=o.nData||'';
+      document.getElementById('studyName').value=q.data.study_name||''; mountJasp(); setMode(o.mode==='col'?'col':'paste');
+      if((o.dData&&o.dData.trim())){ calc(); return; } return;
+    } }
+  mountJasp(); loadExample(); document.getElementById('studyName').value=defaultName(); calc(false);
+})();
+</script>
+</body>
+</html>

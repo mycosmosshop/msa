@@ -219,7 +219,70 @@
   }
   function _jStat(){ if(typeof window!=='undefined'&&window.jStat)return window.jStat; if(typeof jStat!=='undefined')return jStat; return null; }
 
-  const api={ calculateSubgroupChart, calculateIndividualsChart, konst };
+  // ── Control Charts for Attributes (p, np, c, u, Laney p'/u') ─────────────
+  function calculateAttributeChart(defects, sizes, options){
+    options = options || {};
+    const type = options.chartType || 'p';   // p, np, c, u, pprime, uprime
+    const d = (defects||[]).map(Number);
+    let nArr = (sizes||[]).map(Number);
+    const m = d.length;
+    if(m<2) throw new Error('En az 2 alt grup gerekli');
+    if(!nArr.length || nArr.length!==m){ nArr = d.map(()=>1); }   // c/u için Total yoksa 1
+    if(d.some(v=>!isFinite(v)||v<0)) throw new Error('Kusur/hata sayıları ≥ 0 olmalı');
+
+    const sumD = d.reduce((a,b)=>a+b,0), sumN = nArr.reduce((a,b)=>a+b,0);
+    const equalN = nArr.every(x=>x===nArr[0]);
+    const idx = d.map((_,i)=>i+1);
+    let points, CL, UCL, LCL, UCLarr=null, LCLarr=null, varying=false, label, ylabel, note='';
+
+    if(type==='p' || type==='pprime'){
+      const pbar = sumD/sumN;
+      points = d.map((v,i)=>v/nArr[i]);
+      CL = pbar; label = (type==='pprime'?"Laney p′ grafiği":"p grafiği"); ylabel='Oran (p)';
+      let sz=1;
+      if(type==='pprime'){ // aşırı dağılım düzeltmesi: z_i standartlaştır, MR(z)/d2
+        const z = points.map((pi,i)=>{ const s=Math.sqrt(pbar*(1-pbar)/nArr[i]); return s>0?(pi-pbar)/s:0; });
+        let mr=0; for(let i=1;i<m;i++) mr+=Math.abs(z[i]-z[i-1]); mr/=(m-1); sz=mr/1.128; if(!(sz>0)) sz=1;
+        note='σ_z (aşırı dağılım) = '+sz.toFixed(3);
+      }
+      UCLarr = nArr.map(ni=>{ const s=Math.sqrt(pbar*(1-pbar)/ni)*sz; return pbar+3*s; });
+      LCLarr = nArr.map(ni=>{ const s=Math.sqrt(pbar*(1-pbar)/ni)*sz; return Math.max(0,pbar-3*s); });
+      varying = !equalN || type==='pprime';
+      if(!varying){ UCL=UCLarr[0]; LCL=LCLarr[0]; }
+    } else if(type==='np'){
+      if(!equalN) throw new Error('np grafiği sabit örneklem boyutu gerektirir (Total sabit olmalı). Değişken boyut için p grafiği kullanın.');
+      const n0=nArr[0]; const pbar=sumD/sumN; const cl=n0*pbar; const s=Math.sqrt(cl*(1-pbar));
+      points=d.slice(); CL=cl; UCL=cl+3*s; LCL=Math.max(0,cl-3*s); label='np grafiği'; ylabel='Kusurlu sayısı (np)';
+    } else if(type==='c'){
+      const cbar=sumD/m; points=d.slice(); CL=cbar; const s=Math.sqrt(cbar); UCL=cbar+3*s; LCL=Math.max(0,cbar-3*s);
+      label='c grafiği'; ylabel='Hata sayısı (c)';
+      if(!equalN) note='Not: c grafiği sabit inceleme birimi varsayar; birim değişkense u grafiği önerilir.';
+    } else if(type==='u' || type==='uprime'){
+      const ubar=sumD/sumN; points=d.map((v,i)=>v/nArr[i]); CL=ubar; label=(type==='uprime'?"Laney u′ grafiği":"u grafiği"); ylabel='Birim başına hata (u)';
+      let sz=1;
+      if(type==='uprime'){ const z=points.map((ui,i)=>{ const s=Math.sqrt(ubar/nArr[i]); return s>0?(ui-ubar)/s:0; });
+        let mr=0; for(let i=1;i<m;i++) mr+=Math.abs(z[i]-z[i-1]); mr/=(m-1); sz=mr/1.128; if(!(sz>0)) sz=1; note='σ_z (aşırı dağılım) = '+sz.toFixed(3); }
+      UCLarr=nArr.map(ni=>{ const s=Math.sqrt(ubar/ni)*sz; return ubar+3*s; });
+      LCLarr=nArr.map(ni=>{ const s=Math.sqrt(ubar/ni)*sz; return Math.max(0,ubar-3*s); });
+      varying=!equalN || type==='uprime'; if(!varying){ UCL=UCLarr[0]; LCL=LCLarr[0]; }
+    } else throw new Error('Bilinmeyen grafik tipi: '+type);
+
+    // testler
+    let tests;
+    if(varying){ const b=[]; points.forEach((p,i)=>{ if(p>UCLarr[i]+1e-12||p<LCLarr[i]-1e-12) b.push(i+1); }); tests = b.length?{1:b}:{}; }
+    else tests = runTests(points, CL, UCL, LCL);
+    if(options.activeTests && options.activeTests.length){ const set={}; options.activeTests.forEach(t=>set[String(t)]=1); const f={}; Object.keys(tests).forEach(k=>{ if(set[k]) f[k]=tests[k]; }); tests=f; }
+
+    const inControl = !(tests[1]&&tests[1].length);
+    return {
+      chartType:type, kind:(type==='c'||type==='u'||type==='uprime')?'defects':'defectives', varying, note, equalN,
+      studyInfo:{ numSubgroups:m, totalDefects:sumD, totalN:sumN, pbar:(type[0]==='p'?sumD/sumN:null), cbar:(type==='c'?sumD/m:null), ubar:((type==='u'||type==='uprime')?sumD/sumN:null) },
+      chart:{ points, index:idx, CL, UCL, LCL, UCLarr, LCLarr, varying, label, ylabel },
+      tests, interpretation:{ inControl, nOut:(tests[1]?tests[1].length:0) }
+    };
+  }
+
+  const api={ calculateSubgroupChart, calculateIndividualsChart, calculateAttributeChart, konst };
   if(typeof module!=='undefined'&&module.exports) module.exports=api;
   if(typeof window!=='undefined') window.controlCalculations=api;
 })();
