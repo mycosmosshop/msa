@@ -105,8 +105,13 @@ function draw(rb,ra,opts){
     '</tbody></table>'+
     '<div class="exp"><b>Yorum:</b> Yeşil = iyileşme, kırmızı = kötüleşme. Cpk/Ppk arttı ve PPM azaldıysa süreç iyileşmiştir. σ küçüldüyse değişkenlik azalmış demektir. '+
       'Cpk: '+nf(rb.within.cpk)+' → '+nf(ra.within.cpk)+' ('+(ra.within.cpk>rb.within.cpk?'<b class="up">iyileşme</b>':'<b class="down">gerileme</b>')+').</div>'+
-    '<div style="font-weight:600;font-size:12.5px;text-align:center;margin-top:12px">Üst Üste Histogram (Önce gri · Sonra mavi) + Spesifikasyon</div>'+
+    '<div style="font-weight:600;font-size:12.5px;text-align:center;margin-top:12px">Üst Üste Yoğunluk (Önce gri · Sonra mavi) + Spesifikasyon</div>'+
     '<div class="chartbox"><canvas id="cmpHist"></canvas></div>'+
+    '<div style="font-weight:600;font-size:12.5px;text-align:center;margin-top:16px">Ayrı Histogramlar (yan yana)</div>'+
+    '<div class="grid2" style="margin-top:6px">'+
+      '<div><div style="text-align:center;font-weight:700;font-size:12px;color:#5a6b8c">ÖNCE (Baseline)</div><div class="chartbox" style="height:230px"><canvas id="cmpBefore"></canvas></div></div>'+
+      '<div><div style="text-align:center;font-weight:700;font-size:12px;color:var(--good)">SONRA (Current)</div><div class="chartbox" style="height:230px"><canvas id="cmpAfter"></canvas></div></div>'+
+    '</div>'+
     '</div>';
   document.getElementById('report').innerHTML=html;
 
@@ -126,6 +131,23 @@ function draw(rb,ra,opts){
     { type:'line', label:'Önce', data:cb, borderColor:'#8f9bb8', backgroundColor:'rgba(140,150,170,.18)', pointRadius:0, borderWidth:2, tension:0.35, fill:true },
     { type:'line', label:'Sonra', data:ca, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.12)', pointRadius:0, borderWidth:2.4, tension:0.35, fill:true }
   ]}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:10}}, scales:{ x:{type:'linear',min:lo,max:hi,title:{display:true,text:'Ölçüm'}}, y:{title:{display:true,text:'Yoğunluk'},beginAtZero:true} }, plugins:{legend:{display:true,position:'top'}} }, plugins:[specP] }));
+
+  // Ayrı histogramlar (Önce | Sonra) — barlar + normal eğri + spesifikasyon
+  function singleHist(id, r, barColor){
+    var g=r.graph, N=r.studyInfo.N;
+    var hlo=Math.min(g.hist[0].x0, opts.lsl!=null?opts.lsl:g.hist[0].x0), hhi=Math.max(g.hist[g.hist.length-1].x1, opts.usl!=null?opts.usl:g.hist[g.hist.length-1].x1);
+    var bw=g.hist[0].x1-g.hist[0].x0;
+    var curve=[]; for(var i=0;i<=80;i++){ var x=hlo+(hhi-hlo)*i/80; curve.push({x:x, y:Math.exp(-0.5*Math.pow((x-g.mean)/g.sigmaOverall,2))/(g.sigmaOverall*Math.sqrt(2*Math.PI))*N*bw}); }
+    var sp={ id:'sp'+id, afterDatasetsDraw:function(c){ var ctx=c.ctx,xl=c.scales.xLin,y=c.scales.y; if(!xl)return;
+      function vl(v,col,lbl){ if(v==null||!isFinite(v))return; var px=xl.getPixelForValue(v); if(px<xl.left-1||px>xl.right+1)return; ctx.save();ctx.strokeStyle=col;ctx.setLineDash([5,4]);ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(px,y.top+8);ctx.lineTo(px,y.bottom);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=col;ctx.font='bold 9px Segoe UI';ctx.textAlign='center';ctx.fillText(lbl,px,y.top+7);ctx.restore(); }
+      vl(opts.lsl,'#c0392b','LSL'); vl(opts.usl,'#c0392b','USL'); vl(opts.target,'#1e7e4a','Hedef'); } };
+    charts.push(new Chart(document.getElementById(id),{ data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:[
+      { type:'bar', data:g.hist.map(function(b){return b.count;}), backgroundColor:barColor, borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1, barPercentage:1, order:2 },
+      { type:'line', data:curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', pointRadius:0, borderWidth:2, tension:0.35, order:1, xAxisID:'xLin' }
+    ]}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:8}}, scales:{ x:{display:false}, xLin:{type:'linear',display:false,min:hlo,max:hhi}, y:{title:{display:true,text:'Frekans'},beginAtZero:true} }, plugins:{legend:{display:false}} }, plugins:[sp] }));
+  }
+  singleHist('cmpBefore', rb, 'rgba(140,150,170,.5)');
+  singleHist('cmpAfter', ra, 'rgba(37,99,235,.4)');
 }
 
 (async function(){
