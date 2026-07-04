@@ -185,7 +185,8 @@ function drawReport(r){
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.attrCapCalculations){ await loadScript('js/attr-cap-calculations.js?v='+Date.now()); }
-  setMode('binomial');
+  var m=(new URLSearchParams(location.search)).get('mode');
+  setMode(m==='poisson'?'poisson':'binomial');
 })();
 </script>
 </body>
