@@ -166,7 +166,60 @@
     };
   }
 
-  const api={ calculateSubgroupChart, konst };
+  // ── Variables Charts for Individuals (I-MR / X-mR) ──────────────────────
+  function calculateIndividualsChart(values, options){
+    options = options || {};
+    const vals = (values||[]).map(Number).filter(v=>isFinite(v));
+    if(vals.length<4) throw new Error('En az birkaç ölçüm gerekli');
+    const w = Math.max(2, parseInt(options.movingRangeLength,10)||2);   // ≥2 (menzil için)
+    const known = (options.known && (options.known.mean!=null || options.known.sd!=null)) ? options.known : null;
+    const n = vals.length;
+
+    // Hareketli menziller: i=w..n için w ardışık gözlemin menzili
+    const mr=[]; const mrIndex=[];
+    for(let i=w-1;i<n;i++){ const win=vals.slice(i-w+1,i+1); mr.push(Math.max.apply(null,win)-Math.min.apply(null,win)); mrIndex.push(i+1); }
+    const xbar = mean(vals);
+    const MRbar = mean(mr);
+    const kk = konst(w); const d2=kk[2], d3=kk[3], D3=kk[4], D4=kk[5];
+    let sigma = (known && known.sd!=null && isFinite(parseFloat(known.sd))) ? parseFloat(known.sd) : MRbar/d2;
+    const center = (known && known.mean!=null && isFinite(parseFloat(known.mean))) ? parseFloat(known.mean) : xbar;
+
+    const iChart = { points:vals, CL:center, UCL:center+3*sigma, LCL:center-3*sigma, varying:false,
+      warnUCL: options.warningLimits? center+2*sigma:null, warnLCL: options.warningLimits? center-2*sigma:null };
+    const mrCL = known? d2*sigma : MRbar;
+    const mrUCL = known? (d2+3*d3)*sigma : D4*MRbar;
+    const mrLCL = known? Math.max(0,(d2-3*d3)*sigma) : D3*MRbar;
+    const mrChart = { kind:'MR', label:'Hareketli Menzil (MR-'+w+')', points:mr, index:mrIndex, CL:mrCL, UCL:mrUCL, LCL:mrLCL, varying:false };
+
+    let iTests = runTests(vals, iChart.CL, iChart.UCL, iChart.LCL);
+    if(options.activeTests && options.activeTests.length){ const set={}; options.activeTests.forEach(t=>set[String(t)]=1); const f={}; Object.keys(iTests).forEach(k=>{ if(set[k]) f[k]=iTests[k]; }); iTests=f; }
+    const mrBeyond=[]; mr.forEach((p,i)=>{ if(p>mrUCL+1e-12||p<mrLCL-1e-12) mrBeyond.push(mrIndex[i]); });
+
+    // Otokorelasyon (ACF) — opsiyonel
+    let acf=null;
+    if(options.autocorrelation){
+      const L=Math.min(Math.max(1,parseInt(options.lags,10)||25), n-1);
+      const ci=(options.ciLevel!=null&&isFinite(parseFloat(options.ciLevel)))?parseFloat(options.ciLevel):0.95;
+      let denom=0; for(let i=0;i<n;i++) denom+=(vals[i]-xbar)*(vals[i]-xbar);
+      const r=[]; for(let k=1;k<=L;k++){ let num=0; for(let i=0;i<n-k;i++) num+=(vals[i]-xbar)*(vals[i+k]-xbar); r.push({lag:k, r:denom>0?num/denom:0}); }
+      const zc = (function(p){ const js=_jStat&&_jStat(); return 1.959963985; })(); // ~%95 için 1.96; genel: normInv
+      const z = ci===0.95?1.959963985:(ci===0.99?2.5758293:1.959963985);
+      const bound = z/Math.sqrt(n);
+      acf={ points:r, bound, ci };
+    }
+
+    const inControl = !((iTests[1]&&iTests[1].length) || mrBeyond.length);
+    return {
+      chartType:'individuals', movingRangeLength:w, warning:!!options.warningLimits, known:known||null,
+      studyInfo:{ numPoints:n, movingRangeLength:w, xbar, MRbar, sigma, d2 },
+      iChart, mrChart, acf,
+      tests:{ i:iTests, mrBeyond },
+      interpretation:{ inControl, nOut:(iTests[1]?iTests[1].length:0)+mrBeyond.length }
+    };
+  }
+  function _jStat(){ if(typeof window!=='undefined'&&window.jStat)return window.jStat; if(typeof jStat!=='undefined')return jStat; return null; }
+
+  const api={ calculateSubgroupChart, calculateIndividualsChart, konst };
   if(typeof module!=='undefined'&&module.exports) module.exports=api;
   if(typeof window!=='undefined') window.controlCalculations=api;
 })();

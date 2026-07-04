@@ -45,7 +45,7 @@
       <button class="btn primary" onclick="document.getElementById('ddNew').classList.toggle('open');event.stopPropagation();"><i class="bi bi-plus-circle"></i> Yeni Grafik <i class="bi bi-chevron-down"></i></button>
       <div class="ddmenu">
         <a href="control-subgroups.html"><i class="bi bi-activity"></i> <span>Alt Grup Değişken Grafikleri<small>X̄ & R / X̄ & s — alt gruplu ölçüm</small></span></a>
-        <a class="dis" href="#"><i class="bi bi-dash-lg"></i> <span>Bireysel Değişken Grafikleri (I-MR)<small>yakında</small></span></a>
+        <a href="control-individuals.html"><i class="bi bi-graph-up-arrow"></i> <span>Bireysel Değişken Grafikleri (I-MR)<small>X-mR — tek tek ölçüm + otokorelasyon</small></span></a>
         <a class="dis" href="#"><i class="bi bi-dash-lg"></i> <span>Öznitelik Grafikleri (p, np, c, u)<small>yakında</small></span></a>
         <a class="dis" href="#"><i class="bi bi-dash-lg"></i> <span>Zaman Ağırlıklı (EWMA, CUSUM)<small>yakında</small></span></a>
       </div>
@@ -61,19 +61,22 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
   const body=document.getElementById('body');
   try{
     await MSA.currentUser();
-    const { data:studies, error } = await MSA.db.from(MSA.T.studies).select('*').eq('study_type','control').is('copied_from_id',null).order('created_at',{ascending:false});
+    const { data:studies, error } = await MSA.db.from(MSA.T.studies).select('*').in('study_type',['control','individuals']).is('copied_from_id',null).order('created_at',{ascending:false});
     if(error) throw error;
     if(!studies || !studies.length){ body.innerHTML='<div class="empty"><i class="bi bi-activity"></i><div style="font-size:16px;font-weight:600;color:#4a5568">Henüz kontrol grafiği yok</div><div style="margin-top:6px">Sağ üstteki <b>Yeni Grafik</b> ile başlayın.</div></div>'; return; }
     const dt=s=>s.created_at?new Date(s.created_at).toLocaleDateString('tr-TR'):'-';
     body.innerHTML='<div class="grid">'+studies.map(s=>{
-      const o=s.analysis_options||{}; const ct=o.chartType==='xbar-r'?'X̄ & R':'X̄ & s';
+      const o=s.analysis_options||{};
+      const isInd=s.study_type==='individuals';
+      const ct=isInd?'I-MR':(o.chartType==='xbar-r'?'X̄ & R':'X̄ & s');
+      const openUrl=(isInd?'control-individuals.html?id=':'control-subgroups.html?id=')+s.id;
       const ok=(s.is_acceptable==='acceptable'||s.is_acceptable===true);
       const badge=ok?'<span class="badge b-ok">✓ Kontrol altında</span>':'<span class="badge b-bad">✗ Kontrol dışı</span>';
-      const chip='<span style="display:inline-block;background:#667eea;color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px">'+ct+'</span>';
+      const chip='<span style="display:inline-block;background:'+(isInd?'#5e35b1':'#667eea')+';color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px">'+ct+'</span>';
       return '<div class="cardk"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px"><h3 style="margin:0">'+esc(s.study_name)+'</h3>'+chip+'</div>'+
         '<div class="row"><span>Durum</span>'+badge+'</div>'+
         '<div class="row"><span>Tarih</span><strong>'+dt(s)+'</strong></div>'+
-        '<div class="cardacts"><a class="sbtn view" href="control-subgroups.html?id='+s.id+'"><i class="bi bi-box-arrow-up-right"></i> Aç</a>'+
+        '<div class="cardacts"><a class="sbtn view" href="'+openUrl+'"><i class="bi bi-box-arrow-up-right"></i> Aç</a>'+
         '<button class="sbtn del" data-id="'+s.id+'" data-name="'+esc(s.study_name)+'"><i class="bi bi-trash"></i> Sil</button></div></div>';
     }).join('')+'</div>';
     body.querySelectorAll('.sbtn.del').forEach(btn=>btn.addEventListener('click', async ()=>{
