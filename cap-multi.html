@@ -57,6 +57,10 @@
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
       <button class="btn ghost sm" onclick="addVar()"><i class="bi bi-plus"></i> Değişken Ekle</button>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <input id="studyName" placeholder="Çalışma adı (panoya kaydetmek için)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+      <button class="btn primary" onclick="saveStudy()"><i class="bi bi-save"></i> Panoya Kaydet</button>
+    </div>
   </div>
 
   <div id="report"></div>
@@ -126,9 +130,25 @@ function draw(results){
   });
 }
 
+function readVarDefs(){ return [].slice.call(document.querySelectorAll('.vblock')).map(function(b){ return {
+  name:b.querySelector('.vNm').value, lsl:b.querySelector('.vLsl').value, target:b.querySelector('.vTgt').value, usl:b.querySelector('.vUsl').value, sg:b.querySelector('.vSg').value, data:b.querySelector('.vData').value }; }); }
+async function saveStudy(){
+  var defs=readVarDefs().filter(function(v){ return v.data.trim()!==''; }); if(!defs.length){ alert('En az bir değişkende veri girin.'); return; }
+  var name=(document.getElementById('studyName').value||'').trim(); if(!name){ alert('Çalışma adı girin.'); return; }
+  var user={}; try{ user=await MSA.currentUser(); }catch(e){}
+  var rec={ study_name:name, study_type:'multi', description:'Çoklu değişken yeterlilik', status:'calculated',
+    owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null, analysis_options:{ multi:true, vars:defs } };
+  var id=MSA.q('id');
+  try{ if(id){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',id); if(u.error)throw u.error; alert('Güncellendi.'); }
+    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; location.href='cap-multi.html?id='+r.data.id; } }
+  catch(e){ alert('Kayıt hatası: '+e.message); }
+}
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.capCalculations){ await loadScript('js/cap-calculations.js?v='+Date.now()); }
+  var id=MSA.q('id');
+  if(id){ var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
+    if(q.data && q.data.analysis_options && q.data.analysis_options.vars){ document.getElementById('vars').innerHTML=''; q.data.analysis_options.vars.forEach(function(v){ addVar({name:v.name,lsl:v.lsl,target:v.target,usl:v.usl,sg:v.sg,data:v.data}); }); document.getElementById('studyName').value=q.data.study_name||''; calc(); return; } }
   loadExample();
 })();
 </script>

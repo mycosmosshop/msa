@@ -56,6 +56,10 @@
       <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <input id="studyName" placeholder="Çalışma adı (panoya kaydetmek için)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+      <button class="btn primary" onclick="saveStudy()"><i class="bi bi-save"></i> Panoya Kaydet</button>
+    </div>
   </div>
 
   <div id="report"></div>
@@ -120,9 +124,24 @@ function draw(r){
   ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{type:'linear',title:{display:true,text:'Ölçüm'}}, y:{title:{display:true,text:'Teorik nicelik (z)'}} }, plugins:{legend:{display:false}} } }));
 }
 
+async function saveStudy(){
+  var raw=document.getElementById('data').value.trim(); if(raw.split(/[\s,;]+/).filter(function(v){return v!=='';}).length<2){ alert('Yeterli veri girin.'); return; }
+  var name=(document.getElementById('studyName').value||'').trim(); if(!name){ alert('Çalışma adı girin.'); return; }
+  var user={}; try{ user=await MSA.currentUser(); }catch(e){}
+  var rec={ study_name:name, study_type:'tolerance', description:'Tolerans aralığı', status:'calculated',
+    owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
+    analysis_options:{ tolerance:true, data:raw, P:parseFloat(document.getElementById('P').value), C:parseFloat(document.getElementById('C').value) } };
+  var id=MSA.q('id');
+  try{ if(id){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',id); if(u.error)throw u.error; alert('Güncellendi.'); }
+    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; location.href='cap-tolerance.html?id='+r.data.id; } }
+  catch(e){ alert('Kayıt hatası: '+e.message); }
+}
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.toleranceCalculations){ await loadScript('js/tolerance-calculations.js?v='+Date.now()); }
+  var id=MSA.q('id');
+  if(id){ var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
+    if(q.data){ var o=q.data.analysis_options||{}; document.getElementById('data').value=o.data||''; if(o.P!=null)document.getElementById('P').value=o.P; if(o.C!=null)document.getElementById('C').value=o.C; document.getElementById('studyName').value=q.data.study_name||''; calc(); return; } }
   loadExample();
 })();
 </script>

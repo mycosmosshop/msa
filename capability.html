@@ -74,9 +74,17 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
   const body = document.getElementById('body');
   try {
     await MSA.currentUser();
+    const TYPE_META = {
+      capability:{ label:'Yeterlilik', chip:'#667eea' },
+      binomial:{ label:'Binomial', chip:'#0d9488', open:id=>'cap-attributes.html?id='+id },
+      poisson:{ label:'Poisson', chip:'#7b1fa2', open:id=>'cap-attributes.html?id='+id },
+      tolerance:{ label:'Tolerans', chip:'#b7791f', open:id=>'cap-tolerance.html?id='+id },
+      comparison:{ label:'Karşılaştırma', chip:'#2563eb', open:id=>'cap-compare.html?id='+id },
+      multi:{ label:'Çoklu Değişken', chip:'#c0392b', open:id=>'cap-multi.html?id='+id }
+    };
     const { data: studies, error } = await MSA.db.from(MSA.T.studies)
       .select('*')
-      .eq('study_type','capability')
+      .in('study_type', Object.keys(TYPE_META))
       .is('copied_from_id', null)
       .order('created_at', { ascending:false });
     if (error) throw error;
@@ -97,15 +105,23 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
     };
 
     body.innerHTML = '<div class="grid">' + studies.map(s => {
-      const target = s.status === 'calculated' ? 'cap-results.html' : 'cap-data-entry.html';
+      const meta = TYPE_META[s.study_type] || TYPE_META.capability;
+      const chip = `<span style="display:inline-block;background:${meta.chip};color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px">${meta.label}</span>`;
+      const nmeta = (s.study_type==='capability') ? '' : `<div class="row"><span>Tür</span>${chip}</div>`;
+      let acts;
+      if (s.study_type==='capability') {
+        acts = `<a class="sbtn view" href="cap-results.html?id=${s.id}"><i class="bi bi-eye"></i> Sonuçlar</a>
+          <a class="sbtn edit" href="cap-data-entry.html?id=${s.id}"><i class="bi bi-pencil"></i> Veri</a>`;
+      } else {
+        acts = `<a class="sbtn view" href="${meta.open(s.id)}"><i class="bi bi-box-arrow-up-right"></i> Aç</a>`;
+      }
       return `<div class="cardk">
-        <h3>${MSA.esc ? MSA.esc(s.study_name) : (s.study_name||'')}</h3>
-        <div class="row"><span>Durum</span>${badge(s)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><h3 style="margin:0">${MSA.esc ? MSA.esc(s.study_name) : (s.study_name||'')}</h3>${s.study_type!=='capability'?chip:''}</div>
+        ${s.study_type==='capability' ? `<div class="row"><span>Durum</span>${badge(s)}</div>` : ''}
         ${s.characteristic ? `<div class="row"><span>Karakteristik</span><strong>${s.characteristic}</strong></div>` : ''}
         <div class="row"><span>Tarih</span><strong>${dt(s)}</strong></div>
         <div class="cardacts">
-          <a class="sbtn view" href="cap-results.html?id=${s.id}"><i class="bi bi-eye"></i> Sonuçlar</a>
-          <a class="sbtn edit" href="cap-data-entry.html?id=${s.id}"><i class="bi bi-pencil"></i> Veri</a>
+          ${acts}
           <button class="sbtn del" data-id="${s.id}" data-name="${(s.study_name||'').replace(/"/g,'&quot;')}"><i class="bi bi-trash"></i> Sil</button>
         </div>
       </div>`;

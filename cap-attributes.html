@@ -66,6 +66,10 @@
       <button class="btn ghost" onclick="clearRows()"><i class="bi bi-x-circle"></i> Temizle</button>
     </div>
     <div class="exp" style="margin-top:10px"><b>Hedef (opsiyonel):</b> <input type="number" id="target" step="any" style="width:110px;padding:5px 8px;border:1px solid var(--line);border-radius:7px" placeholder="ör. 2"> <span id="targetUnit"></span></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+      <input id="studyName" placeholder="Çalışma adı (panoya kaydetmek için)" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+      <button class="btn primary" onclick="saveStudy()"><i class="bi bi-save"></i> Panoya Kaydet</button>
+    </div>
   </div>
 
   <div id="report"></div>
@@ -182,11 +186,37 @@ function drawReport(r){
   ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:unit}}, y:{title:{display:true,text:'Frekans'},beginAtZero:true} }, plugins:{legend:{display:false}} } }));
 }
 
+async function saveStudy(){
+  var rows=readRows(); if(rows.length<2){ alert('En az 2 geçerli alt grup girin.'); return; }
+  var name=(document.getElementById('studyName').value||'').trim(); if(!name){ alert('Çalışma adı girin.'); return; }
+  var tgt=document.getElementById('target').value;
+  var rowsData=rows.map(function(r){ return MODE==='binomial'?[r.n,r.d]:[r.n,r.c]; });
+  var user={}; try{ user=await MSA.currentUser(); }catch(e){}
+  var rec={ study_name:name, study_type:MODE, description:(MODE==='binomial'?'Binomial':'Poisson')+' yeterlilik (nitel)', status:'calculated',
+    owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
+    analysis_options:{ attr:true, mode:MODE, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) } };
+  var id=MSA.q('id');
+  try{
+    if(id){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',id); if(u.error)throw u.error; alert('Güncellendi.'); }
+    else { var r=await MSA.db.from(MSA.T.studies).insert(rec).select('id').single(); if(r.error)throw r.error; location.href='cap-attributes.html?id='+r.data.id; }
+  }catch(e){ alert('Kayıt hatası: '+e.message); }
+}
+async function loadSaved(id){
+  var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
+  if(q.error||!q.data){ setMode('binomial'); return; }
+  var s=q.data, opt=s.analysis_options||{};
+  setMode(s.study_type==='poisson'?'poisson':'binomial');
+  if(opt.rows && opt.rows.length){ render(opt.rows); }
+  if(opt.target!=null) document.getElementById('target').value=opt.target;
+  document.getElementById('studyName').value=s.study_name||'';
+  calc();
+}
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.attrCapCalculations){ await loadScript('js/attr-cap-calculations.js?v='+Date.now()); }
-  var m=(new URLSearchParams(location.search)).get('mode');
-  setMode(m==='poisson'?'poisson':'binomial');
+  var id=MSA.q('id');
+  if(id){ await loadSaved(id); }
+  else { var m=(new URLSearchParams(location.search)).get('mode'); setMode(m==='poisson'?'poisson':'binomial'); }
 })();
 </script>
 </body>
