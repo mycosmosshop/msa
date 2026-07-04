@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Nitel Yeterlilik (Binomial / Poisson)</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2;--good:#1e7e4a;--gbg:#eaf6ef;--bad:#c0392b}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1060px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:16px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .hdr h1{margin:0;font-size:20px} .hdr p{margin:3px 0 0;opacity:.9;font-size:12.5px}
+  .btn{border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b} .btn.ok{background:#1e7e4a;color:#fff} .btn.wht{background:#fff;color:var(--p)}
+  .card{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(30,40,70,.07);padding:16px 18px;margin:14px 0}
+  .card h2{margin:0 0 6px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .tabs{display:flex;gap:8px;margin:14px 0}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;color:#5a6b8c}
+  .tab.on{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-color:transparent}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:8px 0;line-height:1.55}
+  table.dt{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;max-width:520px}
+  table.dt th,table.dt td{border:1px solid var(--line);padding:0}
+  table.dt thead th{background:#eef1f8;color:#41506b;font-size:12px;padding:7px 8px}
+  table.dt tbody th{background:#f5f7fb;color:#6b7280;font-size:11.5px;font-weight:700;padding:4px 9px;text-align:right}
+  table.dt input{width:100%;min-width:80px;border:0;outline:0;background:transparent;text-align:center;padding:8px 4px;font-size:13px;font-family:inherit}
+  table.dt input:focus{background:#eaf1ff;box-shadow:inset 0 0 0 2px var(--p)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .grid4{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:780px){.grid4{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .panel .pt{font-weight:700;font-size:13px;text-align:center;color:#39415a;margin-bottom:4px}
+  .chartbox{position:relative;height:210px}
+  .summ{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:6px}
+  .kv{background:#f8f9fd;border-radius:9px;padding:9px 12px} .kv b{display:block;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px} .kv span{font-size:17px;font-weight:700}
+  .verdict{padding:8px 13px;border-radius:9px;font-weight:700;font-size:13px;display:inline-flex;gap:7px;align-items:center;margin-top:8px}
+  .verdict.good{background:var(--gbg);color:var(--good)} .verdict.bad{background:#fdecea;color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-check2-square"></i> Nitel / Sayılabilir Yeterlilik</h1>
+      <p>Binomial (Geçti/Kaldı — kusurlu oranı) · Poisson (birim başına hata — DPU)</p></div>
+    <a class="btn ghost" href="capability.html" style="background:rgba(255,255,255,.2);color:#fff"><i class="bi bi-arrow-left"></i> Pano</a>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabBin" onclick="setMode('binomial')">Binomial (Kusurlu / Defective)</button>
+    <button class="tab" id="tabPoi" onclick="setMode('poisson')">Poisson (Hata Sayısı / Defects)</button>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-table i"></i> Veri Girişi</h2>
+    <div class="exp" id="modeDesc"></div>
+    <table class="dt"><thead><tr><th style="width:70px">Alt Grup</th><th id="colN">Örnek Boyutu (n)</th><th id="colV">Kusurlu (d)</th></tr></thead><tbody id="dtbody"></tbody></table>
+    <div class="acts">
+      <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
+      <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
+      <button class="btn ghost" onclick="addRow()"><i class="bi bi-plus"></i> Satır Ekle</button>
+      <button class="btn ghost" onclick="clearRows()"><i class="bi bi-x-circle"></i> Temizle</button>
+    </div>
+    <div class="exp" style="margin-top:10px"><b>Hedef (opsiyonel):</b> <input type="number" id="target" step="any" style="width:110px;padding:5px 8px;border:1px solid var(--line);border-radius:7px" placeholder="ör. 2"> <span id="targetUnit"></span></div>
+  </div>
+
+  <div id="report"></div>
+</div>
+
+<script>
+var MODE='binomial';
+var EXAMPLES={
+  binomial:[[101,3],[97,2],[110,5],[95,1],[104,4],[99,3],[108,2],[102,6],[96,2],[105,3],[100,4],[103,1],[98,3],[107,5],[94,2],[109,4],[100,2],[106,3],[93,1],[100,4]],
+  poisson:[[1,3],[1.2,5],[0.9,2],[1.1,4],[1,6],[1.3,3],[0.8,4],[1,2],[1.1,5],[1,3],[0.9,4],[1.2,7],[1,2],[1.1,3],[1,5],[0.9,4],[1.2,6],[1,3],[1.1,2],[1,4]]
+};
+var charts=[];
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error(src));};document.head.appendChild(s);});}
+
+function setMode(m){
+  MODE=m;
+  document.getElementById('tabBin').classList.toggle('on',m==='binomial');
+  document.getElementById('tabPoi').classList.toggle('on',m==='poisson');
+  document.getElementById('colN').textContent = m==='binomial'?'Örnek Boyutu (n)':'Birim / Alan (n)';
+  document.getElementById('colV').textContent = m==='binomial'?'Kusurlu (d)':'Hata Sayısı (c)';
+  document.getElementById('modeDesc').innerHTML = m==='binomial'
+    ? '<b>Binomial:</b> Her alt grupta belirli sayıda (n) ürün kontrol edilir; kaçının <b>kusurlu</b> (Geçti/Kaldı) olduğu (d) girilir. Kusurlu oranı (p), <b>PPM</b> ve <b>Süreç Z</b> raporlanır.'
+    : '<b>Poisson:</b> Her alt grupta belirli bir <b>birim/alan</b> (n — ör. rulo, m², adet) incelenir; toplam <b>hata sayısı</b> (c) girilir. Birim başına ortalama hata <b>DPU</b> raporlanır.';
+  document.getElementById('targetUnit').textContent = m==='binomial'?'(% kusurlu)':'(DPU)';
+  loadExample();
+}
+function rowHTML(i,n,v){ return '<tr><th>'+(i+1)+'</th><td><input class="rn" value="'+(n==null?'':n)+'" inputmode="decimal"></td><td><input class="rv" value="'+(v==null?'':v)+'" inputmode="numeric"></td></tr>'; }
+function render(rows){ document.getElementById('dtbody').innerHTML=rows.map(function(r,i){return rowHTML(i,r[0],r[1]);}).join(''); }
+function loadExample(){ render(EXAMPLES[MODE]); document.getElementById('target').value = MODE==='binomial'?'2':'3'; }
+function addRow(){ var b=document.getElementById('dtbody'); var i=b.children.length; b.insertAdjacentHTML('beforeend', rowHTML(i,'','')); }
+function clearRows(){ var rows=[]; for(var i=0;i<15;i++)rows.push(['','']); render(rows); }
+function readRows(){ var out=[]; var trs=document.querySelectorAll('#dtbody tr'); trs.forEach(function(tr){ var n=parseFloat(tr.querySelector('.rn').value); var v=parseFloat(tr.querySelector('.rv').value); if(isFinite(n)&&isFinite(v)) out.push(MODE==='binomial'?{n:n,d:v}:{n:n,c:v}); }); return out; }
+
+function calc(){
+  var rows=readRows();
+  if(rows.length<2){ alert('En az 2 geçerli alt grup girin.'); return; }
+  var tgt=document.getElementById('target').value;
+  var opts={ target: tgt!==''?parseFloat(tgt):null };
+  var r;
+  try{ r = MODE==='binomial' ? window.attrCapCalculations.binomialCapability(rows,opts) : window.attrCapCalculations.poissonCapability(rows,opts); }
+  catch(e){ alert('Hata: '+e.message); return; }
+  drawReport(r);
+}
+
+function hist(vals,bins){ var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals); if(mx===mn){mx=mn+1;mn=mn-1;} var bw=(mx-mn)/bins; var h=[]; for(var i=0;i<bins;i++){var a=mn+i*bw,b=a+bw; h.push({mid:(a+b)/2,count:vals.filter(function(v){return v>=a&&(i===bins-1?v<=b:v<b);}).length});} return h; }
+
+function drawReport(r){
+  charts.forEach(function(c){try{c.destroy();}catch(e){}}); charts=[];
+  var isBin=r.type==='binomial';
+  var chartVals=isBin?r.pchart:r.uchart;
+  var yKey=isBin?'p':'u';
+  var unit=isBin?'% Kusurlu':'DPU';
+  var xs=chartVals.map(function(p){return p.x;});
+  // Özet
+  var summ, verdict;
+  if(isBin){
+    summ='<div class="kv"><b>% Kusurlu</b><span>'+r.pct.toFixed(3)+'%</span></div>'+
+      '<div class="kv"><b>%95 GA</b><span style="font-size:14px">'+r.ciLo.toFixed(2)+' – '+r.ciHi.toFixed(2)+'%</span></div>'+
+      '<div class="kv"><b>PPM (kusurlu)</b><span>'+Math.round(r.ppm).toLocaleString('tr-TR')+'</span></div>'+
+      '<div class="kv"><b>Süreç Z</b><span>'+r.Zbench.toFixed(3)+'</span></div>'+
+      '<div class="kv"><b>Alt grup / Toplam n</b><span style="font-size:14px">'+r.N+' / '+r.totalN+'</span></div>'+
+      '<div class="kv"><b>Toplam kusurlu</b><span>'+r.totalD+'</span></div>';
+  } else {
+    summ='<div class="kv"><b>Ort. DPU</b><span>'+r.ubar.toFixed(4)+'</span></div>'+
+      '<div class="kv"><b>%95 GA</b><span style="font-size:14px">'+r.ciLo.toFixed(3)+' – '+r.ciHi.toFixed(3)+'</span></div>'+
+      '<div class="kv"><b>Min / Maks DPU</b><span style="font-size:14px">'+r.minDPU.toFixed(2)+' / '+r.maxDPU.toFixed(2)+'</span></div>'+
+      '<div class="kv"><b>DPMO</b><span>'+Math.round(r.dpmo).toLocaleString('tr-TR')+'</span></div>'+
+      '<div class="kv"><b>Alt grup / Toplam birim</b><span style="font-size:14px">'+r.N+' / '+(+r.totalN.toFixed(1))+'</span></div>'+
+      '<div class="kv"><b>Toplam hata</b><span>'+r.totalC+'</span></div>';
+  }
+  verdict = r.anyOOC
+    ? '<div class="verdict bad"><i class="bi bi-exclamation-triangle-fill"></i> Süreç KARARSIZ — bazı noktalar kontrol sınırları dışında. Yeterlilik tahmini güvenilmez; önce özel sebepleri giderin.</div>'
+    : '<div class="verdict good"><i class="bi bi-check-circle-fill"></i> Süreç kararlı — tüm noktalar kontrol sınırları içinde. '+(isBin?'Kusurlu oranı':'DPU')+' tahmini geçerli.</div>';
+
+  document.getElementById('report').innerHTML =
+    '<div class="card"><h2><i class="bi bi-grid-3x3-gap-fill i"></i> '+(isBin?'Binomial':'Poisson')+' Yeterlilik Raporu</h2>'+
+    '<div class="grid4">'+
+      '<div class="panel"><div class="pt">'+(isBin?'P Kartı (%kusurlu)':'U Kartı (DPU)')+'</div><div class="chartbox"><canvas id="cCtrl"></canvas></div></div>'+
+      '<div class="panel"><div class="pt">'+(isBin?'Kümülatif %Kusurlu':'Kümülatif DPU')+'</div><div class="chartbox"><canvas id="cCum"></canvas></div></div>'+
+      '<div class="panel"><div class="pt">'+(isBin?'%Kusurlu — Örnek Boyutuna Göre':'DPU — Örnek Boyutuna Göre')+'</div><div class="chartbox"><canvas id="cBySize"></canvas></div></div>'+
+      '<div class="panel"><div class="pt">Histogram ('+unit+')</div><div class="chartbox"><canvas id="cHist"></canvas></div></div>'+
+    '</div>'+
+    verdict+
+    '<div class="summ">'+summ+'</div>'+
+    '<div class="exp" style="margin-top:12px"><b>Nasıl okunur:</b> <b>Kontrol kartı</b> süreç kararlılığını gösterir (noktalar sınır içinde olmalı). <b>Kümülatif</b> eğri düz bir değere yakınsıyorsa yeterli veri toplanmıştır. <b>Örnek boyutuna göre</b> grafikte bir eğim/örüntü varsa '+(isBin?'binom':'Poisson')+' varsayımı zayıftır. <b>Histogram</b> alt grup '+unit.toLowerCase()+' dağılımıdır.'+(r.target!=null?' Hedef çizgisi = '+r.target+'.':'')+'</div>'+
+    '</div>';
+
+  // 1) Kontrol kartı (P veya U) — n'e göre değişen sınırlar
+  var ptColors=chartVals.map(function(p){return p.ooc?'#c0392b':'#667eea';});
+  charts.push(new Chart(document.getElementById('cCtrl'),{ data:{ labels:xs, datasets:[
+    { type:'line', label:unit, data:chartVals.map(function(p){return p[yKey];}), borderColor:'#667eea', backgroundColor:ptColors, pointBackgroundColor:ptColors, pointRadius:3, borderWidth:1.7, tension:0 },
+    { type:'line', label:'UCL', data:chartVals.map(function(p){return p.ucl;}), borderColor:'#c0392b', borderDash:[5,4], pointRadius:0, borderWidth:1.2, stepped:true },
+    { type:'line', label:'CL', data:chartVals.map(function(p){return p.cl;}), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.2 },
+    { type:'line', label:'LCL', data:chartVals.map(function(p){return p.lcl;}), borderColor:'#c0392b', borderDash:[5,4], pointRadius:0, borderWidth:1.2, stepped:true }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:'Alt grup'}}, y:{title:{display:true,text:unit}} }, plugins:{legend:{display:false}} } }));
+
+  // 2) Kümülatif
+  charts.push(new Chart(document.getElementById('cCum'),{ data:{ labels:r.cum.map(function(p){return p.x;}), datasets:[
+    { type:'line', label:'Kümülatif', data:r.cum.map(function(p){return p.cum;}), borderColor:'#764ba2', pointRadius:2, borderWidth:2, tension:0.15 },
+    { type:'line', label:'Nihai', data:r.cum.map(function(){return isBin?r.pct:r.ubar;}), borderColor:'#1e7e4a', borderDash:[5,4], pointRadius:0, borderWidth:1.2 }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:'Alt grup'}}, y:{title:{display:true,text:unit}} }, plugins:{legend:{display:false}} } }));
+
+  // 3) Örnek boyutuna göre
+  var bs=(isBin?r.bySize:r.bySize);
+  charts.push(new Chart(document.getElementById('cBySize'),{ data:{ datasets:[
+    { type:'scatter', data:bs.map(function(p){return {x:p.x,y:p.y};}), pointRadius:3.2, pointBackgroundColor:'rgba(90,110,150,.6)' }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{type:'linear',title:{display:true,text:'Örnek boyutu (n)'}}, y:{title:{display:true,text:unit}} }, plugins:{legend:{display:false}} } }));
+
+  // 4) Histogram
+  var vals=isBin?r.ps:r.us;
+  var h=hist(vals, Math.min(Math.max(Math.ceil(Math.sqrt(vals.length)),5),12));
+  charts.push(new Chart(document.getElementById('cHist'),{ data:{ labels:h.map(function(b){return b.mid.toFixed(isBin?1:2);}), datasets:[
+    { type:'bar', data:h.map(function(b){return b.count;}), backgroundColor:'rgba(120,130,150,.5)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1, barPercentage:1 }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:unit}}, y:{title:{display:true,text:'Frekans'},beginAtZero:true} }, plugins:{legend:{display:false}} } }));
+}
+
+(async function(){
+  try{ await MSA.currentUser(); }catch(e){}
+  if(!window.attrCapCalculations){ await loadScript('js/attr-cap-calculations.js?v='+Date.now()); }
+  setMode('binomial');
+})();
+</script>
+</body>
+</html>
