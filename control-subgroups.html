@@ -64,6 +64,7 @@
 
     <div class="opts" style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
       <label class="optlbl">Alt grup boyutu <input type="number" id="sg" value="5" min="2" max="25"></label>
+      <span id="sgWarn" style="display:none;color:#c0392b;font-size:12px;background:#fdecea;border:1px solid #f5c6c0;border-radius:7px;padding:4px 9px"></span>
       <span style="font-weight:700;color:#39415a;font-size:12.5px">Grafik:</span>
       <label class="optlbl"><input type="radio" name="ct" value="xbar-s" checked> X̄ & s</label>
       <label class="optlbl"><input type="radio" name="ct" value="xbar-r"> X̄ & R</label>
@@ -98,6 +99,15 @@ function setMode(m){ dmode=m;
 }
 document.getElementById('useKnown').addEventListener('change',function(){ document.getElementById('kMean').disabled=!this.checked; document.getElementById('kSd').disabled=!this.checked; });
 
+// Alt grup boyutu doğrulaması (JASP gibi ≥2, geçersizde son geçerliye dön)
+var lastSg=5, sgWarnTimer=null;
+function sgWarn(msg){ var w=document.getElementById('sgWarn'); if(!w)return; w.textContent=msg; w.style.display=''; clearTimeout(sgWarnTimer); sgWarnTimer=setTimeout(function(){ w.style.display='none'; },3500); }
+function validateSg(){ var el=document.getElementById('sg'); var raw=el.value.trim(); var v=parseInt(raw,10);
+  if(raw===''||!isFinite(v)||v<2){ sgWarn('Değer ≥ 2 olmalı. Son geçerli değere döndürüldü: '+lastSg); el.value=lastSg; return false; }
+  if(v>25){ sgWarn('En fazla 25 olabilir. Son geçerli değere döndürüldü: '+lastSg); el.value=lastSg; return false; }
+  lastSg=v; el.value=v; return true; }
+(function(){ var el=document.getElementById('sg'); if(el){ el.addEventListener('change',validateSg); el.addEventListener('blur',validateSg); } })();
+
 function loadExample(){
   // 20 alt grup x 5, kontrol altında + birkaç kayma
   var s=1; function rnd(){ s=(s*9301+49297)%233280; return s/233280; }
@@ -120,6 +130,7 @@ function readData(){
 
 function calc(doSave){
   if(doSave===undefined) doSave=true;
+  validateSg();
   var d;
   try{ d=readData(); }catch(e){ if(doSave) alert(e.message); return; }
   if(d.values.length<4){ if(doSave) alert('En az birkaç ölçüm girin.'); return; }
@@ -220,7 +231,7 @@ function mountJasp(initial){
   if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
     if(q.data){ var o=q.data.analysis_options||{};
       if(o.chartType){ var rb=document.querySelector('input[name="ct"][value="'+o.chartType+'"]'); if(rb)rb.checked=true; }
-      if(o.subgroupSize) document.getElementById('sg').value=o.subgroupSize;
+      if(o.subgroupSize){ document.getElementById('sg').value=o.subgroupSize; lastSg=parseInt(o.subgroupSize,10)||5; }
       document.getElementById('warn').checked=!!o.warning;
       if(o.useKnown){ document.getElementById('useKnown').checked=true; document.getElementById('kMean').disabled=false; document.getElementById('kSd').disabled=false; document.getElementById('kMean').value=o.kMean||''; document.getElementById('kSd').value=o.kSd||''; }
       document.getElementById('data').value=o.data||'';
