@@ -49,7 +49,7 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       useUnbiasing: qp('unbias', '1') !== '0',
       ciLevel: parseFloat(qp('ci', 90)),
       sigmaMult: parseFloat(qp('sigma', 3)),
-      distribution: qp('dist', 'normal'),
+      distribution: qp('dist', opts.distribution || 'normal'),
       controlChart: qp('chart', 'auto'),
       bins: qp('bins', null),
       nonNormalMethod: qp('nnmethod', 'percentile'),
@@ -76,7 +76,7 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       }).eq('id', studyId);
     } catch (e) { console.warn('özet kaydedilemedi', e); }
 
-    const showSixpack = qp('sixpack','0') === '1';
+    const showSixpack = qp('sixpack', opts.sixpack ? '1' : '0') === '1';
     await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, sixpack: showSixpack, branding: MSA.BRANDING });
   } catch (error) {
     console.error('Capability sonuç hatası:', error);
