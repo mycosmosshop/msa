@@ -285,18 +285,45 @@
   // ── Time Weighted Charts (CUSUM, EWMA) ──────────────────────────────────
   function calculateTimeWeighted(values, options){
     options = options || {};
-    const x = (values||[]).map(Number).filter(v=>isFinite(v));
-    const n = x.length;
-    if(n<4) throw new Error('En az birkaç ölçüm gerekli');
+    const raw = (values||[]).map(Number).filter(v=>isFinite(v));
+    if(raw.length<4) throw new Error('En az birkaç ölçüm gerekli');
     const w = Math.max(2, parseInt(options.movingRangeLength,10)||2);
-    const xbar = mean(x);
-    // σ tahmini (X-mR): MR̄/d2
-    let mrsum=0; for(let i=w-1;i<n;i++){ const win=x.slice(i-w+1,i+1); mrsum+=Math.max.apply(null,win)-Math.min.apply(null,win); }
-    const MRbar = mrsum/(n-w+1);
-    const d2 = konst(w)[2];
-    const sigma = (options.known && options.known.sd!=null && isFinite(parseFloat(options.known.sd))) ? parseFloat(options.known.sd) : MRbar/d2;
 
-    const out = { studyInfo:{ numPoints:n, xbar, MRbar, sigma, movingRangeLength:w } };
+    // Alt grup belirleme
+    let groups=[];
+    if(options.groups && options.groups.length===raw.length){
+      const gm = options.groupingMethod==='change'?'change':'same';
+      if(gm==='change'){ let cur=null,lab=null; for(let i=0;i<raw.length;i++){ const g=String(options.groups[i]); if(cur===null||g!==lab){cur={values:[]};groups.push(cur);lab=g;} cur.values.push(raw[i]); } }
+      else { const order=[],map={}; for(let i=0;i<raw.length;i++){ const g=String(options.groups[i]); if(!map[g]){map[g]=[];order.push(g);} map[g].push(raw[i]); } groups=order.map(g=>({values:map[g]})); }
+    } else if(options.subgroupSize && parseInt(options.subgroupSize,10)>1){
+      const sz=parseInt(options.subgroupSize,10); for(let i=0;i<raw.length;i+=sz){ const v=raw.slice(i,i+sz); if(v.length) groups.push({values:v}); }
+    } else { groups = raw.map(v=>({values:[v]})); }  // n=1
+
+    const series = groups.map(g=>mean(g.values));    // CUSUM/EWMA'nın izlediği istatistik
+    const n = series.length;
+    if(n<4) throw new Error('En az birkaç alt grup gerekli');
+    const sizes = groups.map(g=>g.values.length);
+    const nsub = Math.round(mean(sizes));
+    const individual = nsub===1;
+    const method = options.stdDevMethod || (individual?'xmr':'sbar');
+
+    // sigmaStat = çizilen istatistiğin standart hatası
+    const xbar = groups.reduce((s,g)=>s+mean(g.values)*g.values.length,0)/sizes.reduce((a,b)=>a+b,0);
+    let sigmaStat, sigmaProc, MRbar=null;
+    function mrOf(arr){ let s=0; for(let i=w-1;i<arr.length;i++){ const win=arr.slice(i-w+1,i+1); s+=Math.max.apply(null,win)-Math.min.apply(null,win); } return s/(arr.length-w+1); }
+    if(options.known && options.known.sd!=null && isFinite(parseFloat(options.known.sd))){
+      sigmaProc=parseFloat(options.known.sd); sigmaStat=sigmaProc/Math.sqrt(nsub);
+    } else if(method==='sbar' && !individual){
+      const sbar=mean(groups.map(g=>sd(g.values))); const c4=konst(nsub)[6]; sigmaProc=sbar/c4; sigmaStat=sigmaProc/Math.sqrt(nsub);
+    } else if(method==='rbar' && !individual){
+      const rbar=mean(groups.map(g=>Math.max.apply(null,g.values)-Math.min.apply(null,g.values))); const d2r=konst(nsub)[2]; sigmaProc=rbar/d2r; sigmaStat=sigmaProc/Math.sqrt(nsub);
+    } else { // xmr (n=1 → bireyler; alt grup → ortalamaların MR'si)
+      MRbar=mrOf(series); const d2=konst(w)[2]; sigmaStat=MRbar/d2; sigmaProc=sigmaStat*Math.sqrt(nsub);
+    }
+    const sigma = sigmaStat;   // aşağıdaki CUSUM/EWMA sigmaStat kullanır
+    const x = series;
+
+    const out = { studyInfo:{ numPoints:n, subgroupSize: individual?1:('~'+nsub), stdDevMethod:method, xbar, MRbar, sigma:sigmaStat, sigmaProc, movingRangeLength:w } };
 
     // CUSUM (standartlaştırılmış, tabular)
     if(options.cusum!==false){

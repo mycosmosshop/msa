@@ -55,7 +55,16 @@
     </div>
     <div id="mPaste"><div class="exp">Ölçümleri gözlem sırasıyla yapıştırın (boşluk/virgül/satır). Bireysel gözlem (n=1).</div>
       <textarea id="data" placeholder="ör. 10.0 9.8 10.2 9.9 ..."></textarea></div>
-    <div id="mCol" style="display:none"><div class="exp">Ölçümleri sütuna girip <b>Ölçüm</b> kutusuna sürükleyin.</div><div id="jaspHost"></div></div>
+    <div id="mCol" style="display:none"><div class="exp">Ölçümleri sütuna girip <b>Ölçüm</b> kutusuna sürükleyin (gruplama değişkeni için opsiyonel <b>Alt Grup</b> sütunu).</div><div id="jaspHost"></div></div>
+
+    <div class="opts" style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+      <span style="font-weight:700;color:#39415a;font-size:12.5px">Alt grup:</span>
+      <label class="optlbl"><input type="radio" name="submode" value="none" checked onchange="onSubMode()"> Yok (n=1)</label>
+      <label class="optlbl"><input type="radio" name="submode" value="size" onchange="onSubMode()"> Boyut <input type="number" id="twSg" value="5" min="2" max="25" disabled></label>
+      <label class="optlbl"><input type="radio" name="submode" value="grouping" onchange="onSubMode()"> Gruplama değişkeni</label>
+      <label class="optlbl">Yöntem <select id="gmethod" disabled style="padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-weight:400"><option value="same">Aynı değer</option><option value="change">Değer değişince</option></select></label>
+      <label class="optlbl">σ yöntemi <select id="sdMethod" style="padding:5px 7px;border:1px solid var(--line);border-radius:7px;font-weight:400"><option value="xmr">X-mR</option><option value="sbar">S-bar</option><option value="rbar">R-bar</option></select></label>
+    </div>
 
     <div class="grp">
       <label class="t"><input type="checkbox" id="cCusum" checked> Kümülatif Toplam (CUSUM)</label>
@@ -97,6 +106,14 @@ function nf(x,d){ if(x==null||!isFinite(x))return '—'; return Number(x).toFixe
 function setMode(m){ dmode=m; document.getElementById('mPaste').style.display=m==='paste'?'':'none'; document.getElementById('mCol').style.display=m==='col'?'':'none';
   document.getElementById('tabPaste').classList.toggle('on',m==='paste'); document.getElementById('tabCol').classList.toggle('on',m==='col'); }
 document.getElementById('useKnown').addEventListener('change',function(){ document.getElementById('kSd').disabled=!this.checked; });
+function subMode(){ return (document.querySelector('input[name="submode"]:checked')||{}).value||'none'; }
+function onSubMode(){ var m=subMode();
+  document.getElementById('twSg').disabled=(m!=='size');
+  document.getElementById('gmethod').disabled=(m!=='grouping');
+  var sd=document.getElementById('sdMethod'); var opt=sd.querySelectorAll('option');
+  if(m==='none'){ opt.forEach(function(o){ o.disabled=(o.value!=='xmr'); }); sd.value='xmr'; }
+  else { opt.forEach(function(o){ o.disabled=false; }); if(sd.value==='xmr') sd.value='sbar'; }
+}
 
 var lastMrl=2, mrlTimer=null;
 function mrlWarn(msg){ var w=document.getElementById('mrlWarn'); if(!w)return; w.textContent=msg; w.style.display=''; clearTimeout(mrlTimer); mrlTimer=setTimeout(function(){w.style.display='none';},4000); }
@@ -112,20 +129,29 @@ function loadExample(){
 }
 function readData(){
   if(dmode==='col' && jaspCtrl){ var v=jaspCtrl.validate(); if(!v.ok) throw new Error(v.msg);
-    var M=jaspCtrl.role('measurement')[0], n=jaspCtrl.rowCount(), num=jaspCtrl.num, vals=[]; for(var r=0;r<n;r++){ var x=num(M.values[r]); if(x!=null) vals.push(x); } return vals; }
-  return document.getElementById('data').value.trim().split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
+    var M=jaspCtrl.role('measurement')[0], G=jaspCtrl.role('subgroup')[0], n=jaspCtrl.rowCount(), num=jaspCtrl.num, vals=[], groups=[];
+    for(var r=0;r<n;r++){ var x=num(M.values[r]); if(x==null) continue; vals.push(x); if(G) groups.push(String(G.values[r]==null?'':G.values[r])); }
+    return { vals:vals, groups: G?groups:null };
+  }
+  return { vals: document.getElementById('data').value.trim().split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);}), groups:null };
 }
 
 function calc(doSave){
   if(doSave===undefined) doSave=true;
   validateMrl();
-  var vals; try{ vals=readData(); }catch(e){ if(doSave) alert(e.message); return; }
-  if(vals.length<4){ if(doSave) alert('En az birkaç ölçüm girin.'); return; }
+  var dd; try{ dd=readData(); }catch(e){ if(doSave) alert(e.message); return; }
+  if(dd.vals.length<4){ if(doSave) alert('En az birkaç ölçüm girin.'); return; }
+  var sm=subMode();
+  if(sm==='grouping' && !dd.groups){ if(doSave) alert('Gruplama değişkeni için Sütun Ata modunda Alt Grup sütunu atayın.'); return; }
   var opts={ cusum:document.getElementById('cCusum').checked, ewma:document.getElementById('cEwma').checked,
     cusumH:parseFloat(document.getElementById('cH').value)||4, shiftSize:parseFloat(document.getElementById('cShift').value)||0.5,
     target:document.getElementById('cTarget').value, ewmaUseTarget:false,
     ewmaL:parseFloat(document.getElementById('eL').value)||3, lambda:parseFloat(document.getElementById('eLambda').value)||0.3,
-    movingRangeLength:parseInt(document.getElementById('mrl').value,10)||2 };
+    movingRangeLength:parseInt(document.getElementById('mrl').value,10)||2,
+    subgroupSize: sm==='size'?(parseInt(document.getElementById('twSg').value,10)||5):1,
+    groups: sm==='grouping'?dd.groups:null, groupingMethod:document.getElementById('gmethod').value,
+    stdDevMethod:document.getElementById('sdMethod').value };
+  var vals=dd.vals;
   if(!opts.cusum && !opts.ewma){ if(doSave) alert('En az bir grafik seçin (CUSUM veya EWMA).'); return; }
   if(document.getElementById('useKnown').checked){ var sdv=document.getElementById('kSd').value; if(sdv!=='') opts.known={ sd:parseFloat(sdv) }; }
   var R; try{ R=window.controlCalculations.calculateTimeWeighted(vals,opts); }catch(e){ if(doSave) alert('Hata: '+e.message); return; }
@@ -171,8 +197,8 @@ function draw(R){
   var si=R.studyInfo;
   var html='<div class="card"><h2><i class="bi bi-clipboard-data i"></i> Özet</h2>'+
     '<div class="verdict '+(R.interpretation.inControl?'good':'bad')+'"><i class="bi bi-'+(R.interpretation.inControl?'check-circle-fill':'exclamation-triangle-fill')+'"></i> '+(R.interpretation.inControl?'Süreç kontrol altında':'Kontrol dışı sinyal(ler) var')+'</div>'+
-    '<div class="kv"><div class="b"><b>Gözlem</b><span>'+si.numPoints+'</span></div><div class="b"><b>Ortalama</b><span>'+nf(si.xbar)+'</span></div><div class="b"><b>σ (X-mR)</b><span>'+nf(si.sigma,4)+'</span></div></div>'+
-    '<div class="exp">σ, X-mR yöntemiyle (MR̄/d₂) tahmin edildi. <b>CUSUM</b> küçük ve kalıcı kaymaları, <b>EWMA</b> küçük kaymaları hafızalı biçimde erken yakalar.</div></div>';
+    '<div class="kv"><div class="b"><b>'+(si.subgroupSize===1?'Gözlem':'Alt grup')+'</b><span>'+si.numPoints+'</span></div><div class="b"><b>Ortalama</b><span>'+nf(si.xbar)+'</span></div><div class="b"><b>σ (süreç)</b><span>'+nf(si.sigmaProc,4)+'</span></div>'+(si.subgroupSize===1?'':'<div class="b"><b>Alt grup boyutu</b><span>'+si.subgroupSize+'</span></div>')+'</div>'+
+    '<div class="exp">σ, <b>'+({xmr:'X-mR (MR̄/d₂)',sbar:'S-bar (s̄/c₄)',rbar:'R-bar (R̄/d₂)'}[si.stdDevMethod]||si.stdDevMethod)+'</b> yöntemiyle tahmin edildi'+(si.subgroupSize===1?'':'; grafik alt grup ortalamalarını izler (SE = σ/√n)')+'. <b>CUSUM</b> küçük kalıcı kaymaları, <b>EWMA</b> küçük kaymaları hafızalı biçimde erken yakalar.</div></div>';
   if(R.cusum) html+='<div class="card"><h2><i class="bi bi-graph-up i"></i> CUSUM (Kümülatif Toplam)</h2><div class="exp">Hedef = '+nf(R.cusum.target)+', k = '+nf(R.cusum.k,2)+' (=δ/2), karar aralığı h = '+nf(R.cusum.h,2)+'σ. C+ üst, C− alt birikimi; |değer| > h olunca kayma sinyali. '+(R.cusum.nOut?('<b style=\"color:#c0392b\">Sinyal: üst '+(R.cusum.signals.upper.join(', ')||'—')+' · alt '+(R.cusum.signals.lower.join(', ')||'—')+'</b>'):'<b style=\"color:#1e7e4a\">Sinyal yok.</b>')+'</div><div class="chartbox"><canvas id="cCusumCanvas"></canvas></div></div>';
   if(R.ewma) html+='<div class="card"><h2><i class="bi bi-activity i"></i> EWMA</h2><div class="exp">λ = '+nf(R.ewma.lambda,2)+', L = '+nf(R.ewma.L,1)+'σ, merkez = '+nf(R.ewma.mu0)+'. Limitler başta dar, zamanla asimptota genişler. '+(R.ewma.nOut?('<b style=\"color:#c0392b\">Sinyal: '+R.ewma.signals.join(', ')+'</b>'):'<b style=\"color:#1e7e4a\">Sinyal yok.</b>')+'</div><div class="chartbox"><canvas id="cEwmaCanvas"></canvas></div></div>';
   document.getElementById('report').innerHTML=html;
@@ -191,6 +217,7 @@ async function persist(R){
     is_acceptable:R.interpretation.inControl?'acceptable':'unacceptable',
     analysis_options:{ timeweighted:true, cusum:document.getElementById('cCusum').checked, ewma:document.getElementById('cEwma').checked,
       cH:g('cH'), cShift:g('cShift'), cTarget:g('cTarget'), eL:g('eL'), eLambda:g('eLambda'), mrl:g('mrl'),
+      submode:subMode(), twSg:g('twSg'), gmethod:g('gmethod'), sdMethod:g('sdMethod'),
       useKnown:document.getElementById('useKnown').checked, kSd:g('kSd'), mode:dmode, data:g('data') } };
   var st=document.getElementById('saveState');
   try{ if(currentId){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',currentId); if(u.error)throw u.error; }
@@ -201,7 +228,7 @@ async function persist(R){
 async function renameStudy(){ if(!currentId)return; var name=(document.getElementById('studyName').value||'').trim(); if(name){ try{ await MSA.db.from(MSA.T.studies).update({study_name:name}).eq('id',currentId); }catch(e){} } }
 
 function mountJasp(initial){ if(!window.MSA||!MSA.ColAssign) return;
-  jaspCtrl=MSA.ColAssign.mount(document.getElementById('jaspHost'),{ roles:[ { key:'measurement', label:'Ölçüm', multi:false, numeric:true, required:true } ], minRows:15, initial: initial||{ columns:[{name:'Ölçüm',values:[]}] } }); }
+  jaspCtrl=MSA.ColAssign.mount(document.getElementById('jaspHost'),{ roles:[ { key:'measurement', label:'Ölçüm', multi:false, numeric:true, required:true }, { key:'subgroup', label:'Alt Grup', multi:false, numeric:false, required:false, hint:'gruplama değişkeni' } ], minRows:15, initial: initial||{ columns:[{name:'Ölçüm',values:[]},{name:'Alt Grup',values:[]}] } }); }
 (async function(){
   try{ await MSA.currentUser(); }catch(e){}
   if(!window.controlCalculations){ await loadScript('js/control-calculations.js?v='+Date.now()); }
@@ -209,14 +236,17 @@ function mountJasp(initial){ if(!window.MSA||!MSA.ColAssign) return;
   if(id){ currentId=id; var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
     if(q.data){ var o=q.data.analysis_options||{};
       document.getElementById('cCusum').checked=o.cusum!==false; document.getElementById('cEwma').checked=o.ewma!==false;
-      ['cH','cShift','cTarget','eL','eLambda','mrl','kSd'].forEach(function(k){ if(o[k]!=null&&o[k]!=='') document.getElementById(k).value=o[k]; });
+      ['cH','cShift','cTarget','eL','eLambda','mrl','kSd','twSg'].forEach(function(k){ if(o[k]!=null&&o[k]!=='') document.getElementById(k).value=o[k]; });
       if(o.mrl){ lastMrl=parseInt(o.mrl,10)||2; }
+      if(o.submode){ var sr=document.querySelector('input[name="submode"][value="'+o.submode+'"]'); if(sr)sr.checked=true; }
+      if(o.gmethod) document.getElementById('gmethod').value=o.gmethod;
+      onSubMode(); if(o.sdMethod) document.getElementById('sdMethod').value=o.sdMethod;
       if(o.useKnown){ document.getElementById('useKnown').checked=true; document.getElementById('kSd').disabled=false; }
       document.getElementById('data').value=o.data||''; document.getElementById('studyName').value=q.data.study_name||'';
       mountJasp(); setMode(o.mode==='col'?'col':'paste');
       if(o.data&&o.data.trim()){ calc(); return; } return;
     } }
-  mountJasp(); loadExample(); document.getElementById('studyName').value=defaultName(); calc(false);
+  mountJasp(); onSubMode(); loadExample(); document.getElementById('studyName').value=defaultName(); calc(false);
 })();
 </script>
 </body>
