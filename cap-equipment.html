@@ -71,6 +71,7 @@
 </div>
 
 <script>
+document.querySelectorAll('.hdr a[href$=".html"]').forEach(function(a){ a.setAttribute('href', a.getAttribute('href')+'?v='+Date.now()); });
 const T='cap_equipment';
 const SQL_HINT=`-- Supabase SQL editöründe bir kez çalıştırın:
 create table if not exists public.cap_equipment (
