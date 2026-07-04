@@ -129,6 +129,7 @@ async function saveStudy(){
   var name=(document.getElementById('studyName').value||'').trim(); if(!name){ alert('Çalışma adı girin.'); return; }
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
   var rec={ study_name:name, study_type:'tolerance', description:'Tolerans aralığı', status:'calculated',
+    num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
     analysis_options:{ tolerance:true, data:raw, P:parseFloat(document.getElementById('P').value), C:parseFloat(document.getElementById('C').value) } };
   var id=MSA.q('id');

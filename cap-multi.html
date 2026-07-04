@@ -137,6 +137,7 @@ async function saveStudy(){
   var name=(document.getElementById('studyName').value||'').trim(); if(!name){ alert('Çalışma adı girin.'); return; }
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
   var rec={ study_name:name, study_type:'multi', description:'Çoklu değişken yeterlilik', status:'calculated',
+    num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null, analysis_options:{ multi:true, vars:defs } };
   var id=MSA.q('id');
   try{ if(id){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',id); if(u.error)throw u.error; alert('Güncellendi.'); }

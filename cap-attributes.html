@@ -193,6 +193,7 @@ async function saveStudy(){
   var rowsData=rows.map(function(r){ return MODE==='binomial'?[r.n,r.d]:[r.n,r.c]; });
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
   var rec={ study_name:name, study_type:MODE, description:(MODE==='binomial'?'Binomial':'Poisson')+' yeterlilik (nitel)', status:'calculated',
+    num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
     analysis_options:{ attr:true, mode:MODE, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) } };
   var id=MSA.q('id');

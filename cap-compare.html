@@ -160,6 +160,7 @@ async function saveStudy(){
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
   var g=function(id){return document.getElementById(id).value;};
   var rec={ study_name:name, study_type:'comparison', description:'Yeterlilik karşılaştırma (önce/sonra)', status:'calculated',
+    num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
     analysis_options:{ comparison:true, before:g('before'), after:g('after'), lsl:g('lsl'), usl:g('usl'), target:g('target'), sg:g('sg') } };
   var id=MSA.q('id');
