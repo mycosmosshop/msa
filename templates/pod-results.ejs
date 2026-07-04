@@ -121,7 +121,7 @@ var POD_CH=null;
 function tgl(id,cb){ var el=document.getElementById(id); if(el) el.style.display=cb.checked?'':'none'; }
 function setDs(label,hidden){ if(!POD_CH)return; var d=POD_CH.data.datasets.find(function(x){return x._role===label;}); if(d){ d.hidden=hidden; POD_CH.update(); } }
 function toggleBand(cb){ if(!POD_CH)return; POD_CH.data.datasets.forEach(function(d){ if(d._role==='bandLo'||d._role==='bandHi') d.hidden=!cb.checked; }); POD_CH.update(); }
-function toggleRug(cb){ setDs('rug',!cb.checked); }
+function toggleRug(cb){ if(window.__setRug) window.__setRug(cb.checked); }
 function toggleObs(cb){ setDs('obs',!cb.checked); }
 function toggleLogX(cb){ if(!POD_CH)return; POD_CH.options.scales.x.type = cb.checked?'logarithmic':'linear'; POD_CH.update(); }
 function applyInputs(){
@@ -136,23 +136,31 @@ function applyInputs(){
   var R = <%- JSON.stringify(results) %>;
   var g=R.graph; var pod=R.pod;
   var el=document.getElementById('chartPod'); if(!el) return;
+  var showRug=true;
   var refPlugin={ id:'refs', afterDatasetsDraw:function(c){ try{ var ctx=c.ctx, x=c.scales.x, y=c.scales.y; if(!x||!y)return;
+    // a50/a90 dikey referanslar
     function vline(val,col,lbl){ if(val==null||!isFinite(val))return; var px=x.getPixelForValue(val); if(px<x.left||px>x.right)return;
-      ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='11px Segoe UI'; ctx.fillText(lbl,px+3,y.top+12); ctx.restore(); }
-    vline(pod.a50,'#b7791f','a50'); vline(pod.a90,'#c0392b','a90'); }catch(e){} }};
+      ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.1; ctx.globalAlpha=0.75; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha=1; ctx.fillStyle=col; ctx.font='11px Segoe UI'; ctx.fillText(lbl,px+3,y.top+12); ctx.restore(); }
+    vline(pod.a50,'#b7791f','a50'); vline(pod.a90,'#c0392b','a90');
+    // Rug: hit → üst, miss → alt kısa çizgiler (JASP tarzı)
+    if(showRug){ ctx.save(); ctx.strokeStyle='#555'; ctx.lineWidth=1; var yTop=y.getPixelForValue(1.0), yBot=y.getPixelForValue(0.0);
+      g.rug.forEach(function(r){ var px=x.getPixelForValue(r.x); if(px<x.left||px>x.right)return; ctx.beginPath();
+        if(r.y>=0.5){ ctx.moveTo(px,y.top); ctx.lineTo(px,y.top+9); } else { ctx.moveTo(px,y.bottom); ctx.lineTo(px,y.bottom-9); } ctx.stroke(); }); ctx.restore(); }
+  }catch(e){} }};
+  window.__setRug=function(v){ showRug=v; POD_CH.update(); };
   var xmin=g.curve[0].x, xmax=g.curve[g.curve.length-1].x;
   POD_CH=new Chart(el,{
     data:{ datasets:[
-      { type:'line', _role:'bandLo', label:'CI alt', data:g.curve.map(function(p){return {x:p.x,y:p.yLo};}), borderColor:'#aab2c8', borderWidth:1, pointRadius:0, tension:0.25, fill:false },
-      { type:'line', _role:'bandHi', label:'CI üst', data:g.curve.map(function(p){return {x:p.x,y:p.yHi};}), borderColor:'#aab2c8', backgroundColor:'rgba(150,160,190,.16)', borderWidth:1, pointRadius:0, tension:0.25, fill:'-1' },
-      { type:'line', _role:'curve', label:'POD eğrisi', data:g.curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#111', borderWidth:2.4, pointRadius:0, tension:0.25, fill:false },
-      { type:'scatter', _role:'obs', label:'Gözlenen oran', data:g.observed, backgroundColor:'#888', pointRadius:5, pointHoverRadius:7 },
-      { type:'scatter', _role:'rug', label:'Ham (hit/miss)', data:g.rug, backgroundColor:'rgba(80,90,120,.5)', pointStyle:'line', pointRadius:7, borderWidth:1.4, rotation:90 }
+      { type:'line', _role:'bandLo', label:'CI alt', data:g.curve.map(function(p){return {x:p.x,y:p.yLo};}), borderColor:'#9aa0ac', borderWidth:1, pointRadius:0, tension:0.3, fill:false },
+      { type:'line', _role:'bandHi', label:'CI üst', data:g.curve.map(function(p){return {x:p.x,y:p.yHi};}), borderColor:'#9aa0ac', backgroundColor:'rgba(150,155,170,.10)', borderWidth:1, pointRadius:0, tension:0.3, fill:'-1' },
+      { type:'line', _role:'curve', label:'POD eğrisi', data:g.curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#111', borderWidth:2.2, pointRadius:0, tension:0.3, fill:false },
+      { type:'scatter', _role:'obs', label:'Gözlenen oran', data:g.observed, backgroundColor:'rgba(90,90,90,.55)', pointRadius:4, pointHoverRadius:7 }
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
-      scales:{ x:{ type:'linear', min:xmin, max:xmax, title:{display:true,text:'Boyut'} }, y:{ min:-0.08, max:1.12, title:{display:true,text:'1 tespit etme olasılığı'} } },
-      plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8, filter:function(it){ return ['POD eğrisi','Gözlenen oran','Ham (hit/miss)'].indexOf(it.text)!==-1; } } },
+      scales:{ x:{ type:'linear', min:xmin, max:xmax, title:{display:true,text:'Boyut'}, grid:{display:false} },
+               y:{ min:-0.08, max:1.12, title:{display:true,text:'1 tespit etme olasılığı'}, grid:{color:'#f0f2f7'}, ticks:{stepSize:0.2} } },
+      plugins:{ legend:{ labels:{usePointStyle:true, boxWidth:8, filter:function(it){ return ['POD eğrisi','Gözlenen oran'].indexOf(it.text)!==-1; } } },
         tooltip:{ callbacks:{ label:function(c){ return c.dataset._role==='obs' ? ('Boyut '+c.parsed.x+': '+(g.observed[c.dataIndex]?g.observed[c.dataIndex].hits+'/'+g.observed[c.dataIndex].n:'')+' (%'+(c.parsed.y*100).toFixed(0)+')') : (c.dataset.label+': %'+(c.parsed.y*100).toFixed(1)); } } } },
     },
     plugins:[refPlugin]
