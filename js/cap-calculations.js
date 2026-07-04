@@ -445,7 +445,9 @@
       within, overall, cpm,
       performance:{ observed, expectedWithin:expWithin, expectedOverall:expOverall },
       normality:{ ad:ad.A2star, adRaw:ad.A2, p:ad.p, mean:grandMean, sd:sigmaOverall, N },
-      graph:{ hist, curve, curveOverall, curveWithin, curveFit, xbarChart, sChart, chartLabels, qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall, sigmaWithin, isNonNormal, distName:(fittedDist?fittedDist.name:null) },
+      graph:{ hist, curve, curveOverall, curveWithin, curveFit, xbarChart, sChart, chartLabels,
+        subgroupValues: subs.map(function(s,i){ return { x:i+1, values:s.vals }; }).slice(-25),
+        qq:{ points:qqPts, line:qqLine, bandLo:qqBandLo, bandHi:qqBandHi }, lsl, usl, target, mean:grandMean, sigmaOverall, sigmaWithin, isNonNormal, distName:(fittedDist?fittedDist.name:null) },
       interpretation:{ verdict, cpk, acceptability:verdict.label, acceptabilityClass:verdict.cls }
     };
   }

@@ -39,6 +39,11 @@
   .optgrid select,.optgrid input[type=number]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;font-weight:500;color:var(--ink)}
   .optgrid label.chk{flex-direction:row;align-items:center;gap:8px;align-self:end}
   .optgrid label.chk input{width:16px;height:16px}
+  .sixgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:760px){.sixgrid{grid-template-columns:1fr}}
+  .sixpanel{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
+  .sixt{font-weight:700;font-size:11.5px;text-align:center;color:#39415a;margin-bottom:4px}
+  .sixbox{position:relative;height:165px}
+  .sixtbl{width:100%;font-size:12px;border-collapse:collapse} .sixtbl td,.sixtbl th{padding:4px 7px;border-bottom:1px solid var(--line);text-align:right} .sixtbl td:first-child,.sixtbl th:first-child{text-align:left}
   .teststrip{margin-top:8px} .testcap{font-size:11px;font-weight:700;color:#39415a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
   .testok{background:var(--gbg);color:var(--good);border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
   .testtbl{font-size:12px;margin-top:0} .testtbl th{background:#fdf0ee;color:#8c3a2e} .testtbl td{padding:5px 8px}
@@ -50,6 +55,7 @@
   <% var it=results.interpretation; var si=results.studyInfo; var W=results.within; var O=results.overall; var perf=results.performance; var nm=results.normality;
      var Wci=W.ci||{}, Oci=O.ci||{}; var op=results.options||{}; var tr=results.transform||{}; var ciPct=Math.round((op.ciLevel||0.90)*100);
      var nn=results.nonNormal; var isNN=!!(op.isNonNormal && nn && !nn.error);
+     var showSix=(typeof sixpack!=='undefined' && sixpack);
      var mainIdx=isNN?nn.ppk:it.cpk; var mainLbl=isNN?'Ppk':'Cpk';
      var mainCls=mainIdx==null?'neutral':(mainIdx>=1.33?'good':(mainIdx>=1.0?'marginal':'bad'));
      var mainTxt=mainCls==='good'?'Yeterli':(mainCls==='marginal'?'Marjinal':(mainCls==='bad'?'Yetersiz':'—'));
@@ -123,6 +129,7 @@
       <label>Kontrol limiti σ katsayısı
         <input type="number" id="optSigma" min="1" max="6" step="0.5" value="<%= op.sigmaMult||3 %>"></label>
       <label class="chk"><input type="checkbox" id="optUnbias"<%= op.useUnbiasing!==false?' checked':'' %>> Sapmasızlık sabiti (c₄/d₂) kullan</label>
+      <label class="chk"><input type="checkbox" id="optSixpack"<%= showSix?' checked':'' %>> <b>Minitab Sixpack raporu</b> (6 grafik bir arada)</label>
     </div>
     <div style="font-weight:700;font-size:12px;color:#39415a;text-transform:uppercase;letter-spacing:.3px;margin:16px 2px 8px">Ölçü Spesifikasyonu (girip Uygula deyince kaydedilir)</div>
     <div class="optgrid">
@@ -148,6 +155,40 @@
       <% if(tr.includesOne){ %><br><b style="color:#8c3a2e">⚠ λ güven aralığı 1'i içeriyor → verinin istatistiksel olarak dönüşüme İHTİYACI YOK</b> (normal dağılım yeterli; dönüşümü kapatabilirsiniz).<% } %>
       <br><span style="color:var(--muted)">Not: Box-Cox yalnız pozitif veriyle çalışır; sıfır/negatif değer varsa <b>Johnson dönüşümü</b>nü seçin.</span></div><% } %>
   </div>
+
+  <% if(showSix){ %>
+  <div class="card" style="border:2px solid var(--p)">
+    <h2><i class="bi bi-grid-3x3-gap-fill i"></i> Yeterlilik Sixpack (Minitab tarzı)</h2>
+    <div class="exp">Altı analiz bir arada: kontrol kartları (kararlılık) · son 25 alt grup (kayma) · histogram (dağılım) · normal olasılık (normallik) · yeterlilik plotu (Cp/Cpk/Pp/Ppk özeti).</div>
+    <div class="sixgrid">
+      <div class="sixpanel"><div class="sixt"><%= results.graph.chartLabels.top %></div><div class="sixbox"><canvas id="sixXbar"></canvas></div></div>
+      <div class="sixpanel"><div class="sixt">Yeterlilik Histogramı</div><div class="sixbox"><canvas id="sixHist"></canvas></div></div>
+      <div class="sixpanel"><div class="sixt"><%= results.graph.chartLabels.bottom %></div><div class="sixbox"><canvas id="sixS"></canvas></div></div>
+      <div class="sixpanel"><div class="sixt">Normal Olasılık Grafiği</div><div class="sixbox"><canvas id="sixQQ"></canvas></div></div>
+      <div class="sixpanel"><div class="sixt">Son 25 Alt Grup</div><div class="sixbox"><canvas id="sixLast25"></canvas></div></div>
+      <div class="sixpanel"><div class="sixt">Yeterlilik Plotu</div>
+        <table class="sixtbl">
+          <thead><tr><th></th><th>Within (kısa)</th><th>Overall (uzun)</th></tr></thead>
+          <tbody>
+            <% if(isNN){ %>
+              <tr><td>Pp</td><td class="num">—</td><td class="num"><%= fn(nn.pp) %></td></tr>
+              <tr><td>Ppk</td><td class="num">—</td><td class="num"><%= fn(nn.ppk) %></td></tr>
+              <tr><td>Dağılım</td><td colspan="2" style="text-align:center"><%= nn.dist %> · <%= nn.method %></td></tr>
+              <tr><td>Beklenen PPM</td><td colspan="2" class="num" style="text-align:center"><%= fn(nn.expected.total,1) %></td></tr>
+            <% } else { %>
+              <tr><td>Cp / Pp</td><td class="num"><%= fn(W.cp) %></td><td class="num"><%= fn(O.cp) %></td></tr>
+              <tr><td>Cpk / Ppk</td><td class="num"><%= fn(W.cpk) %></td><td class="num"><%= fn(O.cpk) %></td></tr>
+              <tr><td>CpL / PpL</td><td class="num"><%= fn(W.cpl) %></td><td class="num"><%= fn(O.cpl) %></td></tr>
+              <tr><td>CpU / PpU</td><td class="num"><%= fn(W.cpu) %></td><td class="num"><%= fn(O.cpu) %></td></tr>
+              <tr><td>PPM (beklenen)</td><td class="num"><%= fn(perf.expectedWithin.total,1) %></td><td class="num"><%= fn(perf.expectedOverall.total,1) %></td></tr>
+            <% } %>
+            <tr><td>Normallik AD / p</td><td colspan="2" class="num" style="text-align:center"><%= fn(nm.ad,2) %> / <%= nm.p<0.001?'<.001':fn(nm.p,3) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <% } %>
 
   <div class="card">
     <h2><i class="bi bi-info-circle i"></i> Özet</h2>
@@ -381,6 +422,37 @@
       plugins:{ legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}} } }
     });
   }
+
+  // ---- Minitab Sixpack (6 panel bir arada) ----
+  if(<%= showSix?'true':'false' %>){
+    var scl=g.chartLabels||{topAxis:'X̄',bottomAxis:'S'};
+    ctrlChart('sixXbar', g.xbarChart, scl.topAxis);
+    ctrlChart('sixS', g.sChart, scl.bottomAxis);
+    var sh=document.getElementById('sixHist');
+    if(sh){
+      var sxmin=g.hist[0].x0, sxmax=g.hist[g.hist.length-1].x1;
+      var sds=[{ type:'bar', label:'Frekans', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(130,140,165,.35)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1.0, barPercentage:1.0, order:3 }];
+      if(g.isNonNormal && g.curveFit) sds.push({ type:'line', label:'Fit', data:g.curveFit.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#7b1fa2', pointRadius:0, borderWidth:2, tension:0.35, order:1, xAxisID:'xLin' });
+      else { sds.push({ type:'line', label:'Overall', data:g.curveOverall.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', pointRadius:0, borderWidth:2, tension:0.35, order:1, xAxisID:'xLin' });
+             sds.push({ type:'line', label:'Within', data:g.curveWithin.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#c0392b', borderDash:[6,3], pointRadius:0, borderWidth:1.8, tension:0.35, order:2, xAxisID:'xLin' }); }
+      var sspec={ id:'sspec', afterDatasetsDraw:function(c){ var ctx=c.ctx, xl=c.scales.xLin, y=c.scales.y; if(!xl)return;
+        function vl(v,col){ if(v==null||!isFinite(v))return; var px=xl.getPixelForValue(v); if(px<xl.left-1||px>xl.right+1)return; ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([5,4]); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(px,y.top); ctx.lineTo(px,y.bottom); ctx.stroke(); ctx.restore(); }
+        vl(g.lsl,'#c0392b'); vl(g.usl,'#c0392b'); vl(g.target,'#1e7e4a'); }};
+      new Chart(sh,{ data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:sds },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{display:false,grid:{display:false}}, xLin:{type:'linear',display:false,min:sxmin,max:sxmax}, y:{display:false,beginAtZero:true} }, plugins:{legend:{display:false}} }, plugins:[sspec] });
+    }
+    var sq=document.getElementById('sixQQ');
+    if(sq && g.qq){ new Chart(sq,{ data:{ datasets:[
+      { type:'scatter', data:g.qq.points.map(function(p){return {x:p.x,y:p.z};}), pointRadius:2.4, pointBackgroundColor:'rgba(90,110,150,.55)' },
+      { type:'line', data:g.qq.line.map(function(p){return {x:p.x,y:p.z};}), borderColor:'#39415a', borderWidth:1.4, pointRadius:0 },
+      { type:'line', data:g.qq.bandLo.map(function(p){return {x:p.x,y:p.z};}), borderColor:'#c0392b', borderDash:[4,3], borderWidth:1, pointRadius:0 },
+      { type:'line', data:g.qq.bandHi.map(function(p){return {x:p.x,y:p.z};}), borderColor:'#c0392b', borderDash:[4,3], borderWidth:1, pointRadius:0 }
+    ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{type:'linear',ticks:{display:false}}, y:{ticks:{font:{size:9}}} }, plugins:{legend:{display:false}} } }); }
+    var sl=document.getElementById('sixLast25');
+    if(sl && g.subgroupValues){ var pts=[]; g.subgroupValues.forEach(function(s){ (s.values||[]).forEach(function(v){ pts.push({x:s.x,y:v}); }); });
+      new Chart(sl,{ data:{ datasets:[{ type:'scatter', data:pts, pointRadius:2.4, pointBackgroundColor:'rgba(90,110,150,.6)' }] },
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{type:'linear',title:{display:true,text:'Alt grup',font:{size:9}},ticks:{font:{size:9}}}, y:{ticks:{font:{size:9}}} }, plugins:{legend:{display:false}} } }); }
+  }
 })();
 
 function capReload(){
@@ -401,6 +473,7 @@ function capReload(){
   add('nnmethod', val('optNNMethod'));
   add('lslb', document.getElementById('optLslB') && document.getElementById('optLslB').checked ? '1':'0');
   add('uslb', document.getElementById('optUslB') && document.getElementById('optUslB').checked ? '1':'0');
+  add('sixpack', document.getElementById('optSixpack') && document.getElementById('optSixpack').checked ? '1':'0');
   location.href='cap-results.html?'+p.join('&');
 }
 </script>
