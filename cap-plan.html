@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Proses Yeterlilik Planı</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1160px;margin:0 auto;padding:20px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:16px;padding:20px 26px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .hdr h1{margin:0;font-size:21px;display:flex;align-items:center;gap:10px} .hdr p{margin:4px 0 0;opacity:.9;font-size:13px}
+  .btn{border:0;border-radius:10px;padding:10px 18px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:#fff;color:var(--p)} .btn.ghost{background:rgba(255,255,255,.2);color:#fff}
+  .acts{display:flex;gap:10px;flex-wrap:wrap}
+  .card{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(30,40,70,.07);padding:16px 18px;border:1px solid var(--line);margin-top:18px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .stat{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+  .stat.active{border-color:var(--p);box-shadow:0 0 0 2px rgba(102,126,234,.18)}
+  .stat b{display:block;font-size:22px} .stat span{font-size:12px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{background:#f3f5fb;color:#39415a;font-size:12px;font-weight:700}
+  tr:hover td{background:#fafbff}
+  .badge{padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:700}
+  .s-planned{background:#e3f2fd;color:#1976d2} .s-in_progress{background:#fff9c4;color:#b7791f} .s-completed{background:#e8f5e9;color:#388e3c} .s-cancelled{background:#f3f3f3;color:#666}
+  .over{color:#c0392b;font-weight:700}
+  .sbtn{border:0;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+  .sbtn.go{background:var(--p);color:#fff} .sbtn.edit{background:#f0a020;color:#fff} .sbtn.del{background:#f4e6e6;color:#c0392b}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .fld{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#4a5568}
+  .fld input,.fld select,.fld textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;font-weight:400;color:var(--ink)}
+  .empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:44px 20px;text-align:center;color:var(--muted);margin-top:18px}
+  .empty i{font-size:40px;color:#c9d2e3;display:block;margin-bottom:10px}
+  .sqlbox{background:#0f1729;color:#a7f3d0;border-radius:10px;padding:14px;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;overflow:auto;max-height:320px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-calendar-check"></i> Proses Yeterlilik Planı</h1><p>Planlanan Cp/Cpk çalışmaları — makine/karakteristik bazında periyodik izleme</p></div>
+    <div class="acts">
+      <a class="btn ghost" href="cap-equipment.html"><i class="bi bi-hdd-stack"></i> Ekipman</a>
+      <a class="btn ghost" href="capability.html"><i class="bi bi-arrow-left"></i> Pano</a>
+      <button class="btn primary" id="addBtn"><i class="bi bi-plus-circle"></i> Plan Ekle</button>
+    </div>
+  </div>
+
+  <div class="card" id="formCard" style="display:none">
+    <h3 style="margin:0 0 12px;font-size:16px" id="formTitle">Yeni Plan</h3>
+    <input type="hidden" id="f_id">
+    <div class="fgrid">
+      <label class="fld">Başlık *<input id="f_title" placeholder="ör. MK-003 Çap yeterliliği"></label>
+      <label class="fld">Ekipman<select id="f_equip"><option value="">—</option></select></label>
+      <label class="fld">Karakteristik<input id="f_char" placeholder="ör. Çap (mm)"></label>
+      <label class="fld">Planlanan Tarih<input type="date" id="f_date"></label>
+      <label class="fld">Periyot (ay)<input type="number" id="f_interval" min="1" max="60" placeholder="ör. 6"></label>
+      <label class="fld">Sorumlu (e-posta)<input id="f_resp" placeholder="ad@firma.com"></label>
+      <label class="fld">LSL<input type="number" step="any" id="f_lsl"></label>
+      <label class="fld">Hedef<input type="number" step="any" id="f_target"></label>
+      <label class="fld">USL<input type="number" step="any" id="f_usl"></label>
+      <label class="fld">Durum<select id="f_status"><option value="planned">Planlandı</option><option value="in_progress">Devam ediyor</option><option value="completed">Tamamlandı</option><option value="cancelled">İptal</option></select></label>
+    </div>
+    <label class="fld" style="margin-top:10px">Notlar<textarea id="f_notes" rows="2"></textarea></label>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn primary" id="saveBtn" style="background:var(--p);color:#fff"><i class="bi bi-save"></i> Kaydet</button>
+      <button class="btn" id="cancelBtn" style="background:#eef1f8;color:#41506b">Vazgeç</button>
+    </div>
+  </div>
+
+  <div id="stats" class="stats"></div>
+  <div id="body"><div style="padding:40px;color:var(--p)">Yükleniyor…</div></div>
+</div>
+
+<script>
+const T='cap_plan', TE='cap_equipment';
+const SQL_HINT=`-- Supabase SQL editöründe bir kez çalıştırın (Kalite projesi):
+create table if not exists public.cap_equipment (
+  id bigint generated by default as identity primary key,
+  name text not null, code text, type text, location text,
+  responsible_email text, description text, is_active boolean default true,
+  created_at timestamptz default now(), updated_at timestamptz default now());
+alter table public.cap_equipment enable row level security;
+drop policy if exists cap_equipment_all on public.cap_equipment;
+create policy cap_equipment_all on public.cap_equipment for all to public using (true) with check (true);
+
+create table if not exists public.cap_plan (
+  id bigint generated by default as identity primary key,
+  title text not null, equipment_id bigint, equipment_name text, characteristic text,
+  lsl numeric, usl numeric, target numeric, planned_date date, interval_months integer,
+  responsible_email text, status text default 'planned', study_id bigint, notes text,
+  created_at timestamptz default now(), updated_at timestamptz default now());
+alter table public.cap_plan enable row level security;
+drop policy if exists cap_plan_all on public.cap_plan;
+create policy cap_plan_all on public.cap_plan for all to public using (true) with check (true);`;
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function fdate(d){ if(!d) return '—'; try{ return new Date(d).toLocaleDateString('tr-TR'); }catch(e){ return d; } }
+const STLBL={planned:'Planlandı',in_progress:'Devam ediyor',completed:'Tamamlandı',cancelled:'İptal'};
+const body=document.getElementById('body'), formCard=document.getElementById('formCard');
+let EQUIP=[], PLANS=[], filter='';
+
+function fillEquipSelect(){
+  const sel=document.getElementById('f_equip');
+  sel.innerHTML='<option value="">—</option>'+EQUIP.map(e=>`<option value="${e.id}">${esc(e.name)}${e.code?' ('+esc(e.code)+')':''}</option>`).join('');
+}
+function showForm(row){
+  row=row||{};
+  document.getElementById('formTitle').textContent=row.id?'Plan Düzenle':'Yeni Plan';
+  document.getElementById('f_id').value=row.id||'';
+  document.getElementById('f_title').value=row.title||'';
+  document.getElementById('f_equip').value=row.equipment_id||'';
+  document.getElementById('f_char').value=row.characteristic||'';
+  document.getElementById('f_date').value=row.planned_date?String(row.planned_date).slice(0,10):'';
+  document.getElementById('f_interval').value=row.interval_months||'';
+  document.getElementById('f_resp').value=row.responsible_email||'';
+  document.getElementById('f_lsl').value=row.lsl!=null?row.lsl:'';
+  document.getElementById('f_target').value=row.target!=null?row.target:'';
+  document.getElementById('f_usl').value=row.usl!=null?row.usl:'';
+  document.getElementById('f_status').value=row.status||'planned';
+  document.getElementById('f_notes').value=row.notes||'';
+  formCard.style.display=''; formCard.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+document.getElementById('addBtn').addEventListener('click',()=>showForm());
+document.getElementById('cancelBtn').addEventListener('click',()=>{formCard.style.display='none';});
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  const title=document.getElementById('f_title').value.trim();
+  if(!title){ alert('Başlık zorunlu.'); return; }
+  const eqId=document.getElementById('f_equip').value;
+  const eq=EQUIP.find(x=>String(x.id)===eqId);
+  const nn=id=>{ const v=document.getElementById(id).value; return v===''?null:parseFloat(v); };
+  const rec={ title, equipment_id:eqId?parseInt(eqId):null, equipment_name:eq?eq.name:null,
+    characteristic:document.getElementById('f_char').value.trim()||null,
+    planned_date:document.getElementById('f_date').value||null,
+    interval_months:document.getElementById('f_interval').value?parseInt(document.getElementById('f_interval').value):null,
+    responsible_email:document.getElementById('f_resp').value.trim()||null,
+    lsl:nn('f_lsl'), target:nn('f_target'), usl:nn('f_usl'),
+    status:document.getElementById('f_status').value, notes:document.getElementById('f_notes').value.trim()||null,
+    updated_at:new Date().toISOString() };
+  const id=document.getElementById('f_id').value;
+  const b=document.getElementById('saveBtn'); b.disabled=true; b.innerHTML='<i class="bi bi-hourglass"></i> Kaydediliyor…';
+  try{
+    if(id){ const r=await MSA.db.from(T).update(rec).eq('id',id); if(r.error)throw r.error; }
+    else { const r=await MSA.db.from(T).insert(rec); if(r.error)throw r.error; }
+    formCard.style.display='none'; await load();
+  }catch(e){ alert('Kayıt hatası: '+e.message); }
+  finally{ b.disabled=false; b.innerHTML='<i class="bi bi-save"></i> Kaydet'; }
+});
+
+async function setStatus(id,st){ try{ await MSA.db.from(T).update({status:st,updated_at:new Date().toISOString()}).eq('id',id); await load(); }catch(e){ alert('Hata: '+e.message); } }
+
+function renderStats(){
+  const c={planned:0,in_progress:0,completed:0,cancelled:0};
+  PLANS.forEach(p=>{ if(c[p.status]!=null)c[p.status]++; });
+  const item=(key,lbl)=>`<div class="stat${filter===key?' active':''}" data-f="${key}"><b>${key===''?PLANS.length:c[key]||0}</b><span>${lbl}</span></div>`;
+  document.getElementById('stats').innerHTML=item('','Tümü')+item('planned','Planlandı')+item('in_progress','Devam')+item('completed','Tamamlandı')+item('cancelled','İptal');
+  document.querySelectorAll('#stats .stat').forEach(s=>s.addEventListener('click',()=>{ filter=s.dataset.f; renderTable(); renderStats(); }));
+}
+function renderTable(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const rows=PLANS.filter(p=>!filter||p.status===filter);
+  if(!rows.length){ body.innerHTML='<div class="empty"><i class="bi bi-calendar-check"></i><div style="font-size:16px;font-weight:600;color:#4a5568">Kayıt yok</div><div style="margin-top:6px">Yukarıdan <b>Plan Ekle</b> ile başlayın.</div></div>'; return; }
+  const tr=rows.map(p=>{
+    const over=(p.status==='planned'||p.status==='in_progress') && p.planned_date && new Date(p.planned_date)<today;
+    const spec=[p.lsl,p.target,p.usl].some(v=>v!=null)?`<div style="font-size:11px;color:var(--muted)">LSL ${p.lsl??'—'} · H ${p.target??'—'} · USL ${p.usl??'—'}</div>`:'';
+    return `<tr>
+      <td><strong>${esc(p.title)}</strong>${spec}</td>
+      <td>${p.equipment_name?esc(p.equipment_name):'—'}</td>
+      <td>${p.characteristic?esc(p.characteristic):'—'}</td>
+      <td class="${over?'over':''}">${fdate(p.planned_date)}${over?' <i class="bi bi-exclamation-circle" title="Gecikmiş"></i>':''}${p.interval_months?'<div style="font-size:11px;color:var(--muted)">'+p.interval_months+' ayda bir</div>':''}</td>
+      <td>${p.responsible_email?esc(p.responsible_email):'—'}</td>
+      <td><span class="badge s-${p.status}">${STLBL[p.status]||p.status}</span></td>
+      <td style="white-space:nowrap">
+        ${p.study_id?`<a class="sbtn go" href="cap-results.html?id=${p.study_id}"><i class="bi bi-eye"></i></a>`:`<a class="sbtn go" href="cap-new.html" title="Yeterlilik çalışması aç"><i class="bi bi-plus-lg"></i> Aç</a>`}
+        <button class="sbtn edit" data-id="${p.id}"><i class="bi bi-pencil"></i></button>
+        <button class="sbtn del" data-id="${p.id}" data-name="${esc(p.title)}"><i class="bi bi-trash"></i></button>
+      </td></tr>`;
+  }).join('');
+  body.innerHTML='<div class="card"><table><thead><tr><th>Başlık</th><th>Ekipman</th><th>Karakteristik</th><th>Planlanan</th><th>Sorumlu</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>'+tr+'</tbody></table></div>';
+  body.querySelectorAll('.sbtn.edit').forEach(btn=>btn.addEventListener('click',()=>{ const p=PLANS.find(x=>String(x.id)===btn.dataset.id); if(p) showForm(p); }));
+  body.querySelectorAll('.sbtn.del').forEach(btn=>btn.addEventListener('click', async ()=>{
+    if(!confirm('"'+btn.dataset.name+'" planı silinsin mi?')) return;
+    try{ const r=await MSA.db.from(T).delete().eq('id',btn.dataset.id); if(r.error)throw r.error; await load(); }catch(e){ alert('Silme hatası: '+e.message); }
+  }));
+}
+
+async function load(){
+  try{
+    try{ const eq=await MSA.db.from(TE).select('*').order('name'); if(!eq.error) EQUIP=eq.data||[]; }catch(e){}
+    fillEquipSelect();
+    const { data, error } = await MSA.db.from(T).select('*').order('planned_date',{ascending:true,nullsFirst:false});
+    if(error) throw error;
+    PLANS=data||[];
+    renderStats(); renderTable();
+  }catch(e){
+    const missing=/(relation|table).*(exist|bulun)|does not exist|not find|schema cache/i.test(e.message||'');
+    document.getElementById('stats').innerHTML='';
+    if(missing){ body.innerHTML='<div class="card"><h3 style="margin:0 0 6px;color:#b7791f"><i class="bi bi-exclamation-triangle"></i> Tablo bulunamadı</h3><p style="color:var(--muted);font-size:13px;margin:0">Bu özellik için Supabase\'de aşağıdaki SQL\'i bir kez çalıştırın. Sonra sayfayı yenileyin.</p><div class="sqlbox">'+esc(SQL_HINT)+'</div><button class="btn primary" style="background:var(--p);color:#fff;margin-top:10px" onclick="navigator.clipboard&&navigator.clipboard.writeText(SQL_HINT);this.innerHTML=\'<i class=\\\'bi bi-check2\\\'></i> Kopyalandı\'"><i class="bi bi-clipboard"></i> SQL\'i Kopyala</button></div>'; }
+    else body.innerHTML='<div class="empty" style="color:#c0392b"><i class="bi bi-exclamation-triangle"></i>Yüklenemedi: '+esc(e.message)+'</div>';
+  }
+}
+(async()=>{ try{ await MSA.currentUser(); }catch(e){} load(); })();
+</script>
+</body>
+</html>
