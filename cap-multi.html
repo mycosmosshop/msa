@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Çoklu Değişken Yeterlilik (Multiple Variables)</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2;--good:#1e7e4a;--gbg:#eaf6ef;--mar:#b7791f;--bad:#c0392b}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:16px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .hdr h1{margin:0;font-size:20px} .hdr p{margin:3px 0 0;opacity:.9;font-size:12.5px}
+  .btn{border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b} .btn.ok{background:#1e7e4a;color:#fff} .btn.sm{padding:6px 11px;font-size:12.5px}
+  .card{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(30,40,70,.07);padding:16px 18px;margin:14px 0}
+  .card h2{margin:0 0 6px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:8px 0;line-height:1.55}
+  .vblock{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+  .vrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px}
+  .fld{display:flex;flex-direction:column;font-size:11.5px;font-weight:600;color:#4a5568;gap:4px}
+  .fld input{padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;width:100px} .fld input.nm{width:150px}
+  textarea{width:100%;min-height:52px;border:1px solid var(--line);border-radius:8px;padding:7px;font-family:inherit;font-size:12.5px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{padding:8px 9px;border-bottom:1px solid var(--line);text-align:center} td:first-child,th:first-child{text-align:left}
+  th{background:#f3f5fb;color:#39415a;font-size:12px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;font-size:12px}
+  .pill.good{background:var(--gbg);color:var(--good)} .pill.mar{background:#fdf6e6;color:var(--mar)} .pill.bad{background:#fdecea;color:var(--bad)}
+  .smgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:12px}
+  .smp{border:1px solid var(--line);border-radius:10px;padding:8px} .smp .t{font-weight:700;font-size:12px;text-align:center;margin-bottom:3px} .smbox{position:relative;height:150px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-collection"></i> Çoklu Değişken Yeterlilik</h1>
+      <p>Birden çok karakteristiği (ör. çap, boy, ağırlık) tek raporda Cp/Cpk ile kıyasla — Minitab Multiple Variables</p></div>
+    <a class="btn ghost" href="capability.html" style="background:rgba(255,255,255,.2);color:#fff"><i class="bi bi-arrow-left"></i> Pano</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Ne işe yarar?</h2>
+    <div class="exp">Her karakteristik için ölçüm + kendi spesifikasyonu (LSL/USL) girilir. Tümü aynı anda analiz edilip <b>Cp/Cpk/Pp/Ppk/PPM</b> tek tabloda kıyaslanır; hangi karakteristiğin süreçte darboğaz olduğunu (en düşük Cpk) hızlıca görürsünüz. Her değişkenin küçük histogramı da gösterilir.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-sliders i"></i> Değişkenler</h2>
+    <div id="vars"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
+      <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
+      <button class="btn ghost sm" onclick="addVar()"><i class="bi bi-plus"></i> Değişken Ekle</button>
+    </div>
+  </div>
+
+  <div id="report"></div>
+</div>
+
+<script>
+var charts=[];
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error(src));};document.head.appendChild(s);});}
+function vblockHTML(idx,v){ v=v||{}; return '<div class="vblock" data-i="'+idx+'">'+
+  '<div class="vrow"><div class="fld">Karakteristik<input class="nm vNm" value="'+(v.name||'')+'" placeholder="ör. Çap"></div>'+
+  '<div class="fld">LSL<input type="number" step="any" class="vLsl" value="'+(v.lsl!=null?v.lsl:'')+'"></div>'+
+  '<div class="fld">Hedef<input type="number" step="any" class="vTgt" value="'+(v.target!=null?v.target:'')+'"></div>'+
+  '<div class="fld">USL<input type="number" step="any" class="vUsl" value="'+(v.usl!=null?v.usl:'')+'"></div>'+
+  '<div class="fld">Alt grup<input type="number" class="vSg" value="'+(v.sg||5)+'" style="width:70px"></div>'+
+  '<button class="btn ghost sm" onclick="this.closest(\'.vblock\').remove()"><i class="bi bi-trash"></i></button></div>'+
+  '<textarea class="vData" placeholder="Bu karakteristiğin ölçümleri…">'+(v.data||'')+'</textarea></div>'; }
+function addVar(v){ var c=document.getElementById('vars'); c.insertAdjacentHTML('beforeend', vblockHTML(c.children.length, v)); }
+function loadExample(){
+  document.getElementById('vars').innerHTML='';
+  function gen(mean,sd){ var a=[]; for(var i=0;i<80;i++){ a.push((mean+ (Math.sin(i*2.1)+Math.cos(i*1.3)+Math.sin(i*0.7))*sd/1.7 ).toFixed(2)); } return a.join(' '); }
+  addVar({name:'Çap (mm)',lsl:9.6,target:10,usl:10.4,sg:5,data:gen(10,0.12)});
+  addVar({name:'Boy (mm)',lsl:49,target:50,usl:51,sg:5,data:gen(50.2,0.45)});
+  addVar({name:'Ağırlık (g)',lsl:19,target:20,usl:21,sg:5,data:gen(20,0.28)});
+}
+function nf(x,d){ if(x==null||!isFinite(x))return '—'; var ax=Math.abs(x); if(ax!==0&&(ax>=1e6||ax<1e-4))return Number(x).toExponential(2); return Number(x).toFixed(d==null?3:d); }
+function pill(v){ if(v==null||!isFinite(v))return '—'; var c=v>=1.33?'good':(v>=1.0?'mar':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; }
+
+function calc(){
+  var blocks=[].slice.call(document.querySelectorAll('.vblock'));
+  var results=[];
+  for(var i=0;i<blocks.length;i++){ var b=blocks[i];
+    var name=b.querySelector('.vNm').value||('Değişken '+(i+1));
+    var vals=b.querySelector('.vData').value.trim().split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
+    if(vals.length<10) continue;
+    var opts={ lsl:parseFloat(b.querySelector('.vLsl').value), usl:parseFloat(b.querySelector('.vUsl').value),
+      target:(b.querySelector('.vTgt').value!==''?parseFloat(b.querySelector('.vTgt').value):null), subgroupSize:parseInt(b.querySelector('.vSg').value)||5 };
+    try{ var r=window.capCalculations.calculateCapability(vals.map(function(v){return {value:v};}),opts); results.push({name:name,r:r,opts:opts}); }catch(e){}
+  }
+  if(!results.length){ alert('En az bir değişkende yeterli veri (≥10) girin.'); return; }
+  draw(results);
+}
+
+function draw(results){
+  charts.forEach(function(c){try{c.destroy();}catch(e){}}); charts=[];
+  var rows=results.map(function(o){ var r=o.r; return '<tr><td><b>'+o.name+'</b></td>'+
+    '<td>'+nf(r.studyInfo.mean)+'</td><td>'+nf(r.studyInfo.sigmaOverall,4)+'</td>'+
+    '<td>'+pill(r.within.cp)+'</td><td>'+pill(r.within.cpk)+'</td>'+
+    '<td>'+pill(r.overall.cp)+'</td><td>'+pill(r.overall.cpk)+'</td>'+
+    '<td>'+nf(r.performance.expectedOverall.total,0)+'</td></tr>'; }).join('');
+  // en düşük Cpk (darboğaz)
+  var worst=results.reduce(function(a,b){ return (b.r.within.cpk!=null && (a==null||b.r.within.cpk<a.r.within.cpk))?b:a; }, null);
+  var html='<div class="card"><h2><i class="bi bi-clipboard-data i"></i> Karşılaştırma Tablosu</h2>'+
+    '<table><thead><tr><th>Karakteristik</th><th>Ortalama</th><th>σ (overall)</th><th>Cp</th><th>Cpk</th><th>Pp</th><th>Ppk</th><th>PPM</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div class="exp"><b>Renk:</b> yeşil ≥1.33 yeterli · sarı 1.00–1.33 marjinal · kırmızı &lt;1.00 yetersiz. '+
+      (worst?'<b>Darboğaz:</b> en düşük Cpk <b>'+worst.name+'</b> ('+nf(worst.r.within.cpk)+') — iyileştirmeye buradan başlayın.':'')+'</div>'+
+    '<div class="smgrid">'+results.map(function(o,i){ return '<div class="smp"><div class="t">'+o.name+'</div><div class="smbox"><canvas id="sm'+i+'"></canvas></div></div>'; }).join('')+'</div>'+
+    '</div>';
+  document.getElementById('report').innerHTML=html;
+  results.forEach(function(o,i){ var g=o.r.graph, opts=o.opts;
+    var lo=g.hist[0].x0, hi=g.hist[g.hist.length-1].x1;
+    var curve=[]; for(var k=0;k<=80;k++){ var x=lo+(hi-lo)*k/80; curve.push({x:x,y:Math.exp(-0.5*Math.pow((x-g.mean)/g.sigmaOverall,2))/(g.sigmaOverall*Math.sqrt(2*Math.PI))*o.r.studyInfo.N*(hi-lo)/g.hist.length}); }
+    var sp={ id:'sp'+i, afterDatasetsDraw:function(c){ var ctx=c.ctx,xl=c.scales.xLin,y=c.scales.y; if(!xl)return; function vl(v,col){ if(v==null||!isFinite(v))return; var px=xl.getPixelForValue(v); if(px<xl.left-1||px>xl.right+1)return; ctx.save();ctx.strokeStyle=col;ctx.setLineDash([5,4]);ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(px,y.top);ctx.lineTo(px,y.bottom);ctx.stroke();ctx.restore(); } vl(opts.lsl,'#c0392b'); vl(opts.usl,'#c0392b'); vl(opts.target,'#1e7e4a'); } };
+    charts.push(new Chart(document.getElementById('sm'+i),{ data:{ labels:g.hist.map(function(b){return b.mid.toFixed(1);}), datasets:[
+      { type:'bar', data:g.hist.map(function(b){return b.count;}), backgroundColor:'rgba(120,130,150,.5)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1, barPercentage:1, order:2 },
+      { type:'line', data:curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', pointRadius:0, borderWidth:1.8, tension:0.35, order:1, xAxisID:'xLin' }
+    ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{display:false}, xLin:{type:'linear',display:false,min:lo,max:hi}, y:{display:false,beginAtZero:true} }, plugins:{legend:{display:false}} }, plugins:[sp] }));
+  });
+}
+
+(async function(){
+  try{ await MSA.currentUser(); }catch(e){}
+  if(!window.capCalculations){ await loadScript('js/cap-calculations.js?v='+Date.now()); }
+  loadExample();
+})();
+</script>
+</body>
+</html>

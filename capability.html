@@ -49,9 +49,14 @@
       <div class="dd" id="ddNew">
         <button class="btn primary" onclick="document.getElementById('ddNew').classList.toggle('open');event.stopPropagation();"><i class="bi bi-plus-circle"></i> Yeni Çalışma <i class="bi bi-chevron-down"></i></button>
         <div class="ddmenu">
-          <a href="cap-new.html"><i class="bi bi-rulers"></i> <span>Proses Yeterliliği (Cp/Cpk)<small>Ölçüm verisi — sürekli değer</small></span></a>
+          <a href="cap-new.html"><i class="bi bi-rulers"></i> <span>Proses Yeterliliği (Cp/Cpk)<small>Ölçüm verisi — sürekli değer (Normal)</small></span></a>
+          <a href="cap-new.html?within=betweenwithin"><i class="bi bi-layers-half"></i> <span>Between/Within Yeterliliği<small>Alt gruplar arası + içi değişkenlik (batch süreç)</small></span></a>
           <a href="cap-attributes.html?mode=binomial"><i class="bi bi-check2-square"></i> <span>Binomial (Kusurlu)<small>Geçti/Kaldı — kusurlu oranı, PPM, Süreç Z</small></span></a>
           <a href="cap-attributes.html?mode=poisson"><i class="bi bi-123"></i> <span>Poisson (Hata Sayısı)<small>Birim başına hata — DPU, DPMO</small></span></a>
+          <div style="border-top:1px solid var(--line);margin:5px 8px"></div>
+          <a href="cap-tolerance.html"><i class="bi bi-arrows-expand"></i> <span>Tolerans Aralığı<small>Popülasyonun %P'sini %C güvenle içeren aralık</small></span></a>
+          <a href="cap-compare.html"><i class="bi bi-arrow-left-right"></i> <span>Yeterlilik Karşılaştırma<small>İyileştirme önce/sonra Cp·Cpk·Pp·Ppk</small></span></a>
+          <a href="cap-multi.html"><i class="bi bi-collection"></i> <span>Çoklu Değişken<small>Birden çok karakteristik tek raporda</small></span></a>
         </div>
       </div>
     </div>

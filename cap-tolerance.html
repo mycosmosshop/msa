@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<script src="js/msa-common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Tolerans Aralığı (Tolerance Interval)</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#e6e9f2;--good:#1e7e4a;--gbg:#eaf6ef;--bad:#c0392b}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:16px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .hdr h1{margin:0;font-size:20px} .hdr p{margin:3px 0 0;opacity:.9;font-size:12.5px}
+  .btn{border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .btn.primary{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff} .btn.ghost{background:#eef1f8;color:#41506b} .btn.ok{background:#1e7e4a;color:#fff}
+  .card{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(30,40,70,.07);padding:16px 18px;margin:14px 0}
+  .card h2{margin:0 0 6px;font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px} .card h2 .i{color:var(--p)}
+  .exp{background:#f8f9fd;border-left:3px solid var(--p);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12.8px;color:#4a5568;margin:8px 0;line-height:1.55}
+  textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:10px}
+  .fld{display:flex;flex-direction:column;font-size:12px;font-weight:600;color:#4a5568;gap:5px}
+  .fld input,.fld select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .chartbox{position:relative;height:250px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center} td:first-child,th:first-child{text-align:left}
+  th{background:#f3f5fb;color:#39415a;font-size:12px}
+  .big{background:#f8f9fd;border-radius:10px;padding:12px 16px;margin-top:10px;font-size:15px} .big b{color:var(--p)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-arrows-expand"></i> Tolerans Aralığı</h1>
+      <p>Popülasyonun %P'sini %C güvenle içeren aralık (spesifikasyondan bağımsız — Minitab metodolojisi)</p></div>
+    <a class="btn ghost" href="capability.html" style="background:rgba(255,255,255,.2);color:#fff"><i class="bi bi-arrow-left"></i> Pano</a>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-info-circle i"></i> Tolerans Aralığı nedir?</h2>
+    <div class="exp"><b>Spesifikasyon (Cp/Cpk)</b> mühendisin belirlediği sınırlara uyumu ölçer. <b>Tolerans aralığı</b> ise <b>verinin kendisinden</b>, popülasyonun belirtilen bir yüzdesini (<b>%P</b>, ör. %99) belirtilen güvenle (<b>%C</b>, ör. %95) içeren aralığı hesaplar. Kullanımı: "%95 güvenle ürünlerin %99'u [alt, üst] arasında" demektir; bu aralığı spesifikasyonla karşılaştırıp sürecin sığıp sığmadığını görürsünüz.</div>
+  </div>
+
+  <div class="card">
+    <h2><i class="bi bi-table i"></i> Veri</h2>
+    <textarea id="data" placeholder="Ölçümleri yapıştırın (boşluk/virgül/satır ile ayrılmış)…"></textarea>
+    <div class="row">
+      <div class="fld">İçerilecek oran %P<input type="number" id="P" value="99" min="50" max="99.99" step="0.1"></div>
+      <div class="fld">Güven %C<input type="number" id="C" value="95" min="50" max="99.9" step="1"></div>
+      <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
+      <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
+    </div>
+  </div>
+
+  <div id="report"></div>
+</div>
+
+<script>
+var charts=[];
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error(src));};document.head.appendChild(s);});}
+function loadExample(){ var d=[]; for(var i=0;i<50;i++){ d.push((100+Math.sin(i*1.3)*2+Math.cos(i*0.7)*1.5+Math.sin(i*2.1)).toFixed(3)); } document.getElementById('data').value=d.join(' '); document.getElementById('P').value=99; document.getElementById('C').value=95; }
+function nf(x,d){ if(x==null||!isFinite(x))return '—'; return Number(x).toFixed(d==null?3:d); }
+function hist(vals,bins){ var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals); if(mx===mn){mx++;mn--;} var bw=(mx-mn)/bins,h=[]; for(var i=0;i<bins;i++){var a=mn+i*bw,b=a+bw;h.push({x0:a,x1:b,mid:(a+b)/2,count:vals.filter(function(v){return v>=a&&(i===bins-1?v<=b:v<b);}).length});} return {h:h,lo:mn,hi:mx,bw:bw}; }
+
+function calc(){
+  var raw=document.getElementById('data').value.trim();
+  var vals=raw.split(/[\s,;]+/).map(Number).filter(function(v){return isFinite(v);});
+  if(vals.length<2){ alert('En az 2 ölçüm girin.'); return; }
+  var P=parseFloat(document.getElementById('P').value)/100, C=parseFloat(document.getElementById('C').value)/100;
+  var r;
+  try{ r=window.toleranceCalculations.toleranceInterval(vals,{P:P,C:C}); }catch(e){ alert('Hata: '+e.message); return; }
+  draw(r);
+}
+
+function draw(r){
+  charts.forEach(function(c){try{c.destroy();}catch(e){}}); charts=[];
+  var Ppct=(r.P*100), Cpct=(r.C*100);
+  var normalOk=r.normality.p>=0.05;
+  document.getElementById('report').innerHTML=
+    '<div class="card"><h2><i class="bi bi-clipboard-data i"></i> Sonuç — %'+Cpct+' güvenle popülasyonun %'+Ppct+'\'i</h2>'+
+    '<div class="big">İki-yön tolerans aralığı: <b>['+nf(r.twoSided.lower)+' , '+nf(r.twoSided.upper)+']</b> &nbsp;·&nbsp; k = '+nf(r.twoSided.k)+'</div>'+
+    '<table><thead><tr><th>Yöntem</th><th>Alt sınır</th><th>Üst sınır</th><th>k faktörü</th></tr></thead><tbody>'+
+      '<tr><td>İki-yön (normal)</td><td>'+nf(r.twoSided.lower)+'</td><td>'+nf(r.twoSided.upper)+'</td><td>'+nf(r.twoSided.k)+'</td></tr>'+
+      '<tr><td>Tek-yön alt (normal)</td><td>'+nf(r.oneSidedLower.bound)+'</td><td>—</td><td>'+nf(r.oneSidedLower.k)+'</td></tr>'+
+      '<tr><td>Tek-yön üst (normal)</td><td>—</td><td>'+nf(r.oneSidedUpper.bound)+'</td><td>'+nf(r.oneSidedUpper.k)+'</td></tr>'+
+      '<tr><td>Parametrik-olmayan (min–maks)</td><td>'+nf(r.nonparametric.lower)+'</td><td>'+nf(r.nonparametric.upper)+'</td><td>güven %'+nf(r.nonparametric.confidence*100,1)+'</td></tr>'+
+    '</tbody></table>'+
+    '<div class="exp">n = '+r.n+' · ortalama = '+nf(r.mean)+' · std sapma = '+nf(r.sd)+'. <b>Normal tolerans aralığı</b> = x̄ ± k·s (iki-yön Howe faktörü). <b>Tek-yön</b> yalnız alt ya da üst sınırla ilgilenildiğinde kullanılır. <b>Parametrik-olmayan</b> (dağılım varsayımsız) min/maks kullanır; küçük n\'de güveni düşüktür.'+
+      (normalOk?' Veri normal dağılıma uyuyor (AD p='+nf(r.normality.p)+') → normal tolerans aralığı geçerli.':' <b style="color:#b7791f">Uyarı:</b> veri normal dağılıma uymuyor olabilir (AD p='+nf(r.normality.p)+') → parametrik-olmayan aralığı tercih edin veya veriyi dönüştürün.')+'</div>'+
+    '<div class="grid2" style="margin-top:12px">'+
+      '<div><div style="font-weight:600;font-size:12.5px;text-align:center">Histogram + Tolerans Aralığı</div><div class="chartbox"><canvas id="tHist"></canvas></div></div>'+
+      '<div><div style="font-weight:600;font-size:12.5px;text-align:center">Normal Olasılık Grafiği (Q-Q)</div><div class="chartbox"><canvas id="tQQ"></canvas></div></div>'+
+    '</div></div>';
+
+  // Histogram + normal eğri + TI bantları
+  var H=hist(r.data, Math.min(Math.max(Math.ceil(Math.sqrt(r.n)),7),15));
+  var lo=Math.min(H.lo, r.twoSided.lower)-r.sd*0.3, hi=Math.max(H.hi, r.twoSided.upper)+r.sd*0.3;
+  var curve=[]; for(var i=0;i<=100;i++){ var x=lo+(hi-lo)*i/100; curve.push({x:x, y:Math.exp(-0.5*Math.pow((x-r.mean)/r.sd,2))/(r.sd*Math.sqrt(2*Math.PI))*r.n*H.bw}); }
+  var tiPlugin={ id:'ti', afterDatasetsDraw:function(c){ var ctx=c.ctx,xl=c.scales.xLin,y=c.scales.y; if(!xl)return;
+    function vl(v,col,lbl){ var px=xl.getPixelForValue(v); if(px<xl.left-1||px>xl.right+1)return; ctx.save(); ctx.strokeStyle=col; ctx.setLineDash([6,4]); ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(px,y.top+10); ctx.lineTo(px,y.bottom); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle=col; ctx.font='bold 10px Segoe UI'; ctx.textAlign='center'; ctx.fillText(lbl,px,y.top+8); ctx.restore(); }
+    vl(r.twoSided.lower,'#7b1fa2','Alt'); vl(r.twoSided.upper,'#7b1fa2','Üst'); }};
+  charts.push(new Chart(document.getElementById('tHist'),{ data:{ labels:H.h.map(function(b){return b.mid.toFixed(1);}), datasets:[
+    { type:'bar', label:'Frekans', data:H.h.map(function(b){return b.count;}), backgroundColor:'rgba(120,130,150,.5)', borderColor:'#8f9bb8', borderWidth:1, categoryPercentage:1, barPercentage:1, order:2 },
+    { type:'line', label:'Normal', data:curve.map(function(p){return {x:p.x,y:p.y};}), borderColor:'#1f2a44', pointRadius:0, borderWidth:2.2, tension:0.35, order:1, xAxisID:'xLin' }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:10}}, scales:{ x:{display:false}, xLin:{type:'linear',display:false,min:lo,max:hi}, y:{title:{display:true,text:'Frekans'},beginAtZero:true} }, plugins:{legend:{display:false}} }, plugins:[tiPlugin] }));
+
+  // Q-Q
+  var sorted=r.data, n=r.n;
+  var qq=sorted.map(function(v,i){ var p=(i+0.625)/(n+0.25); return {x:v, y:window.toleranceCalculations.normInv(p)}; });
+  var line=[{x:r.mean-4*r.sd,y:-4},{x:r.mean+4*r.sd,y:4}];
+  charts.push(new Chart(document.getElementById('tQQ'),{ data:{ datasets:[
+    { type:'scatter', data:qq, pointRadius:2.6, pointBackgroundColor:'rgba(90,110,150,.55)' },
+    { type:'line', data:line, borderColor:'#39415a', borderWidth:1.4, pointRadius:0 }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{type:'linear',title:{display:true,text:'Ölçüm'}}, y:{title:{display:true,text:'Teorik nicelik (z)'}} }, plugins:{legend:{display:false}} } }));
+}
+
+(async function(){
+  try{ await MSA.currentUser(); }catch(e){}
+  if(!window.toleranceCalculations){ await loadScript('js/tolerance-calculations.js?v='+Date.now()); }
+  loadExample();
+})();
+</script>
+</body>
+</html>

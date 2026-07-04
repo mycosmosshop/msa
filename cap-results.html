@@ -45,7 +45,7 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       lsl: qp('lsl', opts.lsl), usl: qp('usl', opts.usl),
       target: qp('target', opts.target),
       subgroupSize: parseInt(qp('sg', study.num_trials || opts.subgroup_size || 5), 10),
-      withinMethod: qp('within', 'sbar'),
+      withinMethod: qp('within', opts.withinMethod || 'sbar'),
       useUnbiasing: qp('unbias', '1') !== '0',
       ciLevel: parseFloat(qp('ci', 90)),
       sigmaMult: parseFloat(qp('sigma', 3)),

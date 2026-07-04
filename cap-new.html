@@ -60,6 +60,8 @@
 <script>
 (async () => {
   const user = await MSA.currentUser();
+  const within = MSA.q('within','') || 'sbar';
+  if(within==='betweenwithin'){ var h=document.querySelector('.hdr h1'); if(h) h.innerHTML='<i class="bi bi-graph-up"></i> Yeni Between/Within Yeterlilik Çalışması'; document.title='Yeni Between/Within Çalışması'; }
   document.getElementById('f').addEventListener('submit', async (e)=>{
     e.preventDefault();
     const btn=document.getElementById('sub'); btn.disabled=true; btn.textContent='Oluşturuluyor…';
@@ -71,7 +73,7 @@
         num_operators:1, num_parts:N, num_trials:sg,
         gauge_name:g('gauge_name')||null, characteristic:g('characteristic')||null,
         owner_email:(user.email&&user.email!=='no-session')?user.email:null,
-        status:'draft', analysis_options:{ capability:true, lsl:parseFloat(g('lsl')), usl:parseFloat(g('usl')), target:(g('target')?parseFloat(g('target')):null), subgroup_size:sg }
+        status:'draft', analysis_options:{ capability:true, lsl:parseFloat(g('lsl')), usl:parseFloat(g('usl')), target:(g('target')?parseFloat(g('target')):null), subgroup_size:sg, withinMethod:within }
       }).select('id').single();
       MSA.throwIf(ins.error,'study insert');
       const sid=ins.data.id;
