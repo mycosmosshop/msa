@@ -51,8 +51,8 @@
   </div>
 
   <div class="tabs">
-    <button class="tab on" id="tabBin" onclick="setMode('binomial')">Binomial (Kusurlu / Defective)</button>
-    <button class="tab" id="tabPoi" onclick="setMode('poisson')">Poisson (Hata Sayısı / Defects)</button>
+    <button class="tab on" id="tabBin" onclick="switchMode('binomial')">Binomial (Kusurlu / Defective)</button>
+    <button class="tab" id="tabPoi" onclick="switchMode('poisson')">Poisson (Hata Sayısı / Defects)</button>
   </div>
 
   <div class="card">
@@ -208,6 +208,14 @@ async function persist(){
   }catch(e){ if(st) st.innerHTML='<i class="bi bi-cloud-slash" style="color:#c0392b"></i> Kaydedilemedi: '+e.message; }
 }
 async function renameStudy(){ if(!currentId)return; var name=(document.getElementById('studyName').value||'').trim(); if(name){ try{ await MSA.db.from(MSA.T.studies).update({study_name:name}).eq('id',currentId); }catch(e){} } }
+function switchMode(m){
+  if(m===MODE) return;
+  currentId=null;                       // sekme değişince YENİ çalışma (Binomial ve Poisson ayrı kartlar)
+  try{ history.replaceState(null,'','cap-attributes.html?mode='+m); }catch(e){}
+  setMode(m);
+  document.getElementById('studyName').value=defaultName();
+  var st=document.getElementById('saveState'); if(st) st.innerHTML='<i class="bi bi-cloud"></i> Hesaplayınca otomatik panoya kaydedilir';
+}
 async function loadSaved(id){
   currentId=id;
   var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
