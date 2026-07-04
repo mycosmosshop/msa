@@ -358,7 +358,61 @@
     return out;
   }
 
-  const api={ calculateSubgroupChart, calculateIndividualsChart, calculateAttributeChart, calculateTimeWeighted, konst };
+  // ── Rare Event Charts (G chart, T chart) ────────────────────────────────
+  function weibullFit(t){
+    const n=t.length; const lnt=t.map(Math.log); const mlnt=mean(lnt); let b=1;
+    for(let it=0;it<100;it++){ let s0=0,s1=0,s2=0; for(let i=0;i<n;i++){ const tb=Math.pow(t[i],b); s0+=tb; s1+=tb*lnt[i]; s2+=tb*lnt[i]*lnt[i]; }
+      const A=s1/s0, f=1/b+mlnt-A, df=-1/(b*b)-(s2*s0-s1*s1)/(s0*s0); const nb=b-f/df; if(!(nb>0)||!isFinite(nb)) break; if(Math.abs(nb-b)<1e-8){b=nb;break;} b=nb; }
+    let sb=0; for(let i=0;i<n;i++) sb+=Math.pow(t[i],b); return { beta:b, eta:Math.pow(sb/n,1/b) };
+  }
+  function calculateRareEvent(values, options){
+    options = options || {};
+    const type = options.type==='t' ? 't' : 'g';
+    const v = (values||[]).map(Number).filter(x=>isFinite(x)&&x>=0);
+    if(v.length<3) throw new Error('En az 3 gözlem gerekli');
+    const idx = v.map((_,i)=>i+1);
+    const Zu=0.99865, Zl=0.00135;   // ±3σ kuyruk olasılıkları
+
+    if(type==='g'){
+      // Geometrik: olaylar arası fırsat sayısı
+      if(v.some(x=>x!==Math.round(x))) { /* sayım değilse de devam */ }
+      const gbar = mean(v);
+      let p;
+      if(options.proportion==='historical' && options.p!=null && isFinite(parseFloat(options.p)) && parseFloat(options.p)>0){ p=parseFloat(options.p); }
+      else p = 1/(gbar+1);
+      const mu = (1-p)/p;                 // = gbar (estimated'da)
+      const sigma = Math.sqrt((1-p))/p;   // = sqrt(mu(mu+1))
+      const UCL = mu+3*sigma, LCL = Math.max(0, mu-3*sigma), CL = mu;
+      const beyond=[]; v.forEach((x,i)=>{ if(x>UCL+1e-9||x<LCL-1e-9) beyond.push(i+1); });
+      return { type:'g', chart:{ points:v, index:idx, CL, UCL, LCL, varying:false, label:'G grafiği (olaylar arası fırsat)', ylabel:'Fırsat sayısı' },
+        studyInfo:{ n:v.length, p, mu, sigma, proportion:(options.proportion||'estimated') },
+        tests:{ beyond }, interpretation:{ inControl:!beyond.length, nOut:beyond.length } };
+    }
+
+    // T chart: olaylar arası süre
+    const t = v.filter(x=>x>0); if(t.length<3) throw new Error('T grafiği için pozitif süreler gerekli');
+    const dist = options.distribution==='exponential' ? 'exponential' : 'weibull';
+    let CL, UCL, LCL, par;
+    if(dist==='exponential'){
+      let lambda;
+      if(options.params==='historical' && options.rate!=null && isFinite(parseFloat(options.rate)) && parseFloat(options.rate)>0) lambda=parseFloat(options.rate);
+      else lambda = 1/mean(t);
+      const q=function(p){ return -Math.log(1-p)/lambda; };
+      UCL=q(Zu); CL=q(0.5); LCL=q(Zl); par={ dist:'exponential', lambda, mean:1/lambda };
+    } else {
+      let beta, eta;
+      if(options.params==='historical' && options.beta!=null && options.eta!=null && parseFloat(options.beta)>0 && parseFloat(options.eta)>0){ beta=parseFloat(options.beta); eta=parseFloat(options.eta); }
+      else { const f=weibullFit(t); beta=f.beta; eta=f.eta; }
+      const q=function(p){ return eta*Math.pow(-Math.log(1-p),1/beta); };
+      UCL=q(Zu); CL=q(0.5); LCL=q(Zl); par={ dist:'weibull', beta, eta };
+    }
+    const beyond=[]; t.forEach((x,i)=>{ if(x>UCL+1e-9||x<LCL-1e-9) beyond.push(i+1); });
+    return { type:'t', chart:{ points:t, index:t.map((_,i)=>i+1), CL, UCL, LCL, varying:false, label:'T grafiği (olaylar arası süre)', ylabel:'Süre' },
+      studyInfo:{ n:t.length, dist, par, params:(options.params||'estimated') },
+      tests:{ beyond }, interpretation:{ inControl:!beyond.length, nOut:beyond.length } };
+  }
+
+  const api={ calculateSubgroupChart, calculateIndividualsChart, calculateAttributeChart, calculateTimeWeighted, calculateRareEvent, weibullFit, konst };
   if(typeof module!=='undefined'&&module.exports) module.exports=api;
   if(typeof window!=='undefined') window.controlCalculations=api;
 })();
