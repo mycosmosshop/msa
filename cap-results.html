@@ -68,11 +68,18 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       const savedOpts = Object.assign({}, opts, {
         lsl: num(callOpts.lsl), usl: num(callOpts.usl), target: num(callOpts.target), subgroup_size: callOpts.subgroupSize
       });
+      // Normal-olmayan modda (ör. ampirik yüzdelik) raporlanan indis nonNormal.ppk'dır;
+      // özet ve kabul o değerden yazılır ki ekrandaki rozetle kayıt aynı olsun.
+      const nn = results.nonNormal && !results.nonNormal.error ? results.nonNormal : null;
+      const effIdx = nn && nn.ppk != null ? nn.ppk : results.interpretation.cpk;
+      const effCls = effIdx == null ? 'neutral' : (effIdx >= 1.33 ? 'good' : (effIdx >= 1.0 ? 'marginal' : 'bad'));
       await MSA.db.from(MSA.T.studies).update({
         analysis_options: savedOpts,
-        gauge_evaluation: { capability: true, cp: results.within.cp, cpk: results.within.cpk, pp: results.overall.cp, ppk: results.overall.cpk },
+        gauge_evaluation: nn
+          ? { capability: true, cp: nn.pp, cpk: nn.ppk, pp: nn.pp, ppk: nn.ppk, method: nn.dist }
+          : { capability: true, cp: results.within.cp, cpk: results.within.cpk, pp: results.overall.cp, ppk: results.overall.cpk },
         status: 'calculated',
-        is_acceptable: results.interpretation.acceptabilityClass === 'good' ? 'acceptable' : (results.interpretation.acceptabilityClass === 'marginal' ? 'marginal' : 'unacceptable')
+        is_acceptable: effCls === 'good' ? 'acceptable' : (effCls === 'marginal' ? 'marginal' : 'unacceptable')
       }).eq('id', studyId);
     } catch (e) { console.warn('özet kaydedilemedi', e); }
 

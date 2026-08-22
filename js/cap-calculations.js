@@ -119,6 +119,24 @@
       if(r.ll>bestLL){ bestLL=r.ll; best=g; } }
     return best; }
   function fitDistribution(data, kind){
+    if(kind==='empirical'){
+      // Ampirik yüzdelik (ISO 22514-2): dağılım UYDURULMAZ — X0,135/X50/X99,865
+      // doğrudan sıralı veriden lineer interpolasyonla okunur (numpy.percentile
+      // 'linear' ile birebir; APQP üretecinin Python hesabıyla aynı).
+      const sorted=[...data].sort((a,b)=>a-b); const nD=sorted.length;
+      const Q=(q)=>{ const h=(nD-1)*Math.min(Math.max(q,0),1); const lo=Math.floor(h), hi=Math.min(lo+1,nD-1); return sorted[lo]+(h-lo)*(sorted[hi]-sorted[lo]); };
+      const ecdf=(x)=>{ if(x<=sorted[0])return 0; if(x>=sorted[nD-1])return 1;
+        let lo=0, hi=nD-1; while(hi-lo>1){ const m=(lo+hi)>>1; if(sorted[m]<=x)lo=m; else hi=m; }
+        const a=sorted[lo], b=sorted[hi]; return (lo+(b>a?(x-a)/(b-a):0))/(nD-1); };
+      // Histogram eğrisi için KDE (Silverman bant genişliği)
+      const mu=sorted.reduce((s,v)=>s+v,0)/nD;
+      const sd=Math.sqrt(sorted.reduce((s,v)=>s+(v-mu)*(v-mu),0)/Math.max(1,nD-1))||1;
+      const bwK=1.06*sd*Math.pow(nD,-0.2)||1;
+      return { kind, name:'Ampirik yüzdelik (ISO 22514-2)', gamma:0, three:false,
+        cdf:ecdf, inv:Q,
+        pdf:(x)=>{ let s=0; for(let i=0;i<nD;i++){ const z=(x-sorted[i])/bwK; s+=Math.exp(-0.5*z*z); } return s/(nD*bwK*Math.sqrt(2*Math.PI)); },
+        params:{ 'n':nD, 'X0,135':Q(0.00135), 'X50':Q(0.5), 'X99,865':Q(0.99865) }, ll:0 };
+    }
     const three = kind==='lognormal3' || kind==='weibull3';
     const base = (kind==='lognormal'||kind==='lognormal3')?'lognormal':'weibull';
     let gamma=0;
@@ -234,7 +252,7 @@
     const activeTests = options.controlTests!=null ? String(options.controlTests).split(',').map(s=>parseInt(s,10)).filter(v=>v>=1&&v<=8) : [1,2,3,4,5,6,7,8];
     const lslBoundary = options.lslBoundary===true || options.lslBoundary==='true' || options.lslBoundary==='1';
     const uslBoundary = options.uslBoundary===true || options.uslBoundary==='true' || options.uslBoundary==='1';
-    const NONNORMAL_KINDS = ['lognormal','lognormal3','weibull','weibull3'];
+    const NONNORMAL_KINDS = ['lognormal','lognormal3','weibull','weibull3','empirical'];
     const isNonNormal = NONNORMAL_KINDS.indexOf(distReq) !== -1;   // dağılım fitleme (dönüşüm değil)
 
     // ---- Normalizasyon (Box-Cox) — yalnız transform yöntemi; dağılım-fit (lognormal/weibull) ayrı ele alınır ----
@@ -382,8 +400,9 @@
     if(isNonNormal){
       try{
         fittedDist = fitDistribution(all, distReq);
-        // Fit değerlendirmesi (Anderson-Darling, dağılıma karşı)
-        fitAD = adAgainstDist(all, fittedDist);
+        // Fit değerlendirmesi (Anderson-Darling, dağılıma karşı).
+        // Ampirikte anlamsız (veri kendi CDF'ine karşı sınanamaz) — atlanır.
+        fitAD = distReq==='empirical' ? null : adAgainstDist(all, fittedDist);
         const nc = nonNormalCapability(fittedDist, lsl, usl, target, lslBoundary, uslBoundary, nonNormalMethod);
         nonNormal = {
           dist: fittedDist.name, kind: distReq, method: nonNormalMethod, params: fittedDist.params,
