@@ -64,12 +64,13 @@
      var nn=results.nonNormal; var isNN=!!(op.isNonNormal && nn && !nn.error);
      var showSix=(typeof sixpack!=='undefined' && sixpack);
      var mainIdx=isNN?nn.ppk:it.cpk; var mainLbl=isNN?'Ppk':'Cpk';
-     var mainCls=mainIdx==null?'neutral':(mainIdx>=1.33?'good':(mainIdx>=1.0?'marginal':'bad'));
-     var mainTxt=mainCls==='good'?'Yeterli':(mainCls==='marginal'?'Marjinal':(mainCls==='bad'?'Yetersiz':'—'));
+     // AIAG PPAP 2.2.11 esigi (ilk surec potansiyeli): >=1.67 / 1.33-1.67 / <1.33
+     var mainCls=mainIdx==null?'neutral':(mainIdx>=1.67?'good':(mainIdx>=1.33?'marginal':'bad'));
+     var mainTxt=mainCls==='good'?'Yeterli':(mainCls==='marginal'?'Şartlı — müşteriyle gözden geçir':(mainCls==='bad'?'Yetersiz':'—'));
      function fn(x,d){ if(x==null||!isFinite(x))return '—'; var ax=Math.abs(x); if(ax!==0 && (ax>=1e6 || ax<1e-4)) return Number(x).toExponential(3); return Number(x).toFixed(d==null?3:d); }
      function cil(o){ return (o&&o.lo!=null&&isFinite(o.lo))?Number(o.lo).toFixed(3):'—'; }
      function cih(o){ return (o&&o.hi!=null&&isFinite(o.hi))?Number(o.hi).toFixed(3):'—'; }
-     function idxPill(v){ if(v==null)return '—'; var c=v>=1.33?'good':(v>=1.0?'marginal':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; }
+     function idxPill(v){ if(v==null)return '—'; var c=v>=1.67?'good':(v>=1.33?'marginal':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; }
      function sel(cur,val){ return String(cur)===String(val)?' selected':''; }
      var swLbl = si.method==='individual' ? 'MR̄/1.128' : (si.withinLabel||'s̄/c₄'); %>
   <div class="hdr">
@@ -219,7 +220,10 @@
     </div>
     <div class="exp"><b>Proses yeterliliği</b>, sürecin çıktısının spesifikasyon sınırlarına (LSL–USL) ne kadar sığdığını ölçer.
       <b>Cp/Cpk</b> kısa dönem (within, σ = <%= swLbl %>), <b>Pp/Ppk</b> uzun dönem (overall) yeteneği gösterir.
-      Genel kabul: <b>Cpk ≥ 1.33 yeterli</b>, 1.00–1.33 marjinal, &lt; 1.00 yetersiz. Cp≈Cpk ise süreç ortalanmıştır.
+      Kabul kriteri (<b>AIAG PPAP 2.2.11</b>, ilk süreç potansiyeli): <b>Cpk ≥ 1.67 yeterli</b>,
+      1.33–1.67 ise sonuçları yetkili müşteri temsilcisiyle gözden geçirin, &lt; 1.33 yetersiz.
+      Tek taraflı limit veya normal olmayan dağılımda kabul kriteri müşteri temsilcisiyle belirlenir.
+      Cp≈Cpk ise süreç ortalanmıştır.
       Spesifikasyon: LSL=<%= fn(si.lsl,2) %>, Hedef=<%= si.target!=null?fn(si.target,2):'—' %>, USL=<%= fn(si.usl,2) %>.</div>
   </div>
 

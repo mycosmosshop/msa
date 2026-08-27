@@ -465,7 +465,10 @@
     // Karar (Cpk within)
     const cpk = within.cpk;
     let verdict = { label:'—', cls:'neutral' };
-    if(cpk!=null){ verdict = cpk>=1.33?{label:'Yeterli',cls:'good'} : cpk>=1.0?{label:'Marjinal',cls:'marginal'} : {label:'Yetersiz',cls:'bad'}; }
+    // AIAG PPAP 2.2.11 esigi: >=1.67 yeterli · 1.33-1.67 musteri temsilcisiyle
+    // gozden gecir · <1.33 yetersiz. (Once genel 1.33/1.00 esigi kullaniliyordu;
+    // PPAP ilk surec potansiyeli calismasi bundan daha siki.)
+    if(cpk!=null){ verdict = cpk>=1.67?{label:'Yeterli',cls:'good'} : cpk>=1.33?{label:'Şartlı — müşteriyle gözden geçir',cls:'marginal'} : {label:'Yetersiz',cls:'bad'}; }
 
     const withinLabel = withinMethod==='rbar'?'R̄/d₂':(withinMethod==='pooled'?'Pooled/c₄':(withinMethod==='betweenwithin'?'Between/Within √(σ_w²+σ_b²)':'s̄/c₄'));
     return {

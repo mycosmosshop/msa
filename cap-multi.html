@@ -97,7 +97,8 @@ function loadExample(){
   addVar({name:'Ağırlık (g)',lsl:19,target:20,usl:21,sg:5,data:gen(20,0.28)});
 }
 function nf(x,d){ if(x==null||!isFinite(x))return '—'; var ax=Math.abs(x); if(ax!==0&&(ax>=1e6||ax<1e-4))return Number(x).toExponential(2); return Number(x).toFixed(d==null?3:d); }
-function pill(v){ if(v==null||!isFinite(v))return '—'; var c=v>=1.33?'good':(v>=1.0?'mar':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; }
+// AIAG PPAP 2.2.11 esigi — cap-results ile ayni olsun
+function pill(v){ if(v==null||!isFinite(v))return '—'; var c=v>=1.67?'good':(v>=1.33?'mar':'bad'); return '<span class="pill '+c+'">'+v.toFixed(3)+'</span>'; }
 
 var multiMode='blk', jaspCtrl=null;
 function setMultiMode(m){ multiMode=m;
@@ -151,7 +152,7 @@ function draw(results){
   var worst=results.reduce(function(a,b){ return (b.r.within.cpk!=null && (a==null||b.r.within.cpk<a.r.within.cpk))?b:a; }, null);
   var html='<div class="card"><h2><i class="bi bi-clipboard-data i"></i> Karşılaştırma Tablosu</h2>'+
     '<table><thead><tr><th>Karakteristik</th><th>Ortalama</th><th>σ (overall)</th><th>Cp</th><th>Cpk</th><th>Pp</th><th>Ppk</th><th>PPM</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-    '<div class="exp"><b>Renk:</b> yeşil ≥1.33 yeterli · sarı 1.00–1.33 marjinal · kırmızı &lt;1.00 yetersiz. '+
+    '<div class="exp"><b>Renk (AIAG PPAP 2.2.11):</b> yeşil ≥1.67 yeterli · sarı 1.33–1.67 müşteriyle gözden geçir · kırmızı &lt;1.33 yetersiz. '+
       (worst?'<b>Darboğaz:</b> en düşük Cpk <b>'+worst.name+'</b> ('+nf(worst.r.within.cpk)+') — iyileştirmeye buradan başlayın.':'')+'</div>'+
     '<div class="smgrid">'+results.map(function(o,i){ return '<div class="smp"><div class="t">'+o.name+'</div><div class="smbox"><canvas id="sm'+i+'"></canvas></div></div>'; }).join('')+'</div>'+
     '</div>';
