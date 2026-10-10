@@ -23,6 +23,7 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
   try {
     // Hesap motorunu her zaman TAZE yükle (tarayıcı önbelleği eski sürümü tutmasın)
     if (!window.capCalculations) await loadScript('js/cap-calculations.js?v=' + Date.now());
+    if (!window.fr24Excel) await loadScript('js/fr24-excel.js?v=' + Date.now());
     const user = await MSA.currentUser();
     const { data: study, error: stErr } = await MSA.db.from(MSA.T.studies).select('*').eq('id', studyId).maybeSingle();
     MSA.throwIf(stErr, 'study select');
@@ -84,7 +85,14 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
     } catch (e) { console.warn('özet kaydedilemedi', e); }
 
     const showSixpack = qp('sixpack', opts.sixpack ? '1' : '0') === '1';
-    await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, sixpack: showSixpack, branding: MSA.BRANDING });
+    // FR24 Excel formu: yalnız formun çerçevesine uyan çalışma (ölçüm sırası korunur)
+    const fr24 = {
+      neden: window.fr24Excel.uygunluk({ n: data.length, lsl: callOpts.lsl, usl: callOpts.usl, dagilim: callOpts.distribution }),
+      bilgi: { degerler: data.map(d => d.value), lsl: callOpts.lsl, usl: callOpts.usl, hedef: callOpts.target, dagilim: callOpts.distribution,
+        urun: study.part_name || study.study_name, karakteristik: study.characteristic || '', alet: study.gauge_name || '',
+        sorumlu: study.performed_by || study.owner_email || '', tarih: study.study_date || study.created_at || null }
+    };
+    await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, sixpack: showSixpack, branding: MSA.BRANDING, fr24 });
   } catch (error) {
     console.error('Capability sonuç hatası:', error);
     MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);

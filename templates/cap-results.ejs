@@ -84,6 +84,7 @@
 
   <div class="acts">
     <a class="btn primary" href="#" onclick="window.print();return false"><i class="bi bi-printer"></i> PDF / Yazdır</a>
+    <a class="btn ghost" href="#" onclick="fr24Indir(this);return false"<% if(fr24.neden){ %> style="opacity:.5" title="<%= fr24.neden %>"<% } %>><i class="bi bi-file-earmark-excel"></i> Excel (FR24)</a>
     <a class="btn ghost" href="cap-data-entry.html?id=<%= study.id %>"><i class="bi bi-pencil"></i> Veriyi Düzenle</a>
     <a class="btn ghost" href="capability.html"><i class="bi bi-arrow-left"></i> Panoya Dön</a>
   </div>
@@ -519,6 +520,23 @@ function capReload(){
   var tsel=[].slice.call(document.querySelectorAll('.tchk:checked')).map(function(c){return c.value;});
   add('tests', tsel.join(','));
   location.href='cap-results.html?'+p.join('&');
+}
+// FR24 formu: şablona yalnız değerler yazılır, formül/grafikleri Excel açılışta hesaplar (js/fr24-excel.js)
+var FR24 = <%- JSON.stringify(fr24) %>;
+function fr24Yukle(src){ return new Promise(function(res,rej){ var s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=function(){rej(new Error('yüklenemedi: '+src));}; document.head.appendChild(s); }); }
+async function fr24Indir(btn){
+  if(FR24.neden){ alert('Bu çalışma FR24 Excel formuna uymuyor:\n'+FR24.neden); return; }
+  if(btn.dataset.mesgul) return; btn.dataset.mesgul='1'; var eski=btn.innerHTML; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Hazırlanıyor…';
+  try{
+    if(!window.JSZip) await fr24Yukle('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    if(!window.fr24Excel) await fr24Yukle('js/fr24-excel.js?v='+Date.now());
+    var r=await fetch('templates/fr24-sablon.xlsx?v='+Date.now()); if(!r.ok) throw new Error('FR24 şablonu yüklenemedi ('+r.status+')');
+    var blob=await fr24Excel.olustur(JSZip, await r.arrayBuffer(), FR24.bilgi, 'blob');
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=('FR24 Proses Yeterliliği '+<%- JSON.stringify(study.study_name||'') %>).replace(/[\\/:*?"<>|]+/g,' ').trim()+'.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+  }catch(e){ alert('Excel oluşturulamadı: '+e.message); }
+  finally{ btn.innerHTML=eski; delete btn.dataset.mesgul; }
 }
 function capTestCount(){ var c=document.querySelectorAll('.tchk:checked').length; var el=document.getElementById('testCount'); if(el) el.textContent=c; }
 </script>
