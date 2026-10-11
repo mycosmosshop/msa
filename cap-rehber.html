@@ -18,7 +18,9 @@
   .hdr h1{margin:0;font-size:20px;display:flex;gap:10px;align-items:center} .hdr p{margin:4px 0 0;opacity:.9;font-size:13px}
   .btn{border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.2);color:#fff}
   .tuval{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:16px;position:relative}
-  #sifirla{position:absolute;top:14px;right:14px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:#41506b;cursor:pointer}
+  .ustbar{display:flex;justify-content:flex-end;margin:-4px 0 12px}
+  #sifirla{border:1.5px solid var(--p);background:#fff;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--p);cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  #sifirla:hover{background:var(--p);color:#fff}
   /* her adım: solda soru (karar kutusu), sağda cevaplar; seçilen cevaptan aşağı ok, sonraki adım */
   .adim{display:flex;gap:18px;align-items:stretch}
   .soru{width:210px;flex:none;border:2px solid var(--p);border-radius:12px;padding:10px 12px;font-weight:700;font-size:13.5px;color:#2f3a75;background:#f6f7fe;display:flex;flex-direction:column;justify-content:center}
@@ -98,7 +100,7 @@ function ciz(){
        + '<a class="basla" href="'+esc(link(y.url))+'"><i class="bi bi-play-fill"></i> Bu çalışmayı başlat</a></div>';
     d = null;
   }
-  document.getElementById('akis').innerHTML = (secim.length ? '<button id="sifirla">Baştan</button>' : '') + h;
+  document.getElementById('akis').innerHTML = (secim.length ? '<div class="ustbar"><button id="sifirla"><i class="bi bi-arrow-counterclockwise"></i> Baştan</button></div>' : '') + h;
 }
 
 document.addEventListener('click', function(e){
