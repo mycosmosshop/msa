@@ -77,18 +77,22 @@
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
       <button class="btn ghost" onclick="addRow()"><i class="bi bi-plus"></i> Satır Ekle</button>
       <button class="btn ghost" onclick="clearRows()"><i class="bi bi-x-circle"></i> Temizle</button>
-      <button class="btn ghost" onclick="simAc()"><i class="bi bi-shuffle"></i> Simülasyon</button>
-    </div>
-    <div id="simPanel" hidden style="margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:12px">
-      <div class="exp" style="margin:0 0 10px"><b>Simülasyon:</b> istenen <b>Cpk eşdeğeri</b> (Süreç Z / 3) aralığında, kontrol kartı kararlı veri üretilir. Çalışma kalıcı olarak <b>SİMÜLASYON</b> işaretlenir — gerçek ölçüm kaydı değildir.</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;font-size:12px;font-weight:600;color:#4a5568">
-        <label>Alt grup sayısı<input id="simK" type="number" min="2" max="500" value="25" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
-        <label><span id="simNlbl">Örnek boyutu (n)</span><input id="simN" type="number" min="1" value="2000" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
-        <label>Cpk aralığı — alt<input id="simA" type="number" step="any" value="1.00" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
-        <label>Cpk aralığı — üst<input id="simB" type="number" step="any" value="1.33" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
-        <label>Cihaz<input id="simCihaz" list="simCihazlar" placeholder="ör. Gözle" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"><datalist id="simCihazlar"></datalist></label>
+      <span style="position:relative;display:inline-block">
+        <button class="btn ghost" onclick="simAc()"><i class="bi bi-shuffle"></i> Simülasyon <i class="bi bi-chevron-down" style="font-size:11px"></i></button>
+      <div id="simPanel" hidden style="position:absolute;top:calc(100% + 10px);left:0;z-index:30;width:min(560px,calc(100vw - 40px));background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(30,40,70,.18);padding:14px">
+        <span style="position:absolute;top:-7px;left:28px;width:12px;height:12px;background:#fff;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)"></span>
+        <button type="button" onclick="simAc()" title="Kapat" style="position:absolute;top:8px;right:10px;border:0;background:transparent;font-size:18px;color:#8a94a8;cursor:pointer">×</button>
+        <div class="exp" style="margin:0 0 10px"><b>Simülasyon:</b> istenen <b>Cpk eşdeğeri</b> (Süreç Z / 3) aralığında, kontrol kartı kararlı veri üretilir. Çalışma kalıcı olarak <b>SİMÜLASYON</b> işaretlenir — gerçek ölçüm kaydı değildir.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;font-size:12px;font-weight:600;color:#4a5568">
+          <label>Alt grup sayısı<input id="simK" type="number" min="2" max="500" value="25" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+          <label><span id="simNlbl">Örnek boyutu (n)</span><input id="simN" type="number" min="1" value="2000" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+          <label>Cpk aralığı — alt<input id="simA" type="number" step="any" value="1.00" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+          <label>Cpk aralığı — üst<input id="simB" type="number" step="any" value="1.33" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+          <label>Cihaz<input id="simCihaz" list="simCihazlar" placeholder="ör. Gözle" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"><datalist id="simCihazlar"></datalist></label>
+        </div>
+        <button class="btn primary" style="margin-top:10px" onclick="simUret(this)"><i class="bi bi-play-fill"></i> Üret</button>
       </div>
-      <button class="btn primary" style="margin-top:10px" onclick="simUret(this)"><i class="bi bi-play-fill"></i> Üret</button>
+      </span>
     </div>
     <div class="exp" style="margin-top:10px"><b>Hedef (opsiyonel):</b> <input type="number" id="target" step="any" style="width:110px;padding:5px 8px;border:1px solid var(--line);border-radius:7px" placeholder="ör. 2"> <span id="targetUnit"></span></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
@@ -188,6 +192,7 @@ async function simUret(btn){
     try{ history.replaceState(null,'','cap-attributes.html?mode='+MODE); }catch(e){}
     var el=document.getElementById('studyName'); el.value=(el.value&&el.value.indexOf('SİMÜLASYON')<0?el.value:defaultName()).replace(/ · SİMÜLASYON$/,'')+' · SİMÜLASYON';
     document.getElementById('target').value='';
+    document.getElementById('simPanel').hidden=true;   // üretildi: kutu kapanır, rapor görünür
     calc();
   }catch(e){ alert(e.message); }
   finally{ btn.disabled=false; btn.innerHTML=eski; }

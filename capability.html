@@ -67,11 +67,14 @@
     </div>
     <div class="acts">
       <div id="gorunum"><button data-g="kart" title="Kart görünümü"><i class="bi bi-grid-3x2-gap"></i></button><button data-g="liste" title="Liste görünümü"><i class="bi bi-list-ul"></i></button></div>
+      <a class="btn ghost" href="cap-rehber.html" title="Hangi çalışmayı seçeceğinizi soru-cevap akışıyla bulun"><i class="bi bi-signpost-split"></i> Hangi çalışma?</a>
       <a class="btn ghost" href="cap-equipment.html"><i class="bi bi-hdd-stack"></i> Ekipman</a>
       <a class="btn ghost" href="cap-plan.html"><i class="bi bi-calendar-check"></i> Plan</a>
       <div class="dd" id="ddNew">
         <button class="btn primary" onclick="document.getElementById('ddNew').classList.toggle('open');event.stopPropagation();"><i class="bi bi-plus-circle"></i> Yeni Çalışma <i class="bi bi-chevron-down"></i></button>
         <div class="ddmenu">
+          <a href="cap-rehber.html" style="background:#f2f4fb"><i class="bi bi-signpost-split"></i> <span>Hangisini seçeyim? — Seçim akışı<small>Soru-cevapla doğru çalışmayı bulun (Minitab Assistant gibi)</small></span></a>
+          <div style="border-top:1px solid var(--line);margin:5px 8px"></div>
           <a href="cap-new.html"><i class="bi bi-rulers"></i> <span>Proses Yeterliliği (Cp/Cpk)<small>Ölçüm verisi — sürekli değer (Normal)</small></span></a>
           <a href="cap-new.html?within=betweenwithin"><i class="bi bi-layers-half"></i> <span>Between/Within Yeterliliği<small>Alt gruplar arası + içi değişkenlik (batch süreç)</small></span></a>
           <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;padding:4px 12px 2px">Nitel (sayılan veri)</div>

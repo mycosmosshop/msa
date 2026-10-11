@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<script>window.ERP_GUARD_ALLOW=function(){return ['localhost','127.0.0.1'].includes(location.hostname);};</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://mycosmosshop.github.io/erp-portal/erp-guard.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<title>Hangi Çalışma? — Seçim Akışı</title>
+<style>
+  :root{--p:#667eea;--p2:#764ba2;--bg:#f5f7fb;--card:#fff;--ink:#232a35;--muted:#6b7280;--line:#d9deea;--ok:#1e7e4a}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px}
+  .hdr{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;border-radius:16px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .hdr h1{margin:0;font-size:20px;display:flex;gap:10px;align-items:center} .hdr p{margin:4px 0 0;opacity:.9;font-size:13px}
+  .btn{border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.2);color:#fff}
+  .tuval{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:16px;position:relative}
+  #sifirla{position:absolute;top:14px;right:14px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:#41506b;cursor:pointer}
+  /* her adım: solda soru (karar kutusu), sağda cevaplar; seçilen cevaptan aşağı ok, sonraki adım */
+  .adim{display:flex;gap:18px;align-items:stretch}
+  .soru{width:210px;flex:none;border:2px solid var(--p);border-radius:12px;padding:10px 12px;font-weight:700;font-size:13.5px;color:#2f3a75;background:#f6f7fe;display:flex;flex-direction:column;justify-content:center}
+  .soru .no{font-size:11px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+  .soru small{font-weight:500;color:var(--muted);font-size:11.5px;margin-top:4px}
+  .cevaplar{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;position:relative}
+  .cevaplar::before{content:'';position:absolute;left:-18px;top:50%;width:18px;border-top:2px solid var(--line)}
+  .cevap{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:9px 11px;font-size:13px;font-weight:600;color:#41506b;cursor:pointer;text-align:left;font-family:inherit;transition:all .15s}
+  .cevap small{display:block;font-weight:400;color:var(--muted);font-size:11.5px;margin-top:3px}
+  .cevap:hover{border-color:var(--p);background:#f4f5fe}
+  .cevap.secili{background:var(--p);border-color:var(--p);color:#fff} .cevap.secili small{color:#e6e9ff}
+  .cevap.soluk{opacity:.45}
+  .ok{display:flex;justify-content:center;color:var(--p);font-size:20px;margin:6px 0 6px 0;padding-left:228px}
+  .sonuc{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border:2px solid var(--ok);background:#f2fbf5;border-radius:14px;padding:14px 18px}
+  .sonuc .ad{font-size:17px;font-weight:800;color:#1c4f33} .sonuc .n{font-size:12.5px;color:#4f6b5c;margin-top:3px}
+  .sonuc .basla{margin-left:auto;background:linear-gradient(135deg,#2e9d63,#1e7e4a);color:#fff;border-radius:10px;padding:10px 18px;font-weight:700;text-decoration:none;display:inline-flex;gap:7px;align-items:center}
+  .sonuc .alt{font-size:12.5px;color:var(--p);font-weight:600;text-decoration:none}
+  .not{font-size:12px;color:var(--muted);margin-top:12px}
+  @media(max-width:640px){ .adim{flex-direction:column;gap:8px} .soru{width:auto} .cevaplar::before{display:none} .ok{padding-left:0} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div><h1><i class="bi bi-signpost-split"></i> Hangi Çalışma? — Seçim Akışı</h1>
+      <p>Size uyan cevaba tıklayın; sonraki soru altında açılır. Sondaki yeşil kutu doğru çalışmayı başlatır.</p></div>
+    <a class="btn" href="capability.html"><i class="bi bi-arrow-left"></i> Pano</a>
+  </div>
+  <div class="tuval"><div id="akis"></div></div>
+  <div class="not"><i class="bi bi-info-circle"></i> Normal mi değil mi bilmiyorsanız "Normal / bilmiyorum" ile başlayın: sonuç sayfası Anderson-Darling testiyle söyler, gerekirse dağılımı oradan değiştirirsiniz.
+    Önceki bir cevaba tıklayarak yolu istediğiniz yerden değiştirebilirsiniz.</div>
+</div>
+<script>
+// Karar ağacı: s = soru, a = açıklama, dallar = [{ e: cevap, i: ipucu, d: sonraki soru | y: sonuç }]
+// sonuç = { ad, url, n: ne verir, alt: { ad, url } ikinci seçenek }
+var AGAC = { s:'Veriniz ne tür?', a:'Ölçülen mi, sayılan mı?', dallar:[
+  { e:'Ölçülen (sürekli)', i:'mm, g, °C, N — ölçüm aletiyle okunan', d:{ s:'Amacınız ne?', dallar:[
+    { e:'Tek karakteristiğin yeterliliği', i:'Cp / Cpk / Pp / Ppk', d:{ s:'Veri normal dağılıyor mu?', a:'Bilmiyorsanız: normal', dallar:[
+      { e:'Normal / bilmiyorum', i:'Çan eğrisi; çoğu boyut ölçüsü', d:{ s:'Partiler arasında fark var mı?', a:'Alt gruplar arası değişkenlik', dallar:[
+        { e:'Hayır — sürekli üretim', i:'Tek akış, hat, makine', y:{ ad:'Proses Yeterliliği (Cp/Cpk)', url:'cap-new.html', n:'Cp, Cpk, Pp, Ppk · histogram · kontrol kartı · FR24 Excel çıktısı', alt:{ ad:'6 grafik birden: Normal Sixpack', url:'cap-new.html?sixpack=1' } } },
+        { e:'Evet — parti (batch) süreç', i:'Parti / şarj / rulo değişince kayma', y:{ ad:'Between/Within Yeterliliği', url:'cap-new.html?within=betweenwithin', n:'Parti arası + parti içi σ birlikte', alt:{ ad:'Sixpack ile', url:'cap-new.html?sixpack=1&within=betweenwithin' } } } ] } },
+      { e:'Normal değil', i:'Çarpık; sıfıra / tek sınıra dayalı (düzlük, salgı, yapışma kuvveti)', y:{ ad:'Normal-Olmayan Yeterlilik', url:'cap-new.html?sixpack=1&dist=weibull', n:'Weibull, Lognormal, Box-Cox, Johnson ya da ampirik yüzdelik' } } ] } },
+    { e:'Önce / sonra karşılaştırma', i:'İyileştirme işe yaradı mı?', y:{ ad:'Yeterlilik Karşılaştırma', url:'cap-compare.html', n:'İki dönemin Cp · Cpk · Pp · Ppk farkı' } },
+    { e:'Birden çok karakteristik', i:'Aynı parçada birkaç ölçü', y:{ ad:'Çoklu Değişken', url:'cap-multi.html', n:'Hepsi tek raporda' } },
+    { e:'Spesifikasyon yok', i:'Ürünün %99\'u hangi aralıkta?', y:{ ad:'Tolerans Aralığı', url:'cap-tolerance.html', n:'Popülasyonun %P\'sini %C güvenle içeren aralık' } } ] } },
+  { e:'Sayılan (nitel)', i:'Kusurlu adedi ya da hata sayısı', d:{ s:'Neyi sayıyorsunuz?', dallar:[
+    { e:'Kusurlu parça', i:'Geçti / kaldı — parça ya iyi ya kötü', d:{ s:'Her seferinde incelenen adet aynı mı?', dallar:[
+      { e:'Hayır, değişiyor', y:{ ad:'p kartı — Binomial', url:'cap-attributes.html?mode=binomial&kart=p', n:'% kusurlu, PPM, Süreç Z, Cpk eşdeğeri' } },
+      { e:'Evet, hep aynı', y:{ ad:'np kartı — Binomial', url:'cap-attributes.html?mode=binomial&kart=np', n:'Kusurlu adedi (sabit n) · % kusurlu, PPM, Cpk eşdeğeri' } } ] } },
+    { e:'Hata sayısı', i:'Bir parçada birden çok hata olabilir (çizik, leke, delik)', d:{ s:'İncelenen birim / alan aynı mı?', dallar:[
+      { e:'Hayır, değişiyor', y:{ ad:'u kartı — Poisson', url:'cap-attributes.html?mode=poisson&kart=u', n:'Birim başına hata (DPU), DPMO, Cpk eşdeğeri' } },
+      { e:'Evet, hep aynı', y:{ ad:'c kartı — Poisson', url:'cap-attributes.html?mode=poisson&kart=c', n:'Hata adedi (sabit birim) · DPU, Cpk eşdeğeri' } } ] } } ] } },
+  { e:'Gerçek veri yok', i:'Senaryo / eğitim — simülasyon', d:{ s:'Hangi tür veri?', dallar:[
+    { e:'Ölçülen', y:{ ad:'Nicel Simülasyon', url:'cap-new.html?sim=1', n:'İstenen Cpk aralığı, çözünürlük, cihaz' } },
+    { e:'Sayılan', y:{ ad:'Nitel Simülasyon', url:'cap-attributes.html?mode=binomial&sim=1', n:'Binomial / Poisson, istenen Cpk eşdeğeri aralığı' } } ] } } ] };
+
+var secim = [];   // her adımda seçilen cevabın sırası
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function link(u){ return u + (u.indexOf('?')<0?'?':'&') + 'v=' + Date.now(); }   // GitHub Pages önbelleği eski sürüm vermesin
+
+function ciz(){
+  var d = AGAC, h = '', k = 0;
+  while(d){
+    h += '<div class="adim"><div class="soru"><span class="no">Adım '+(k+1)+'</span>'+esc(d.s)+(d.a?'<small>'+esc(d.a)+'</small>':'')+'</div><div class="cevaplar">';
+    d.dallar.forEach(function(dal, i){
+      var cls = secim[k]==null ? '' : (secim[k]===i ? ' secili' : ' soluk');
+      h += '<button class="cevap'+cls+'" data-s="'+k+'" data-i="'+i+'">'+esc(dal.e)+(dal.i?'<small>'+esc(dal.i)+'</small>':'')+'</button>';
+    });
+    h += '</div></div>';
+    if(secim[k]==null) break;
+    var sec = d.dallar[secim[k]];
+    h += '<div class="ok"><i class="bi bi-arrow-down"></i></div>';
+    if(sec.d){ d = sec.d; k++; continue; }
+    var y = sec.y;
+    h += '<div class="sonuc"><div><div class="ad"><i class="bi bi-check-circle-fill"></i> '+esc(y.ad)+'</div><div class="n">'+esc(y.n||'')+'</div>'
+       + (y.alt?'<a class="alt" href="'+esc(link(y.alt.url))+'">↳ '+esc(y.alt.ad)+'</a>':'')+'</div>'
+       + '<a class="basla" href="'+esc(link(y.url))+'"><i class="bi bi-play-fill"></i> Bu çalışmayı başlat</a></div>';
+    d = null;
+  }
+  document.getElementById('akis').innerHTML = (secim.length ? '<button id="sifirla">Baştan</button>' : '') + h;
+}
+
+document.addEventListener('click', function(e){
+  if(e.target.closest('#sifirla')){ secim = []; ciz(); return; }
+  var c = e.target.closest('.cevap[data-s]'); if(!c) return;
+  var s = +c.dataset.s;
+  secim = secim.slice(0, s); secim[s] = +c.dataset.i;     // önceki bir cevap değişirse sonraki adımlar silinir
+  ciz();
+  var son = document.querySelector('#akis > :last-child'); if(son && son.scrollIntoView) son.scrollIntoView({ block:'nearest', behavior:'smooth' });
+});
+ciz();
+</script>
+</body>
+</html>
