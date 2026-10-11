@@ -31,7 +31,10 @@
   .cardk h3{margin:0 0 12px;font-size:16px}
   .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:6px 0;color:var(--muted)}
   .row strong{color:var(--ink)}
-  .badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  .badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;display:inline-block}
+  input.tarih{border:1px solid transparent;border-radius:6px;padding:2px 4px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:transparent;cursor:pointer}
+  input.tarih:hover{background:#f3f5fc;border-color:var(--line)} input.tarih:focus{outline:0;box-shadow:0 0 0 2px var(--p);background:#fff}
+  .yapan{font-size:13px;font-weight:600;color:var(--ink);min-width:60px;text-align:right}
   .b-ok{background:#e6f7ec;color:#1e7e4a} .b-bad{background:#fdecea;color:#c0392b} .b-mid{background:#fff4e0;color:#b7791f} .b-draft{background:#eef1f8;color:#5a6b8c}
   .cardacts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
   .sbtn{flex:1;text-align:center;border:0;border-radius:8px;padding:8px 6px;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:5px}
@@ -129,7 +132,9 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
       return;
     }
 
-    const dt = s => s.created_at ? new Date(s.created_at).toLocaleDateString('tr-TR') : '-';
+    const gun = s => s.study_date || (s.created_at ? String(s.created_at).slice(0, 10) : '');
+    const tarih = s => `<input type="date" class="tarih" data-id="${s.id}" value="${esc(gun(s))}" title="Çalışma tarihi — değiştirmek için tıklayın">`;
+    const yapan = s => `<div class="ed yapan" contenteditable="plaintext-only" data-id="${s.id}" data-alan="performed_by" data-ph="Ekle…" title="Çalışmayı yapan — düzenlemek için tıklayın">${esc(s.performed_by)}</div>`;
     const badge = s => {
       if (s.status !== 'calculated') return '<span class="badge b-draft">Taslak</span>';
       const a = (s.is_acceptable === true || s.is_acceptable === 'acceptable') ? 'ok'
@@ -169,17 +174,18 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
         ${acik(s)}
         ${s.study_type==='capability' ? `<div class="row"><span>Durum</span>${badge(s)}</div>` : ''}
         ${s.characteristic ? `<div class="row"><span>Karakteristik</span><strong>${esc(s.characteristic)}</strong></div>` : ''}
-        <div class="row"><span>Tarih</span><strong>${dt(s)}</strong></div>
+        <div class="row"><span>Çalışmayı yapan</span>${yapan(s)}</div>
+        <div class="row"><span>Tarih</span>${tarih(s)}</div>
         <div class="cardacts">${actsOf(s)}${sil(s)}</div>
       </div>`;
     const satir = s => `<tr data-kayit="${s.id}"><td>${ad(s)}${acik(s)}</td><td>${chipOf(s)}</td><td>${s.study_type==='capability' ? badge(s) : ''}</td>
-        <td>${esc(s.characteristic || '')}</td><td style="white-space:nowrap">${dt(s)}</td><td class="la">${actsOf(s)}${sil(s)}</td></tr>`;
+        <td>${esc(s.characteristic || '')}</td><td>${yapan(s)}</td><td style="white-space:nowrap">${tarih(s)}</td><td class="la">${actsOf(s)}${sil(s)}</td></tr>`;
 
     // Görünüm: kart / liste (tercih bu tarayıcıda hatırlanır)
     let gorunum = 'kart'; try { gorunum = localStorage.getItem('cap_pano_gorunum') || 'kart'; } catch(e) {}
     const ciz = () => {
       body.innerHTML = gorunum === 'liste'
-        ? '<div class="tblwrap"><table class="lst"><thead><tr><th>Çalışma adı · açıklama</th><th>Tür</th><th>Durum</th><th>Karakteristik</th><th>Tarih</th><th></th></tr></thead><tbody>'
+        ? '<div class="tblwrap"><table class="lst"><thead><tr><th>Çalışma adı · açıklama</th><th>Tür</th><th>Durum</th><th>Karakteristik</th><th>Yapan</th><th>Tarih</th><th></th></tr></thead><tbody>'
           + studies.map(satir).join('') + '</tbody></table></div>'
         : '<div class="grid">' + studies.map(kart).join('') + '</div>';
       document.querySelectorAll('#gorunum button').forEach(b => b.classList.toggle('on', b.dataset.g === gorunum));
@@ -195,6 +201,16 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
       const el = e.target.closest('.ed'); if (!el) return;
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
       else if (e.key === 'Escape') { el.textContent = el.dataset.eski; el.blur(); }
+    });
+    body.addEventListener('change', async e => {
+      const el = e.target.closest('input.tarih'); if (!el) return;
+      const s = studies.find(x => String(x.id) === el.dataset.id), eski = s ? gun(s) : '';
+      try {
+        const { error: uErr } = await MSA.db.from(MSA.T.studies).update({ study_date: el.value || null }).eq('id', el.dataset.id);
+        if (uErr) throw uErr;
+        if (s) s.study_date = el.value || null;
+        el.style.background = '#e6f7ec'; setTimeout(() => el.style.background = '', 1200);
+      } catch (err) { el.value = eski; alert('Kaydedilemedi: ' + err.message); }
     });
     body.addEventListener('focusout', async e => {
       const el = e.target.closest('.ed'); if (!el) return;
