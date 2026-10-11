@@ -55,6 +55,7 @@
     <button class="tab on" id="tabBin" onclick="switchMode('binomial')">Binomial (Kusurlu / Defective)</button>
     <button class="tab" id="tabPoi" onclick="switchMode('poisson')">Poisson (Hata Sayısı / Defects)</button>
   </div>
+  <div id="kartSec" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 10px;font-size:12.5px;color:#5a6b8c"></div>
 
   <div class="card">
     <h2><i class="bi bi-table i"></i> Veri Girişi</h2>
@@ -109,8 +110,18 @@ var EXAMPLES={
 var charts=[];
 function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error(src));};document.head.appendChild(s);});}
 
+// Kontrol kartı: Binomial → p (oran, değişken n) / np (adet, sabit n); Poisson → u (birim başına, değişken n) / c (adet, sabit n)
+var KART='';
+var KARTLAR={ p:'p kartı — kusurlu oranı', np:'np kartı — kusurlu adedi (sabit n)', u:'u kartı — birim başına hata', c:'c kartı — hata adedi (sabit birim)' };
+function kartCiz(){
+  var ks=MODE==='binomial'?['p','np']:['u','c'];
+  document.getElementById('kartSec').innerHTML='<b>Kontrol kartı:</b> '+ks.map(function(k){
+    return '<button type="button" data-kart="'+k+'" onclick="kartSec(this.dataset.kart)" style="border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer;font-weight:600;font-size:12.5px;'+(KART===k?'background:#667eea;color:#fff;border-color:#667eea':'background:#fff;color:#41506b')+'">'+KARTLAR[k]+'</button>'; }).join('');
+}
+function kartSec(k){ KART=k; kartCiz(); if(document.querySelector('#report .card')) calc(); }
 function setMode(m){
   MODE=m;
+  var sabit=(KART==='np'||KART==='c'); KART=m==='binomial'?(sabit?'np':'p'):(sabit?'c':'u'); kartCiz();
   document.getElementById('tabBin').classList.toggle('on',m==='binomial');
   document.getElementById('tabPoi').classList.toggle('on',m==='poisson');
   document.getElementById('colN').textContent = m==='binomial'?'Örnek Boyutu (n)':'Birim / Alan (n)';
@@ -203,6 +214,15 @@ function drawReport(r){
   var yKey=isBin?'p':'u';
   var unit=isBin?'% Kusurlu':'DPU';
   var xs=chartVals.map(function(p){return p.x;});
+  // np / c: sabit örnek boyutunda adet (d = p·n, c = u·n); sınırlar n·p̄ ± 3√(n·p̄(1−p̄)) ve c̄ ± 3√c̄.
+  // n sabitken p/np (u/c) aynı kartın ölçeklenmişidir: sınır dışı noktalar aynı kalır.
+  var adetKart=(KART==='np'||KART==='c'), sabitN=chartVals.every(function(p){return p.n===chartVals[0].n;});
+  var ctrlVals=chartVals, ctrlKey=yKey, ctrlUnit=unit, kartAd=isBin?'P Kartı (%kusurlu)':'U Kartı (DPU)', kartNot='';
+  if(adetKart && sabitN){
+    var n0=chartVals[0].n, ckl=isBin?r.pbar*n0:r.ubar*n0, cse=isBin?Math.sqrt(n0*r.pbar*(1-r.pbar)):Math.sqrt(ckl);
+    ctrlVals=chartVals.map(function(p){ return { x:p.x, v:+((isBin?p.p/100:p.u)*n0).toFixed(6), ucl:ckl+3*cse, lcl:Math.max(0,ckl-3*cse), cl:ckl, ooc:p.ooc }; });
+    ctrlKey='v'; ctrlUnit=isBin?'Kusurlu adedi':'Hata adedi'; kartAd=isBin?'NP Kartı (kusurlu adedi, n = '+n0+')':'C Kartı (hata adedi, n = '+n0+')';
+  } else if(adetKart){ kartNot=(isBin?'np':'c')+' kartı sabit örnek boyutu ister; alt grup boyutları farklı olduğu için '+(isBin?'p':'u')+' kartı gösteriliyor'; }
   // Özet
   var summ, verdict;
   if(isBin){
@@ -230,7 +250,7 @@ function drawReport(r){
   document.getElementById('report').innerHTML =
     '<div class="card"><h2><i class="bi bi-grid-3x3-gap-fill i"></i> '+(isBin?'Binomial':'Poisson')+' Yeterlilik Raporu</h2>'+
     '<div class="grid4">'+
-      '<div class="panel"><div class="pt">'+(isBin?'P Kartı (%kusurlu)':'U Kartı (DPU)')+'</div><div class="chartbox"><canvas id="cCtrl"></canvas></div></div>'+
+      '<div class="panel"><div class="pt">'+kartAd+(kartNot?'<div style="font-weight:500;font-size:11px;color:#b7791f">'+kartNot+'</div>':'')+'</div><div class="chartbox"><canvas id="cCtrl"></canvas></div></div>'+
       '<div class="panel"><div class="pt">'+(isBin?'Kümülatif %Kusurlu':'Kümülatif DPU')+'</div><div class="chartbox"><canvas id="cCum"></canvas></div></div>'+
       '<div class="panel"><div class="pt">'+(isBin?'%Kusurlu — Örnek Boyutuna Göre':'DPU — Örnek Boyutuna Göre')+'</div><div class="chartbox"><canvas id="cBySize"></canvas></div></div>'+
       '<div class="panel"><div class="pt">Histogram ('+unit+')</div><div class="chartbox"><canvas id="cHist"></canvas></div></div>'+
@@ -241,13 +261,13 @@ function drawReport(r){
     '</div>';
 
   // 1) Kontrol kartı (P veya U) — n'e göre değişen sınırlar
-  var ptColors=chartVals.map(function(p){return p.ooc?'#c0392b':'#667eea';});
+  var ptColors=ctrlVals.map(function(p){return p.ooc?'#c0392b':'#667eea';});
   charts.push(new Chart(document.getElementById('cCtrl'),{ data:{ labels:xs, datasets:[
-    { type:'line', label:unit, data:chartVals.map(function(p){return p[yKey];}), borderColor:'#667eea', backgroundColor:ptColors, pointBackgroundColor:ptColors, pointRadius:3, borderWidth:1.7, tension:0 },
-    { type:'line', label:'UCL', data:chartVals.map(function(p){return p.ucl;}), borderColor:'#c0392b', borderDash:[5,4], pointRadius:0, borderWidth:1.2, stepped:true },
-    { type:'line', label:'CL', data:chartVals.map(function(p){return p.cl;}), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.2 },
-    { type:'line', label:'LCL', data:chartVals.map(function(p){return p.lcl;}), borderColor:'#c0392b', borderDash:[5,4], pointRadius:0, borderWidth:1.2, stepped:true }
-  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:'Alt grup'}}, y:{title:{display:true,text:unit}} }, plugins:{legend:{display:false}} } }));
+    { type:'line', label:ctrlUnit, data:ctrlVals.map(function(p){return p[ctrlKey];}), borderColor:'#667eea', backgroundColor:ptColors, pointBackgroundColor:ptColors, pointRadius:3, borderWidth:1.7, tension:0 },
+    { type:'line', label:'UCL', data:ctrlVals.map(function(p){return p.ucl;}), borderColor:'#c0392b', borderDash:[5,4], pointRadius:0, borderWidth:1.2, stepped:true },
+    { type:'line', label:'CL', data:ctrlVals.map(function(p){return p.cl;}), borderColor:'#1e7e4a', pointRadius:0, borderWidth:1.2 },
+    { type:'line', label:'LCL', data:ctrlVals.map(function(p){return p.lcl;}), borderColor:'#c0392b', borderDash:[5,4], pointRadius:0, borderWidth:1.2, stepped:true }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:'Alt grup'}}, y:{title:{display:true,text:ctrlUnit}} }, plugins:{legend:{display:false}} } }));
 
   // 2) Kümülatif
   charts.push(new Chart(document.getElementById('cCum'),{ data:{ labels:r.cum.map(function(p){return p.x;}), datasets:[
@@ -280,7 +300,7 @@ async function persist(){
   var rec={ study_name:name, study_type:MODE, description:(SIM?'SİMÜLASYON — gerçek ölçüm değildir. ':'')+(MODE==='binomial'?'Binomial':'Poisson')+' yeterlilik (nitel)'+(SIM?', hedef Cpk '+SIM.cpkAlt+'–'+SIM.cpkUst+(SIM.cihaz?', cihaz '+SIM.cihaz:''):''), status:'calculated',
     num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
-    analysis_options:Object.assign({ attr:true, mode:MODE, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) }, SIM?{ simulasyon:SIM }:{}) };
+    analysis_options:Object.assign({ attr:true, mode:MODE, kart:KART, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) }, SIM?{ simulasyon:SIM }:{}) };
   if(SIM && SIM.cihaz) rec.gauge_name=SIM.cihaz;
   var st=document.getElementById('saveState');
   try{
@@ -303,6 +323,7 @@ async function loadSaved(id){
   var q=await MSA.db.from(MSA.T.studies).select('*').eq('id',id).maybeSingle();
   if(q.error||!q.data){ setMode('binomial'); return; }
   var s=q.data, opt=s.analysis_options||{};
+  KART=opt.kart||'';
   setMode(s.study_type==='poisson'?'poisson':'binomial');
   SIM=opt.simulasyon||null;
   if(opt.rows && opt.rows.length){ render(opt.rows); }
@@ -316,7 +337,7 @@ async function loadSaved(id){
   mountJasp();
   var id=MSA.q('id');
   if(id){ await loadSaved(id); }
-  else { var m=(new URLSearchParams(location.search)).get('mode'); setMode(m==='poisson'?'poisson':'binomial'); document.getElementById('studyName').value=defaultName(); }
+  else { var m=(new URLSearchParams(location.search)).get('mode'); KART=(new URLSearchParams(location.search)).get('kart')||''; setMode(m==='poisson'?'poisson':'binomial'); document.getElementById('studyName').value=defaultName(); }
   if(MSA.q('sim')==='1') simAc();
 })();
 </script>
