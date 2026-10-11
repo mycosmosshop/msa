@@ -38,6 +38,24 @@
   .sbtn.view{background:var(--p);color:#fff} .sbtn.edit{background:#f0a020;color:#fff} .sbtn.del{background:#f4e6e6;color:#c0392b}
   .empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:50px 20px;text-align:center;color:var(--muted);margin-top:24px}
   .empty i{font-size:44px;color:#c9d2e3;display:block;margin-bottom:12px}
+  /* yerinde düzenlenen ad / açıklama */
+  .ed{border-radius:6px;padding:1px 4px;margin:0 -4px;cursor:text;outline:0;word-break:break-word}
+  .ed:hover{background:#f3f5fc} .ed:focus{background:#fff;box-shadow:0 0 0 2px var(--p)}
+  .ed.kaydedildi{background:#e6f7ec;transition:background .3s}
+  .ed:empty::before{content:attr(data-ph);color:#b0b8c9;font-style:italic}
+  .ad{font-size:16px;font-weight:700;flex:1}
+  .acik{font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:6px;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .acik:focus{display:block;overflow:visible}
+  /* görünüm seçici + liste */
+  #gorunum{display:inline-flex;background:rgba(255,255,255,.2);border-radius:10px;padding:3px;gap:2px}
+  #gorunum button{border:0;background:transparent;color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:15px;line-height:1}
+  #gorunum button.on{background:#fff;color:var(--p)}
+  .tblwrap{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(30,40,70,.07);border:1px solid var(--line);overflow:auto;margin-top:20px}
+  table.lst{width:100%;border-collapse:collapse;font-size:13px}
+  table.lst th{text-align:left;padding:10px 12px;background:#f7f8fc;color:var(--muted);font-size:12px;font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.lst td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.lst td:first-child{min-width:300px} table.lst .ad{font-size:14px}
+  table.lst td.la{white-space:nowrap;text-align:right} table.lst td.la .sbtn{flex:none;padding:6px 10px;margin-left:4px}
 </style>
 </head>
 <body>
@@ -48,6 +66,7 @@
       <p>Cp / Cpk / Pp / Ppk yeterlilik analizi — JASP uyumlu</p>
     </div>
     <div class="acts">
+      <div id="gorunum"><button data-g="kart" title="Kart görünümü"><i class="bi bi-grid-3x2-gap"></i></button><button data-g="liste" title="Liste görünümü"><i class="bi bi-list-ul"></i></button></div>
       <a class="btn ghost" href="cap-equipment.html"><i class="bi bi-hdd-stack"></i> Ekipman</a>
       <a class="btn ghost" href="cap-plan.html"><i class="bi bi-calendar-check"></i> Plan</a>
       <div class="dd" id="ddNew">
@@ -124,31 +143,69 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
       if (d==='johnson') return 'Johnson';
       return 'Normal Yeterlilik';
     };
-    body.innerHTML = '<div class="grid">' + studies.map(s => {
+    const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const chipOf = s => {
       const meta = TYPE_META[s.study_type] || TYPE_META.capability;
       const label = (s.study_type==='capability') ? capSubLabel(s) : meta.label;
-      const chip = `<span style="display:inline-block;background:${meta.chip};color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap">${label}</span>`;
-      let acts;
-      if (s.study_type==='capability') {
-        acts = `<a class="sbtn view" href="cap-results.html?id=${s.id}"><i class="bi bi-eye"></i> Sonuçlar</a>
-          <a class="sbtn edit" href="cap-data-entry.html?id=${s.id}"><i class="bi bi-pencil"></i> Veri</a>`;
-      } else {
-        acts = `<a class="sbtn view" href="${meta.open(s.id)}"><i class="bi bi-box-arrow-up-right"></i> Aç</a>`;
-      }
-      return `<div class="cardk">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px"><h3 style="margin:0">${MSA.esc ? MSA.esc(s.study_name) : (s.study_name||'')}</h3>${chip}</div>
+      return `<span style="display:inline-block;background:${meta.chip};color:#fff;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap">${label}</span>`;
+    };
+    const actsOf = s => s.study_type==='capability'
+      ? `<a class="sbtn view" href="cap-results.html?id=${s.id}"><i class="bi bi-eye"></i> Sonuçlar</a>
+         <a class="sbtn edit" href="cap-data-entry.html?id=${s.id}"><i class="bi bi-pencil"></i> Veri</a>`
+      : `<a class="sbtn view" href="${(TYPE_META[s.study_type] || TYPE_META.capability).open(s.id)}"><i class="bi bi-box-arrow-up-right"></i> Aç</a>`;
+    // Ad ve açıklama panoda yerinde düzenlenir: tıkla-yaz, Enter / dışarı tıklama kaydeder, Esc geri alır
+    const ad = s => `<div class="ed ad" contenteditable="plaintext-only" spellcheck="false" data-id="${s.id}" data-alan="study_name" title="Düzenlemek için tıklayın">${esc(s.study_name)}</div>`;
+    const acik = s => `<div class="ed acik" contenteditable="plaintext-only" data-id="${s.id}" data-alan="description" data-ph="Açıklama ekle…" title="Düzenlemek için tıklayın">${esc(s.description)}</div>`;
+    const sil = s => `<button class="sbtn del" data-id="${s.id}"><i class="bi bi-trash"></i> Sil</button>`;
+    const kart = s => `<div class="cardk" data-kayit="${s.id}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${ad(s)}${chipOf(s)}</div>
+        ${acik(s)}
         ${s.study_type==='capability' ? `<div class="row"><span>Durum</span>${badge(s)}</div>` : ''}
-        ${s.characteristic ? `<div class="row"><span>Karakteristik</span><strong>${s.characteristic}</strong></div>` : ''}
+        ${s.characteristic ? `<div class="row"><span>Karakteristik</span><strong>${esc(s.characteristic)}</strong></div>` : ''}
         <div class="row"><span>Tarih</span><strong>${dt(s)}</strong></div>
-        <div class="cardacts">
-          ${acts}
-          <button class="sbtn del" data-id="${s.id}" data-name="${(s.study_name||'').replace(/"/g,'&quot;')}"><i class="bi bi-trash"></i> Sil</button>
-        </div>
+        <div class="cardacts">${actsOf(s)}${sil(s)}</div>
       </div>`;
-    }).join('') + '</div>';
+    const satir = s => `<tr data-kayit="${s.id}"><td>${ad(s)}${acik(s)}</td><td>${chipOf(s)}</td><td>${s.study_type==='capability' ? badge(s) : ''}</td>
+        <td>${esc(s.characteristic || '')}</td><td style="white-space:nowrap">${dt(s)}</td><td class="la">${actsOf(s)}${sil(s)}</td></tr>`;
 
-    body.querySelectorAll('.sbtn.del').forEach(btn => btn.addEventListener('click', async () => {
-      const id = btn.dataset.id, name = btn.dataset.name;
+    // Görünüm: kart / liste (tercih bu tarayıcıda hatırlanır)
+    let gorunum = 'kart'; try { gorunum = localStorage.getItem('cap_pano_gorunum') || 'kart'; } catch(e) {}
+    const ciz = () => {
+      body.innerHTML = gorunum === 'liste'
+        ? '<div class="tblwrap"><table class="lst"><thead><tr><th>Çalışma adı · açıklama</th><th>Tür</th><th>Durum</th><th>Karakteristik</th><th>Tarih</th><th></th></tr></thead><tbody>'
+          + studies.map(satir).join('') + '</tbody></table></div>'
+        : '<div class="grid">' + studies.map(kart).join('') + '</div>';
+      document.querySelectorAll('#gorunum button').forEach(b => b.classList.toggle('on', b.dataset.g === gorunum));
+    };
+    document.querySelectorAll('#gorunum button').forEach(b => b.addEventListener('click', () => {
+      gorunum = b.dataset.g; try { localStorage.setItem('cap_pano_gorunum', gorunum); } catch(e) {}
+      ciz();
+    }));
+    ciz();
+
+    body.addEventListener('focusin', e => { const el = e.target.closest('.ed'); if (el) el.dataset.eski = el.textContent; });
+    body.addEventListener('keydown', e => {
+      const el = e.target.closest('.ed'); if (!el) return;
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
+      else if (e.key === 'Escape') { el.textContent = el.dataset.eski; el.blur(); }
+    });
+    body.addEventListener('focusout', async e => {
+      const el = e.target.closest('.ed'); if (!el) return;
+      const yeni = el.textContent.trim(), eski = el.dataset.eski, alan = el.dataset.alan;
+      if (yeni === (eski || '').trim()) { el.textContent = eski; return; }
+      if (alan === 'study_name' && !yeni) { el.textContent = eski; alert('Çalışma adı boş olamaz.'); return; }
+      el.textContent = yeni;
+      try {
+        const { error: uErr } = await MSA.db.from(MSA.T.studies).update({ [alan]: yeni || null }).eq('id', el.dataset.id);
+        if (uErr) throw uErr;
+        const s = studies.find(x => String(x.id) === el.dataset.id); if (s) s[alan] = yeni || null;
+        el.classList.add('kaydedildi'); setTimeout(() => el.classList.remove('kaydedildi'), 1200);
+      } catch (err) { el.textContent = eski; alert('Kaydedilemedi: ' + err.message); }
+    });
+
+    body.addEventListener('click', async e => {
+      const btn = e.target.closest('.sbtn.del'); if (!btn) return;
+      const id = btn.dataset.id, s = studies.find(x => String(x.id) === id), name = s ? s.study_name : '';
       if (!confirm('"'+name+'" çalışmasını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
       btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass"></i>';
       try {
@@ -157,10 +214,10 @@ document.addEventListener('click', function(){ var d=document.getElementById('dd
         await MSA.db.from(MSA.T.operators).delete().eq('study_id', id);
         const { error: dErr } = await MSA.db.from(MSA.T.studies).delete().eq('id', id);
         if (dErr) throw dErr;
-        btn.closest('.cardk').remove();
-        if (!body.querySelector('.cardk')) location.reload();
+        studies.splice(studies.indexOf(s), 1);
+        if (!studies.length) location.reload(); else ciz();
       } catch(e){ alert('Silme hatası: '+e.message); btn.disabled=false; btn.innerHTML='<i class="bi bi-trash"></i> Sil'; }
-    }));
+    });
   } catch (e) {
     body.innerHTML = '<div class="empty" style="color:#c0392b"><i class="bi bi-exclamation-triangle"></i>Yüklenemedi: '+e.message+'</div>';
   }
