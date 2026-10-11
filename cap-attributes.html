@@ -246,7 +246,6 @@ function drawReport(r){
     ? '<div class="verdict bad"><i class="bi bi-exclamation-triangle-fill"></i> Süreç KARARSIZ — bazı noktalar kontrol sınırları dışında. Yeterlilik tahmini güvenilmez; önce özel sebepleri giderin.</div>'
     : '<div class="verdict good"><i class="bi bi-check-circle-fill"></i> Süreç kararlı — tüm noktalar kontrol sınırları içinde. '+(isBin?'Kusurlu oranı':'DPU')+' tahmini geçerli.</div>';
 
-  if(SIM) verdict = '<div class="verdict bad"><i class="bi bi-shuffle"></i> SİMÜLASYON verisi — gerçek ölçüm değildir (hedef Cpk '+SIM.cpkAlt+'–'+SIM.cpkUst+(SIM.cihaz?' · '+SIM.cihaz:'')+').</div>' + verdict;
   document.getElementById('report').innerHTML =
     '<div class="card"><h2><i class="bi bi-grid-3x3-gap-fill i"></i> '+(isBin?'Binomial':'Poisson')+' Yeterlilik Raporu</h2>'+
     '<div class="grid4">'+
