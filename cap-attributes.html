@@ -78,7 +78,7 @@
       <button class="btn ghost" onclick="addRow()"><i class="bi bi-plus"></i> Satır Ekle</button>
       <button class="btn ghost" onclick="clearRows()"><i class="bi bi-x-circle"></i> Temizle</button>
       <span style="position:relative;display:inline-block">
-        <button class="btn ghost" onclick="simAc()"><i class="bi bi-shuffle"></i> Simülasyon <i class="bi bi-chevron-down" style="font-size:11px"></i></button>
+        <button class="btn ghost" id="simOk" onclick="simAc()" title="Simülasyon" aria-label="Simülasyon" style="padding-left:12px;padding-right:12px"><i class="bi bi-chevron-down"></i></button>
       <div id="simPanel" hidden style="position:absolute;top:calc(100% + 10px);left:0;z-index:30;width:min(560px,calc(100vw - 40px));background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(30,40,70,.18);padding:14px">
         <span style="position:absolute;top:-7px;left:28px;width:12px;height:12px;background:#fff;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)"></span>
         <button type="button" onclick="simAc()" title="Kapat" style="position:absolute;top:8px;right:10px;border:0;background:transparent;font-size:18px;color:#8a94a8;cursor:pointer">×</button>
@@ -176,6 +176,7 @@ function colToRows(){
 var SIM=null;
 async function simAc(){
   var p=document.getElementById('simPanel'); p.hidden=!p.hidden;
+  document.querySelector('#simOk i').className='bi bi-chevron-'+(p.hidden?'down':'up');
   if(!p.hidden && !window.SimVeri){ await loadScript('js/sim-veri.js?v='+Date.now()); SimVeri.cihazListesi(document.getElementById('simCihazlar')); }
 }
 async function simUret(btn){
@@ -192,7 +193,7 @@ async function simUret(btn){
     try{ history.replaceState(null,'','cap-attributes.html?mode='+MODE); }catch(e){}
     var el=document.getElementById('studyName'); el.value=(el.value&&el.value.indexOf('SİMÜLASYON')<0?el.value:defaultName()).replace(/ · SİMÜLASYON$/,'')+' · SİMÜLASYON';
     document.getElementById('target').value='';
-    document.getElementById('simPanel').hidden=true;   // üretildi: kutu kapanır, rapor görünür
+    simAc();   // üretildi: kutu kapanır, rapor görünür
     calc();
   }catch(e){ alert(e.message); }
   finally{ btn.disabled=false; btn.innerHTML=eski; }
