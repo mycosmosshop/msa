@@ -49,7 +49,17 @@
     return m ? m[1] : '';
   }
 
-  /** b = { degerler:[sayı], lsl, usl, hedef, urun, karakteristik, alet, sorumlu, tarih:Date|string, birim, simulasyon } */
+  // Müşteriye özel kabul eşiği: J43 değerlendirme formülündeki 1.67 / 1.33 ve J51 kabul notu çalışmanınkiyle değişir
+  function kabulYaz(xml, k) {
+    var y = +k.yeterli, s = +k.sartli, tr = function (v) { return v.toFixed(2).replace('.', ','); };
+    var m = xml.match(/<c r="J43"[^>]*>.*?<\/c>/);
+    if (!m || m[0].indexOf('&gt;=1.67') < 0 || m[0].indexOf('&gt;=1.33') < 0) throw new Error('FR24 şablonunda değerlendirme formülü (J43) beklenen biçimde değil');
+    var yeni = m[0].replace(/&gt;=(1\.67|1\.33)/g, function (_, x) { return '&gt;=' + (x === '1.67' ? y : s); });
+    xml = xml.replace(m[0], function () { return yeni; });
+    return yaz(xml, 'J51', 'Kabul (müşteri): Cpk ≥ ' + tr(y) + ' yeterli' + (s < y ? ' · ' + tr(s) + '–' + tr(y) + ' müşteri temsilcisiyle gözden geçirilir' : '') + ' · < ' + tr(s) + ' yetersiz');
+  }
+
+  /** b = { degerler:[sayı], lsl, usl, hedef, urun, karakteristik, alet, sorumlu, tarih:Date|string, birim, simulasyon, kabul:{yeterli,sartli}|null } */
   function doldur(xml, b) {
     var neden = uygunluk({ n: b.degerler.length, lsl: b.lsl, usl: b.usl, dagilim: b.dagilim });
     if (neden) throw new Error(neden);
@@ -59,6 +69,7 @@
     });
     var alet = b.alet || '';
     if (b.simulasyon) xml = yaz(xml, 'J1', 'PROSES VE MAKİNE YETERLİLİĞİ  ·  SİMÜLASYON — gerçek ölçüm değildir');
+    if (b.kabul) xml = kabulYaz(xml, b.kabul);
     xml = yaz(xml, 'A7', 'ÖLÇÜM DEĞERLERİ  (' + b.degerler.length + ' adet' + (alet ? ' · ' + alet : '') + ')');
     var metin = { N8: b.urun, N11: b.karakteristik, N12: alet, N13: b.sorumlu, N15: b.birim || birimBul(b.karakteristik) };
     Object.keys(metin).forEach(function (ref) { if (metin[ref]) xml = yaz(xml, ref, String(metin[ref])); });

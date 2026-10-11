@@ -58,6 +58,13 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       uslBoundary: qp('uslb', '0') === '1',
       controlTests: qp('tests', null)
     };
+    // Kabul kriteri: varsayılan AIAG PPAP 2.2.11 (≥1.67 yeterli · 1.33–1.67 şartlı); müşteri farklı eşik
+    // kabul ediyorsa çalışmaya özel kaydedilir (Analiz Ayarları → Kabul kriteri)
+    const KABUL_PPAP = { yeterli: 1.67, sartli: 1.33 };
+    const kY = parseFloat(qp('ky', (opts.kabul || {}).yeterli)), kS = parseFloat(qp('ks', (opts.kabul || {}).sartli));
+    const kabul = (kY > 0 && kS > 0 && kS <= kY) ? { yeterli: kY, sartli: kS } : KABUL_PPAP;
+    const kabulOzel = kabul.yeterli !== KABUL_PPAP.yeterli || kabul.sartli !== KABUL_PPAP.sartli;
+    callOpts.kabul = kabul;
     let results;
     try {
       results = window.capCalculations.calculateCapability(data, callOpts);
@@ -67,13 +74,14 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       // Girilen/etkin spesifikasyonu çalışmaya kaydet (LSL/USL/Hedef ölçünün kalıcı özelliği)
       const num = v => { const x = parseFloat(v); return isFinite(x) ? x : null; };
       const savedOpts = Object.assign({}, opts, {
-        lsl: num(callOpts.lsl), usl: num(callOpts.usl), target: num(callOpts.target), subgroup_size: callOpts.subgroupSize
+        lsl: num(callOpts.lsl), usl: num(callOpts.usl), target: num(callOpts.target), subgroup_size: callOpts.subgroupSize,
+        kabul: kabulOzel ? kabul : undefined
       });
       // Normal-olmayan modda (ör. ampirik yüzdelik) raporlanan indis nonNormal.ppk'dır;
       // özet ve kabul o değerden yazılır ki ekrandaki rozetle kayıt aynı olsun.
       const nn = results.nonNormal && !results.nonNormal.error ? results.nonNormal : null;
       const effIdx = nn && nn.ppk != null ? nn.ppk : results.interpretation.cpk;
-      const effCls = effIdx == null ? 'neutral' : (effIdx >= 1.33 ? 'good' : (effIdx >= 1.0 ? 'marginal' : 'bad'));
+      const effCls = effIdx == null ? 'neutral' : (effIdx >= kabul.yeterli ? 'good' : (effIdx >= kabul.sartli ? 'marginal' : 'bad'));
       await MSA.db.from(MSA.T.studies).update({
         analysis_options: savedOpts,
         gauge_evaluation: nn
@@ -91,9 +99,9 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       bilgi: { degerler: data.map(d => d.value), lsl: callOpts.lsl, usl: callOpts.usl, hedef: callOpts.target, dagilim: callOpts.distribution,
         urun: study.part_name || study.study_name, karakteristik: study.characteristic || '', alet: study.gauge_name || '',
         sorumlu: study.performed_by || study.owner_email || '', tarih: study.study_date || study.created_at || null,
-        simulasyon: !!opts.simulasyon }
+        simulasyon: !!opts.simulasyon, kabul: kabulOzel ? kabul : null }
     };
-    await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, sixpack: showSixpack, branding: MSA.BRANDING, fr24, sim: opts.simulasyon || null });
+    await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, sixpack: showSixpack, branding: MSA.BRANDING, fr24, sim: opts.simulasyon || null, kabul, kabulOzel });
   } catch (error) {
     console.error('Capability sonuç hatası:', error);
     MSA.renderError('Sonuç Sayfası Hatası', 'Sayfa yüklenirken hata oluştu: ' + error.message);

@@ -21,12 +21,14 @@ const hucre = (xml, ref) => (xml.match(new RegExp('<c r="' + ref + '"[^>]*?(?:/>
 
 (async () => {
   const sab = await JSZip.loadAsync(sablon), sabXml = await sab.file('xl/worksheets/sheet1.xml').async('string');
+  let x0;
   for (const n of [125, 37]) {
     const degerler = Array.from({ length: n }, () => +normal(25.07, 0.54).toFixed(2));
     const b = { degerler, lsl: '22', usl: '28', hedef: 25, dagilim: 'normal', urun: 'Deneme <Ürün> & Co', karakteristik: 'Kalınlık (mm)',
       alet: 'Kumpas', sorumlu: 'kalite@ornek.com', tarih: '2026-10-10' };
     const buf = await F.olustur(JSZip, sablon, b, 'nodebuffer');
     const z = await JSZip.loadAsync(buf), x = await z.file('xl/worksheets/sheet1.xml').async('string');
+    x0 = x;
     degerler.forEach((v, i) => assert(hucre(x, F.olcumHucresi(i)).includes('<v>' + v + '</v>'), 'ölçüm ' + (i + 1)));
     if (n < 125) assert(hucre(x, 'F33').endsWith('/>'), 'boş yuva boş kalmalı');
     assert(hucre(x, 'N19').includes('<v>22</v>') && hucre(x, 'N20').includes('<v>28</v>') && hucre(x, 'N18').includes('<v>25</v>'));
@@ -45,6 +47,13 @@ const hucre = (xml, ref) => (xml.match(new RegExp('<c r="' + ref + '"[^>]*?(?:/>
   const sx = await (await JSZip.loadAsync(await F.olustur(JSZip, sablon, { degerler: [25, 25.1, 24.9], lsl: 22, usl: 28, simulasyon: true }, 'nodebuffer')))
     .file('xl/worksheets/sheet1.xml').async('string');
   assert(hucre(sx, 'J1').includes('SİMÜLASYON — gerçek ölçüm değildir'), 'simülasyon FR24 başlığında görünmeli');
+  // müşteri kabulü ≥1,33: değerlendirme formülü ve kabul notu çalışmanın eşiğiyle
+  const kb = await F.olustur(JSZip, sablon, { degerler: [25, 25.1, 24.9], lsl: 22, usl: 28, kabul: { yeterli: 1.33, sartli: 1 } }, 'nodebuffer');
+  fs.writeFileSync(path.join(os.tmpdir(), 'fr24_test_kabul.xlsx'), kb);
+  const kx = await (await JSZip.loadAsync(kb)).file('xl/worksheets/sheet1.xml').async('string');
+  assert(hucre(kx, 'J43').includes('&gt;=1.33,"YETERLİ"') && hucre(kx, 'J43').includes('&gt;=1,"ŞARTLI KABUL"'), 'J43 eşikleri');
+  assert(hucre(kx, 'J51').includes('Cpk ≥ 1,33 yeterli · 1,00–1,33'), 'J51 kabul notu');
+  assert(hucre(x0, 'J43').includes('&gt;=1.67') && !hucre(x0, 'J51').includes('müşteri'), 'varsayılanda PPAP eşiği kalır');
   await assert.rejects(F.olustur(JSZip, sablon, { degerler: new Array(126).fill(25), lsl: 22, usl: 28 }, 'nodebuffer'), /125/);
   console.log('✔ FR24 dışa aktarma testleri geçti');
 })().catch(e => { console.error('✘', e.message); process.exit(1); });
