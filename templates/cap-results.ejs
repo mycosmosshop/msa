@@ -75,7 +75,8 @@
      var swLbl = si.method==='individual' ? 'MR̄/1.128' : (si.withinLabel||'s̄/c₄'); %>
   <div class="hdr">
     <div><h1><i class="bi bi-graph-up"></i> Proses Yeterliliği</h1>
-      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div></div>
+      <div class="sub"><%= study.study_name %><%= study.gauge_name ? ' · '+study.gauge_name : '' %></div>
+      <% if(typeof sim!=='undefined' && sim){ %><span class="badge bad" style="margin-top:8px" title="Hedef Cpk <%= sim.cpkAlt %>–<%= sim.cpkUst %> · çözünürlük <%= sim.cozunurluk %> · <%= sim.cihaz %>"><i class="bi bi-shuffle"></i> SİMÜLASYON — gerçek ölçüm değildir</span><% } %></div>
     <span class="badge <%= mainCls %>">
       <i class="bi bi-<%= mainCls==='good'?'check-circle-fill':(mainCls==='marginal'?'exclamation-triangle-fill':'x-circle-fill') %>"></i>
       <%= mainLbl %> = <%= fn(mainIdx) %> · <%= mainTxt %><%= isNN?' · '+nn.dist:'' %>

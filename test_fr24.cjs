@@ -34,6 +34,7 @@ const hucre = (xml, ref) => (xml.match(new RegExp('<c r="' + ref + '"[^>]*?(?:/>
     assert(hucre(x, 'N8').includes('Deneme &lt;Ürün&gt; &amp; Co'), 'metin kaçışlı');
     assert(hucre(x, 'N15').includes('>mm<'), 'birim karakteristikten');
     assert(hucre(x, 'A7').includes(`(${n} adet · Kumpas)`));
+    assert(!hucre(x, 'J1').includes('SİMÜLASYON'), 'gerçek veride simülasyon yazmaz');
     assert(hucre(x, 'N9').endsWith('/>') && hucre(x, 'N10').endsWith('/>'), 'ERP\'de olmayan alan boş kalır (uydurulmaz)');
     assert(/s="\d+"/.test(hucre(x, 'B9')) && /s="\d+"/.test(hucre(x, 'N8')), 'biçim korunur');
     assert.strictEqual(x.split('<f').length, sabXml.split('<f').length, 'formül sayısı değişmemeli');
@@ -41,6 +42,9 @@ const hucre = (xml, ref) => (xml.match(new RegExp('<c r="' + ref + '"[^>]*?(?:/>
     const cikti = path.join(os.tmpdir(), `fr24_test_${n}.xlsx`); fs.writeFileSync(cikti, buf);
     console.log('✔', n, 'ölçüm →', cikti);
   }
+  const sx = await (await JSZip.loadAsync(await F.olustur(JSZip, sablon, { degerler: [25, 25.1, 24.9], lsl: 22, usl: 28, simulasyon: true }, 'nodebuffer')))
+    .file('xl/worksheets/sheet1.xml').async('string');
+  assert(hucre(sx, 'J1').includes('SİMÜLASYON — gerçek ölçüm değildir'), 'simülasyon FR24 başlığında görünmeli');
   await assert.rejects(F.olustur(JSZip, sablon, { degerler: new Array(126).fill(25), lsl: 22, usl: 28 }, 'nodebuffer'), /125/);
   console.log('✔ FR24 dışa aktarma testleri geçti');
 })().catch(e => { console.error('✘', e.message); process.exit(1); });

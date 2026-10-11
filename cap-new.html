@@ -20,7 +20,7 @@
   .card{background:var(--card);border-radius:13px;box-shadow:0 2px 10px rgba(30,40,70,.07);padding:18px 20px;margin:14px 0}
   .card h2{margin:0 0 12px;font-size:15px;display:flex;gap:8px;align-items:center} .card h2 .i{color:var(--p)}
   label{display:block;font-size:12.5px;color:#41506b;font-weight:600;margin:0 0 4px}
-  input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
+  input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
   @media(max-width:600px){.row,.row3{grid-template-columns:1fr}}
@@ -53,6 +53,20 @@
       <div class="row"><div><label>Alt Grup Boyutu *</label><input type="number" name="subgroup_size" min="1" max="25" value="5" required>
         <div class="hint">Ardışık kaç ölçüm bir alt grup (X̄&S için, tipik 5)</div></div><div></div></div>
     </div>
+    <div class="card" id="simKart" hidden>
+      <h2><i class="bi bi-shuffle i"></i> Simülasyon Verisi</h2>
+      <div class="hint" style="margin:-6px 0 12px">İstenen Cpk aralığında veri üretilir ve ERP'nin kendi hesabıyla doğrulanır (Cpk ve Ppk aralıkta, dağılım normal, kontrol kartı kararlı).
+        Çalışma kalıcı olarak <b>SİMÜLASYON</b> işaretlenir — gerçek ölçüm kaydı değildir.</div>
+      <div class="row3">
+        <div><label>Dağılım</label><select name="sim_dagilim"><option value="normal">Normal</option></select></div>
+        <div><label>Cpk aralığı — alt *</label><input type="number" step="any" name="sim_cpk_alt" value="1.33"></div>
+        <div><label>Cpk aralığı — üst *</label><input type="number" step="any" name="sim_cpk_ust" value="1.67"></div>
+      </div>
+      <div class="row">
+        <div><label>Çözünürlük *</label><select name="sim_coz" id="simCoz"></select><div class="hint">Cihazın en küçük okuma adımı</div></div>
+        <div><label>Cihaz *</label><input name="sim_cihaz" list="simCihazlar" placeholder="listeden seçin ya da yazın"><datalist id="simCihazlar"></datalist></div>
+      </div>
+    </div>
     <div class="foot">
       <a class="btn ghost" href="capability.html">İptal</a>
       <button class="btn primary" type="submit" id="sub"><i class="bi bi-arrow-right"></i> Oluştur ve Veri Girişine Geç</button>
@@ -69,26 +83,60 @@
     if(sixpack){ ttl = 'Yeni '+(within==='betweenwithin'?'Between/Within ':(dist!=='normal'?'Normal-Olmayan ':''))+'Sixpack Çalışması'; }
     else if(within==='betweenwithin'){ ttl='Yeni Between/Within Yeterlilik Çalışması'; }
     if(ttl && h){ h.innerHTML='<i class="bi bi-graph-up"></i> '+ttl; document.title=ttl; } }
+  // ?sim=1 → simülasyon: istenen Cpk aralığında veri üretilir (js/sim-veri.js), veri girişi atlanır
+  const SIM = MSA.q('sim','')==='1';
+  const btnMetin = SIM ? '<i class="bi bi-shuffle"></i> Üret ve Sonuçlara Geç' : '<i class="bi bi-arrow-right"></i> Oluştur ve Veri Girişine Geç';
+  if(SIM){
+    const f=document.getElementById('f');
+    document.getElementById('simKart').hidden=false;
+    ['sim_cpk_alt','sim_cpk_ust','sim_cihaz'].forEach(n=>f.elements[n].required=true);
+    f.elements.num_parts.value=125; f.elements.subgroup_size.value=1;
+    document.querySelector('.hdr h1').innerHTML='<i class="bi bi-shuffle"></i> Yeni Simülasyon Çalışması'; document.title='Yeni Simülasyon Çalışması';
+    document.getElementById('sub').innerHTML=btnMetin;
+  }
+  const simHazir = SIM ? (async()=>{   // gönderim bunu bekler; form beklerken de dinleyici bağlı kalır
+    const yukle=src=>new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('yüklenemedi: '+src)); document.head.appendChild(s); });
+    await yukle('https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js');
+    await yukle('js/cap-calculations.js?v='+Date.now()); await yukle('js/sim-veri.js?v='+Date.now());
+    document.getElementById('simCoz').innerHTML=SimVeri.COZUNURLUKLER.map(r=>'<option value="'+r+'"'+(r===0.01?' selected':'')+'>'+String(r).replace('.',',')+'</option>').join('');
+    SimVeri.cihazListesi(document.getElementById('simCihazlar'));
+  })() : null;
   document.getElementById('f').addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const btn=document.getElementById('sub'); btn.disabled=true; btn.textContent='Oluşturuluyor…';
+    const btn=document.getElementById('sub'); btn.disabled=true; btn.textContent=SIM?'Veri üretiliyor…':'Oluşturuluyor…';
     try{
       const fd=new FormData(e.target); const g=n=>fd.get(n);
       const N=parseInt(g('num_parts')), sg=parseInt(g('subgroup_size'));
+      let sim=null, degerler=null;
+      if(SIM){                          // önce üret: üretilemezse veritabanına hiçbir şey yazılmaz
+        await simHazir; await new Promise(r=>setTimeout(r,30));
+        const so={ n:N, lsl:g('lsl'), usl:g('usl'), hedef:g('target'), altGrup:sg, cozunurluk:g('sim_coz'), cpkAlt:g('sim_cpk_alt'), cpkUst:g('sim_cpk_ust'), secenek:{ withinMethod:within } };
+        const u=SimVeri.nicel(so, window.capCalculations);
+        degerler=u.degerler;
+        sim={ dagilim:'normal', cpkAlt:+so.cpkAlt, cpkUst:+so.cpkUst, cozunurluk:+so.cozunurluk, cihaz:g('sim_cihaz'), cpk:+u.cpk.toFixed(3), ppk:+u.ppk.toFixed(3) };
+        btn.textContent='Kaydediliyor…';
+      }
+      const proses=g('gauge_name')||'';
       const ins=await MSA.db.from(MSA.T.studies).insert({
-        study_name:g('study_name'), study_type:'capability', description:'Proses yeterliliği (Cp/Cpk/Pp/Ppk)',
+        study_name:g('study_name')+(SIM?' · SİMÜLASYON':''), study_type:'capability',
+        description:SIM?('SİMÜLASYON — gerçek ölçüm değildir. Normal dağılım, hedef Cpk '+sim.cpkAlt+'–'+sim.cpkUst+', çözünürlük '+sim.cozunurluk+', cihaz '+sim.cihaz+(proses?' · Proses/Hat: '+proses:'')):'Proses yeterliliği (Cp/Cpk/Pp/Ppk)',
         num_operators:1, num_parts:N, num_trials:sg,
-        gauge_name:g('gauge_name')||null, characteristic:g('characteristic')||null,
+        gauge_name:(SIM?sim.cihaz:proses)||null, characteristic:g('characteristic')||null,
         owner_email:(user.email&&user.email!=='no-session')?user.email:null,
-        status:'draft', analysis_options:{ capability:true, lsl:parseFloat(g('lsl')), usl:parseFloat(g('usl')), target:(g('target')?parseFloat(g('target')):null), subgroup_size:sg, withinMethod:within, distribution:dist, sixpack:sixpack }
+        status:'draft', analysis_options:Object.assign({ capability:true, lsl:parseFloat(g('lsl')), usl:parseFloat(g('usl')), target:(g('target')?parseFloat(g('target')):null), subgroup_size:sg, withinMethod:within, distribution:SIM?'normal':dist, sixpack:sixpack }, SIM?{ simulasyon:sim }:{})
       }).select('id').single();
       MSA.throwIf(ins.error,'study insert');
       const sid=ins.data.id;
       MSA.throwIf((await MSA.db.from(MSA.T.operators).insert([{study_id:sid,operator_number:1,operator_name:'Süreç'}])).error,'op insert');
       const prt=[]; for(let i=1;i<=N;i++) prt.push({study_id:sid,part_number:i,part_name:('Ölçüm '+i)});
       for(let i=0;i<prt.length;i+=250){ MSA.throwIf((await MSA.db.from(MSA.T.parts).insert(prt.slice(i,i+250))).error,'parts insert'); }
+      if(SIM){
+        const res=await MSA.saveMeasurements(sid, degerler.map((x,i)=>({ operator:'1', part:String(i+1), trial:1, measurement:x })));
+        if(!res.success) throw new Error(res.message||'Ölçüm kaydı');
+        location.href='cap-results.html?id='+sid; return;
+      }
       location.href='cap-data-entry.html?id='+sid;
-    }catch(err){ alert('Hata: '+err.message); btn.disabled=false; btn.innerHTML='<i class="bi bi-arrow-right"></i> Oluştur ve Veri Girişine Geç'; }
+    }catch(err){ alert((SIM?'':'Hata: ')+err.message); btn.disabled=false; btn.innerHTML=btnMetin; }
   });
 })();
 </script>

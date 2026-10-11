@@ -49,7 +49,7 @@
     return m ? m[1] : '';
   }
 
-  /** b = { degerler:[sayı], lsl, usl, hedef, urun, karakteristik, alet, sorumlu, tarih:Date|string, birim } */
+  /** b = { degerler:[sayı], lsl, usl, hedef, urun, karakteristik, alet, sorumlu, tarih:Date|string, birim, simulasyon } */
   function doldur(xml, b) {
     var neden = uygunluk({ n: b.degerler.length, lsl: b.lsl, usl: b.usl, dagilim: b.dagilim });
     if (neden) throw new Error(neden);
@@ -58,6 +58,7 @@
       xml = yaz(xml, olcumHucresi(i), Number(v));
     });
     var alet = b.alet || '';
+    if (b.simulasyon) xml = yaz(xml, 'J1', 'PROSES VE MAKİNE YETERLİLİĞİ  ·  SİMÜLASYON — gerçek ölçüm değildir');
     xml = yaz(xml, 'A7', 'ÖLÇÜM DEĞERLERİ  (' + b.degerler.length + ' adet' + (alet ? ' · ' + alet : '') + ')');
     var metin = { N8: b.urun, N11: b.karakteristik, N12: alet, N13: b.sorumlu, N15: b.birim || birimBul(b.karakteristik) };
     Object.keys(metin).forEach(function (ref) { if (metin[ref]) xml = yaz(xml, ref, String(metin[ref])); });

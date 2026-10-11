@@ -76,6 +76,18 @@
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
       <button class="btn ghost" onclick="addRow()"><i class="bi bi-plus"></i> Satır Ekle</button>
       <button class="btn ghost" onclick="clearRows()"><i class="bi bi-x-circle"></i> Temizle</button>
+      <button class="btn ghost" onclick="simAc()"><i class="bi bi-shuffle"></i> Simülasyon</button>
+    </div>
+    <div id="simPanel" hidden style="margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:12px">
+      <div class="exp" style="margin:0 0 10px"><b>Simülasyon:</b> istenen <b>Cpk eşdeğeri</b> (Süreç Z / 3) aralığında, kontrol kartı kararlı veri üretilir. Çalışma kalıcı olarak <b>SİMÜLASYON</b> işaretlenir — gerçek ölçüm kaydı değildir.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;font-size:12px;font-weight:600;color:#4a5568">
+        <label>Alt grup sayısı<input id="simK" type="number" min="2" max="500" value="25" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+        <label><span id="simNlbl">Örnek boyutu (n)</span><input id="simN" type="number" min="1" value="2000" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+        <label>Cpk aralığı — alt<input id="simA" type="number" step="any" value="1.00" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+        <label>Cpk aralığı — üst<input id="simB" type="number" step="any" value="1.33" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"></label>
+        <label>Cihaz<input id="simCihaz" list="simCihazlar" placeholder="ör. Gözle" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px"><datalist id="simCihazlar"></datalist></label>
+      </div>
+      <button class="btn primary" style="margin-top:10px" onclick="simUret(this)"><i class="bi bi-play-fill"></i> Üret</button>
     </div>
     <div class="exp" style="margin-top:10px"><b>Hedef (opsiyonel):</b> <input type="number" id="target" step="any" style="width:110px;padding:5px 8px;border:1px solid var(--line);border-radius:7px" placeholder="ör. 2"> <span id="targetUnit"></span></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
@@ -110,13 +122,14 @@ function setMode(m){
     ? '<b>Binomial:</b> Her alt grupta belirli sayıda (n) ürün kontrol edilir; kaçının <b>kusurlu</b> (Geçti/Kaldı) olduğu (d) girilir. Kusurlu oranı (p), <b>PPM</b> ve <b>Süreç Z</b> raporlanır.'
     : '<b>Poisson:</b> Her alt grupta belirli bir <b>birim/alan</b> (n — ör. rulo, m², adet) incelenir; toplam <b>hata sayısı</b> (c) girilir. Birim başına ortalama hata <b>DPU</b> raporlanır.';
   document.getElementById('targetUnit').textContent = m==='binomial'?'(% kusurlu)':'(DPU)';
+  document.getElementById('simNlbl').textContent = m==='binomial'?'Örnek boyutu (n)':'Birim / alan (n)';
   loadExample();
 }
 function rowHTML(i,n,v){ return '<tr><th>'+(i+1)+'</th><td><input class="rn" value="'+(n==null?'':n)+'" inputmode="decimal"></td><td><input class="rv" value="'+(v==null?'':v)+'" inputmode="numeric"></td></tr>'; }
 function render(rows){ document.getElementById('dtbody').innerHTML=rows.map(function(r,i){return rowHTML(i,r[0],r[1]);}).join(''); }
-function loadExample(){ render(EXAMPLES[MODE]); document.getElementById('target').value = MODE==='binomial'?'2':'3'; }
+function loadExample(){ SIM=null; render(EXAMPLES[MODE]); document.getElementById('target').value = MODE==='binomial'?'2':'3'; }
 function addRow(){ var b=document.getElementById('dtbody'); var i=b.children.length; b.insertAdjacentHTML('beforeend', rowHTML(i,'','')); }
-function clearRows(){ var rows=[]; for(var i=0;i<15;i++)rows.push(['','']); render(rows); }
+function clearRows(){ SIM=null; var rows=[]; for(var i=0;i<15;i++)rows.push(['','']); render(rows); }
 function readRows(){ var out=[]; var trs=document.querySelectorAll('#dtbody tr'); trs.forEach(function(tr){ var n=parseFloat(tr.querySelector('.rn').value); var v=parseFloat(tr.querySelector('.rv').value); if(isFinite(n)&&isFinite(v)) out.push(MODE==='binomial'?{n:n,d:v}:{n:n,c:v}); }); return out; }
 
 var attrMode='rows', jaspCtrl=null;
@@ -141,7 +154,32 @@ function colToRows(){
   var N=jaspCtrl.role('n')[0], D=jaspCtrl.role('dc')[0], num=jaspCtrl.num, n=jaspCtrl.rowCount(), rows=[];
   for(var r=0;r<n;r++){ var nn=num(N.values[r]), dd=num(D.values[r]); if(nn==null&&dd==null) continue; rows.push([nn==null?'':nn, dd==null?'':dd]); }
   if(!rows.length){ alert('n ve d/c sütunlarına veri girin.'); return; }
-  render(rows); setAttrMode('rows');
+  SIM=null; render(rows); setAttrMode('rows');
+}
+
+// Simülasyon (js/sim-veri.js): istenen Cpk eşdeğeri aralığında Binomial/Poisson veri; çalışma SİMÜLASYON işaretlenir
+var SIM=null;
+async function simAc(){
+  var p=document.getElementById('simPanel'); p.hidden=!p.hidden;
+  if(!p.hidden && !window.SimVeri){ await loadScript('js/sim-veri.js?v='+Date.now()); SimVeri.cihazListesi(document.getElementById('simCihazlar')); }
+}
+async function simUret(btn){
+  var eski=btn.innerHTML; btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Üretiliyor…';
+  await new Promise(function(r){ setTimeout(r,30); });
+  try{
+    if(!window.SimVeri) await loadScript('js/sim-veri.js?v='+Date.now());
+    var v=function(id){ return document.getElementById(id).value.trim(); };
+    var o={ tur:MODE, altGrup:Number(v('simK')), n:Number(v('simN')), cpkAlt:v('simA'), cpkUst:v('simB') };
+    var u=SimVeri.nitel(o, window.attrCapCalculations);
+    render(u.rows); setAttrMode('rows');
+    SIM={ dagilim:MODE, cpkAlt:+o.cpkAlt, cpkUst:+o.cpkUst, cihaz:v('simCihaz'), cpk:+u.cpk.toFixed(3) };
+    currentId=null;                     // yeni çalışma: açık olan (gerçek) çalışmanın üzerine yazılmaz
+    try{ history.replaceState(null,'','cap-attributes.html?mode='+MODE); }catch(e){}
+    var el=document.getElementById('studyName'); el.value=(el.value&&el.value.indexOf('SİMÜLASYON')<0?el.value:defaultName()).replace(/ · SİMÜLASYON$/,'')+' · SİMÜLASYON';
+    document.getElementById('target').value='';
+    calc();
+  }catch(e){ alert(e.message); }
+  finally{ btn.disabled=false; btn.innerHTML=eski; }
 }
 
 function calc(){
@@ -173,19 +211,22 @@ function drawReport(r){
       '<div class="kv"><b>PPM (kusurlu)</b><span>'+Math.round(r.ppm).toLocaleString('tr-TR')+'</span></div>'+
       '<div class="kv"><b>Süreç Z</b><span>'+r.Zbench.toFixed(3)+'</span></div>'+
       '<div class="kv"><b>Alt grup / Toplam n</b><span style="font-size:14px">'+r.N+' / '+r.totalN+'</span></div>'+
-      '<div class="kv"><b>Toplam kusurlu</b><span>'+r.totalD+'</span></div>';
+      '<div class="kv"><b>Toplam kusurlu</b><span>'+r.totalD+'</span></div>'+
+      '<div class="kv"><b>Cpk eşdeğeri (Z/3)</b><span>'+(r.totalD>0?(r.Zbench/3).toFixed(3):'—')+'</span></div>';
   } else {
     summ='<div class="kv"><b>Ort. DPU</b><span>'+r.ubar.toFixed(4)+'</span></div>'+
       '<div class="kv"><b>%95 GA</b><span style="font-size:14px">'+r.ciLo.toFixed(3)+' – '+r.ciHi.toFixed(3)+'</span></div>'+
       '<div class="kv"><b>Min / Maks DPU</b><span style="font-size:14px">'+r.minDPU.toFixed(2)+' / '+r.maxDPU.toFixed(2)+'</span></div>'+
       '<div class="kv"><b>DPMO</b><span>'+Math.round(r.dpmo).toLocaleString('tr-TR')+'</span></div>'+
       '<div class="kv"><b>Alt grup / Toplam birim</b><span style="font-size:14px">'+r.N+' / '+(+r.totalN.toFixed(1))+'</span></div>'+
-      '<div class="kv"><b>Toplam hata</b><span>'+r.totalC+'</span></div>';
+      '<div class="kv"><b>Toplam hata</b><span>'+r.totalC+'</span></div>'+
+      '<div class="kv"><b>Cpk eşdeğeri (Z/3)</b><span>'+(r.totalC>0?(window.attrCapCalculations.normInv(Math.exp(-r.ubar))/3).toFixed(3):'—')+'</span></div>';
   }
   verdict = r.anyOOC
     ? '<div class="verdict bad"><i class="bi bi-exclamation-triangle-fill"></i> Süreç KARARSIZ — bazı noktalar kontrol sınırları dışında. Yeterlilik tahmini güvenilmez; önce özel sebepleri giderin.</div>'
     : '<div class="verdict good"><i class="bi bi-check-circle-fill"></i> Süreç kararlı — tüm noktalar kontrol sınırları içinde. '+(isBin?'Kusurlu oranı':'DPU')+' tahmini geçerli.</div>';
 
+  if(SIM) verdict = '<div class="verdict bad"><i class="bi bi-shuffle"></i> SİMÜLASYON verisi — gerçek ölçüm değildir (hedef Cpk '+SIM.cpkAlt+'–'+SIM.cpkUst+(SIM.cihaz?' · '+SIM.cihaz:'')+').</div>' + verdict;
   document.getElementById('report').innerHTML =
     '<div class="card"><h2><i class="bi bi-grid-3x3-gap-fill i"></i> '+(isBin?'Binomial':'Poisson')+' Yeterlilik Raporu</h2>'+
     '<div class="grid4">'+
@@ -236,10 +277,11 @@ async function persist(){
   var tgt=document.getElementById('target').value;
   var rowsData=rows.map(function(r){ return MODE==='binomial'?[r.n,r.d]:[r.n,r.c]; });
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
-  var rec={ study_name:name, study_type:MODE, description:(MODE==='binomial'?'Binomial':'Poisson')+' yeterlilik (nitel)', status:'calculated',
+  var rec={ study_name:name, study_type:MODE, description:(SIM?'SİMÜLASYON — gerçek ölçüm değildir. ':'')+(MODE==='binomial'?'Binomial':'Poisson')+' yeterlilik (nitel)'+(SIM?', hedef Cpk '+SIM.cpkAlt+'–'+SIM.cpkUst+(SIM.cihaz?', cihaz '+SIM.cihaz:''):''), status:'calculated',
     num_operators:1, num_parts:1, num_trials:1,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
-    analysis_options:{ attr:true, mode:MODE, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) } };
+    analysis_options:Object.assign({ attr:true, mode:MODE, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) }, SIM?{ simulasyon:SIM }:{}) };
+  if(SIM && SIM.cihaz) rec.gauge_name=SIM.cihaz;
   var st=document.getElementById('saveState');
   try{
     if(currentId){ var u=await MSA.db.from(MSA.T.studies).update(rec).eq('id',currentId); if(u.error)throw u.error; }
@@ -262,6 +304,7 @@ async function loadSaved(id){
   if(q.error||!q.data){ setMode('binomial'); return; }
   var s=q.data, opt=s.analysis_options||{};
   setMode(s.study_type==='poisson'?'poisson':'binomial');
+  SIM=opt.simulasyon||null;
   if(opt.rows && opt.rows.length){ render(opt.rows); }
   if(opt.target!=null) document.getElementById('target').value=opt.target;
   document.getElementById('studyName').value=s.study_name||'';
@@ -274,6 +317,7 @@ async function loadSaved(id){
   var id=MSA.q('id');
   if(id){ await loadSaved(id); }
   else { var m=(new URLSearchParams(location.search)).get('mode'); setMode(m==='poisson'?'poisson':'binomial'); document.getElementById('studyName').value=defaultName(); }
+  if(MSA.q('sim')==='1') simAc();
 })();
 </script>
 </body>
