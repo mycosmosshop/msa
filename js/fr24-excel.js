@@ -71,7 +71,7 @@
     if (b.simulasyon) xml = yaz(xml, 'J1', 'PROSES VE MAKİNE YETERLİLİĞİ  ·  SİMÜLASYON — gerçek ölçüm değildir');
     if (b.kabul) xml = kabulYaz(xml, b.kabul);
     xml = yaz(xml, 'A7', 'ÖLÇÜM DEĞERLERİ  (' + b.degerler.length + ' adet' + (alet ? ' · ' + alet : '') + ')');
-    var metin = { N8: b.urun, N11: b.karakteristik, N12: alet, N13: b.sorumlu, N15: b.birim || birimBul(b.karakteristik) };
+    var metin = { N8: b.urun, N11: b.karakteristik, N12: alet, N13: b.sorumlu, N15: b.birim || birimBul(b.karakteristik), N16: b.yapan };
     Object.keys(metin).forEach(function (ref) { if (metin[ref]) xml = yaz(xml, ref, String(metin[ref])); });
     var t = b.tarih ? new Date(b.tarih) : null;
     if (t && !isNaN(t.getTime())) xml = yaz(xml, 'N14', excelTarih(t));
@@ -82,16 +82,53 @@
     return xml;
   }
 
-  /** şablon (ArrayBuffer/Buffer) → doldurulmuş xlsx; tip: 'blob' (tarayıcı) | 'nodebuffer' (test) */
-  async function olustur(JSZip, sablon, b, tip) {
+  // ── FR24 NİTEL (p / np / u / c) — şablon templates/fr24-nitel-sablon.xlsx (erp-araclar/fr24_nitel_sablon.py).
+  // İstatistik, sınırlar, Cpk eşdeğeri, değerlendirme ve grafikler şablonda canlı formül; burada yalnız değerler.
+  var NITEL_KAPASITE = 50, KARTLAR = { p: 1, np: 1, u: 1, c: 1 };
+
+  function nitelUygunluk(o) {
+    var rows = o.rows || [];
+    if (rows.length < 2) return 'En az 2 alt grup gerekli.';
+    if (rows.length > NITEL_KAPASITE) return 'FR24 nitel formu en fazla ' + NITEL_KAPASITE + ' alt grup alır; bu çalışmada ' + rows.length + ' var.';
+    if (!KARTLAR[o.kart]) return 'Kart türü p, np, u ya da c olmalı.';
+    var binom = o.kart === 'p' || o.kart === 'np';
+    for (var i = 0; i < rows.length; i++) {
+      var n = Number(rows[i][0]), x = Number(rows[i][1]);
+      if (!(n > 0) || !(x >= 0) || (binom && x > n)) return (i + 1) + '. alt grupta geçersiz değer (n > 0' + (binom ? ', 0 ≤ kusurlu ≤ n' : ', hata ≥ 0') + ').';
+    }
+    return '';
+  }
+
+  /** b = { rows:[[n, kusurlu|hata]], kart:'p'|'np'|'u'|'c', urun, karakteristik, alet, sorumlu, yapan, tarih, hedef, kabul, simulasyon } */
+  function nitelDoldur(xml, b) {
+    var neden = nitelUygunluk(b);
+    if (neden) throw new Error(neden);
+    b.rows.forEach(function (r, i) { xml = yaz(xml, 'B' + (9 + i), Number(r[0])); xml = yaz(xml, 'C' + (9 + i), Number(r[1])); });
+    var alet = b.alet || '';
+    if (b.simulasyon) xml = yaz(xml, 'J1', 'PROSES VE MAKİNE YETERLİLİĞİ  ·  NİTEL  ·  SİMÜLASYON — gerçek ölçüm değildir');
+    xml = yaz(xml, 'A7', 'ALT GRUP VERİLERİ  (' + b.rows.length + ' alt grup' + (alet ? ' · ' + alet : '') + ')');
+    var metin = { N8: b.urun, N11: b.karakteristik, N12: alet, N13: b.sorumlu, N14: b.yapan };
+    Object.keys(metin).forEach(function (ref) { if (metin[ref]) xml = yaz(xml, ref, String(metin[ref])); });
+    var t = b.tarih ? new Date(b.tarih) : null;
+    if (t && !isNaN(t.getTime())) xml = yaz(xml, 'N15', excelTarih(t));
+    xml = yaz(xml, 'N16', b.kart);
+    var h = parseFloat(b.hedef);
+    if (isFinite(h)) xml = yaz(xml, 'N20', h);
+    if (b.kabul) { xml = yaz(xml, 'N21', +b.kabul.yeterli); xml = yaz(xml, 'N22', +b.kabul.sartli); }
+    return xml;
+  }
+
+  /** şablon (ArrayBuffer/Buffer) → doldurulmuş xlsx; tip: 'blob' (tarayıcı) | 'nodebuffer' (test); fn: doldur | nitelDoldur */
+  async function olustur(JSZip, sablon, b, tip, fn) {
     var zip = await JSZip.loadAsync(sablon);
     var yol = 'xl/worksheets/sheet1.xml';
-    zip.file(yol, doldur(await zip.file(yol).async('string'), b), { createFolders: false });   // klasör girdisi eklenmesin
+    zip.file(yol, (fn || doldur)(await zip.file(yol).async('string'), b), { createFolders: false });   // klasör girdisi eklenmesin
     return zip.generateAsync({ type: tip || 'blob', compression: 'DEFLATE',
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
-  var api = { uygunluk: uygunluk, doldur: doldur, olustur: olustur, olcumHucresi: olcumHucresi, KAPASITE: KAPASITE };
+  var api = { uygunluk: uygunluk, doldur: doldur, olustur: olustur, olcumHucresi: olcumHucresi, KAPASITE: KAPASITE,
+    nitelUygunluk: nitelUygunluk, nitelDoldur: nitelDoldur, NITEL_KAPASITE: NITEL_KAPASITE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.fr24Excel = api;
 })();

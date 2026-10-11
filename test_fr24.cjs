@@ -25,7 +25,7 @@ const hucre = (xml, ref) => (xml.match(new RegExp('<c r="' + ref + '"[^>]*?(?:/>
   for (const n of [125, 37]) {
     const degerler = Array.from({ length: n }, () => +normal(25.07, 0.54).toFixed(2));
     const b = { degerler, lsl: '22', usl: '28', hedef: 25, dagilim: 'normal', urun: 'Deneme <Ürün> & Co', karakteristik: 'Kalınlık (mm)',
-      alet: 'Kumpas', sorumlu: 'kalite@ornek.com', tarih: '2026-10-10' };
+      alet: 'Kumpas', sorumlu: 'Kalite Sorumlusu', yapan: 'Operatör A', tarih: '2026-10-10' };
     const buf = await F.olustur(JSZip, sablon, b, 'nodebuffer');
     const z = await JSZip.loadAsync(buf), x = await z.file('xl/worksheets/sheet1.xml').async('string');
     x0 = x;
@@ -35,6 +35,7 @@ const hucre = (xml, ref) => (xml.match(new RegExp('<c r="' + ref + '"[^>]*?(?:/>
     assert(hucre(x, 'N14').includes('<v>46305</v>'), '10.10.2026 = 46305');
     assert(hucre(x, 'N8').includes('Deneme &lt;Ürün&gt; &amp; Co'), 'metin kaçışlı');
     assert(hucre(x, 'N15').includes('>mm<'), 'birim karakteristikten');
+    assert(hucre(x, 'N16').includes('Operatör A') && hucre(x, 'J16').includes('Çalışmayı yapan'), 'çalışmayı yapan satırı');
     assert(hucre(x, 'A7').includes(`(${n} adet · Kumpas)`));
     assert(!hucre(x, 'J1').includes('SİMÜLASYON'), 'gerçek veride simülasyon yazmaz');
     assert(hucre(x, 'N9').endsWith('/>') && hucre(x, 'N10').endsWith('/>'), 'ERP\'de olmayan alan boş kalır (uydurulmaz)');

@@ -74,6 +74,7 @@
     </div>
     <div class="acts">
       <button class="btn primary" onclick="calc()"><i class="bi bi-graph-up"></i> Hesapla</button>
+      <button class="btn ghost" onclick="nitelExcel(this)" title="FR24 nitel formu: formüllü, grafikli Excel"><i class="bi bi-file-earmark-excel"></i> Excel (FR24)</button>
       <button class="btn ok" onclick="loadExample()"><i class="bi bi-magic"></i> Örnek Veriyi Yükle</button>
       <button class="btn ghost" onclick="addRow()"><i class="bi bi-plus"></i> Satır Ekle</button>
       <button class="btn ghost" onclick="clearRows()"><i class="bi bi-x-circle"></i> Temizle</button>
@@ -98,6 +99,10 @@
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
       <label style="font-size:12px;font-weight:600;color:#4a5568;display:flex;align-items:center;gap:8px;flex:1;min-width:220px">Çalışma adı
         <input id="studyName" onblur="renameStudy()" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></label>
+      <label style="font-size:12px;font-weight:600;color:#4a5568;display:flex;align-items:center;gap:8px">Tarih
+        <input type="date" id="studyDate" onchange="alanKaydet('study_date',this.value)" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></label>
+      <label style="font-size:12px;font-weight:600;color:#4a5568;display:flex;align-items:center;gap:8px;min-width:200px">Çalışmayı yapan
+        <input id="performedBy" onblur="alanKaydet('performed_by',this.value.trim())" placeholder="ad soyad" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></label>
       <span id="saveState" style="color:var(--muted);font-size:12px"><i class="bi bi-cloud"></i> Hesaplayınca otomatik panoya kaydedilir</span>
     </div>
   </div>
@@ -199,6 +204,31 @@ async function simUret(btn){
   finally{ btn.disabled=false; btn.innerHTML=eski; }
 }
 
+// FR24 nitel Excel: şablona (templates/fr24-nitel-sablon.xlsx) yalnız değerler yazılır; istatistik, sınırlar,
+// değerlendirme ve grafikler Excel'de canlı formül (js/fr24-excel.js → nitelDoldur)
+async function nitelExcel(btn){
+  var rows=readRows().map(function(r){ return [r.n, MODE==='binomial'?r.d:r.c]; });
+  var sabitN=rows.every(function(r){ return r[0]===(rows[0]||[])[0]; });
+  var kart=(KART==='np'||KART==='c') && !sabitN ? (MODE==='binomial'?'p':'u') : KART;   // ekranda gösterilen kart
+  var eski=btn.innerHTML; btn.disabled=true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Hazırlanıyor…';
+  try{
+    if(!window.JSZip) await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    if(!window.fr24Excel) await loadScript('js/fr24-excel.js?v='+Date.now());
+    var neden=fr24Excel.nitelUygunluk({ rows:rows, kart:kart }); if(neden) throw new Error(neden);
+    var user={}; try{ user=await MSA.currentUser(); }catch(e){}
+    var ad=document.getElementById('studyName').value.trim()||defaultName();
+    var b={ rows:rows, kart:kart, urun:ad, karakteristik:'', alet:(SIM&&SIM.cihaz)||ALET,
+      sorumlu:/\s/.test(user.name||'')?user.name:'', yapan:document.getElementById('performedBy').value.trim(),
+      tarih:document.getElementById('studyDate').value||bugun(), hedef:document.getElementById('target').value, simulasyon:!!SIM };
+    var r=await fetch('templates/fr24-nitel-sablon.xlsx?v='+Date.now()); if(!r.ok) throw new Error('FR24 nitel şablonu yüklenemedi ('+r.status+')');
+    var blob=await fr24Excel.olustur(JSZip, await r.arrayBuffer(), b, 'blob', fr24Excel.nitelDoldur);
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=('FR24 Nitel Yeterlilik '+ad).replace(/[\\/:*?"<>|]+/g,' ').trim()+'.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+  }catch(e){ alert('Excel oluşturulamadı: '+e.message); }
+  finally{ btn.disabled=false; btn.innerHTML=eski; }
+}
+
 function calc(){
   var rows=readRows();
   if(rows.length<2){ alert('En az 2 geçerli alt grup girin.'); return; }
@@ -294,16 +324,21 @@ function drawReport(r){
   ]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{title:{display:true,text:unit}}, y:{title:{display:true,text:'Frekans'},beginAtZero:true} }, plugins:{legend:{display:false}} } }));
 }
 
-var currentId = null;
+var currentId = null, ALET = '';
+function bugun(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// tarih / çalışmayı yapan: kayıtlı çalışmada hemen yazılır, yeni çalışmada ilk Hesapla ile
+async function alanKaydet(alan, v){ if(!currentId) return; try{ var u={}; u[alan]=v||null; await MSA.db.from(MSA.T.studies).update(u).eq('id',currentId); }catch(e){} }
 function defaultName(){ try{ return (MODE==='binomial'?'Binomial':'Poisson')+' '+new Date().toLocaleDateString('tr-TR'); }catch(e){ return (MODE==='binomial'?'Binomial':'Poisson')+' analizi'; } }
 async function persist(){
   var rows=readRows(); if(rows.length<2) return;
   var el=document.getElementById('studyName'); var name=(el.value||'').trim(); if(!name){ name=defaultName(); el.value=name; }
   var tgt=document.getElementById('target').value;
+  var tEl=document.getElementById('studyDate'); if(!tEl.value) tEl.value=bugun();
   var rowsData=rows.map(function(r){ return MODE==='binomial'?[r.n,r.d]:[r.n,r.c]; });
   var user={}; try{ user=await MSA.currentUser(); }catch(e){}
   var rec={ study_name:name, study_type:MODE, description:(SIM?'SİMÜLASYON — gerçek ölçüm değildir. ':'')+(MODE==='binomial'?'Binomial':'Poisson')+' yeterlilik (nitel)'+(SIM?', hedef Cpk '+SIM.cpkAlt+'–'+SIM.cpkUst+(SIM.cihaz?', cihaz '+SIM.cihaz:''):''), status:'calculated',
     num_operators:1, num_parts:1, num_trials:1,
+    study_date:tEl.value||null, performed_by:(document.getElementById('performedBy').value||'').trim()||null,
     owner_email:(user&&user.email&&user.email!=='no-session')?user.email:null,
     analysis_options:Object.assign({ attr:true, mode:MODE, kart:KART, rows:rowsData, target:(tgt!==''?parseFloat(tgt):null) }, SIM?{ simulasyon:SIM }:{}) };
   if(SIM && SIM.cihaz) rec.gauge_name=SIM.cihaz;
@@ -334,6 +369,9 @@ async function loadSaved(id){
   if(opt.rows && opt.rows.length){ render(opt.rows); }
   if(opt.target!=null) document.getElementById('target').value=opt.target;
   document.getElementById('studyName').value=s.study_name||'';
+  document.getElementById('studyDate').value=s.study_date||(s.created_at?String(s.created_at).slice(0,10):'');
+  document.getElementById('performedBy').value=s.performed_by||'';
+  ALET=s.gauge_name||'';
   calc();
 }
 (async function(){

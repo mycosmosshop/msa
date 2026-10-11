@@ -98,7 +98,7 @@ function loadScript(src){ return new Promise(function(res,rej){ var s=document.c
       neden: window.fr24Excel.uygunluk({ n: data.length, lsl: callOpts.lsl, usl: callOpts.usl, dagilim: callOpts.distribution }),
       bilgi: { degerler: data.map(d => d.value), lsl: callOpts.lsl, usl: callOpts.usl, hedef: callOpts.target, dagilim: callOpts.distribution,
         urun: study.part_name || study.study_name, karakteristik: study.characteristic || '', alet: study.gauge_name || '',
-        sorumlu: study.performed_by || study.owner_email || '', tarih: study.study_date || study.created_at || null,
+        sorumlu: /\s/.test(user.name || '') ? user.name : '', yapan: study.performed_by || '', tarih: study.study_date || study.created_at || null,
         simulasyon: !!opts.simulasyon, kabul: kabulOzel ? kabul : null }
     };
     await MSA.renderPage('cap-results.ejs', { user, study, results, opts: callOpts, sixpack: showSixpack, branding: MSA.BRANDING, fr24, sim: opts.simulasyon || null, kabul, kabulOzel });
